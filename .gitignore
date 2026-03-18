@@ -13,6 +13,7 @@ node_modules/
 .DS_Store
 Thumbs.db
 *.log
+mail.log
 
 # Claude Code 配置
 .claude/

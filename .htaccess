@@ -1,0 +1,17 @@
+# 阻止直接访问敏感文件
+<FilesMatch "\.(env|sqlite|sqlite-journal|js|json|md)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order deny,allow
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+# 允许访问 public/ 下的静态资源（由 Express 托管，此规则备用）
+<FilesMatch "\.(html|css|js|png|jpg|ico|woff2?)$">
+  <IfModule mod_authz_core.c>
+    Require all granted
+  </IfModule>
+</FilesMatch>

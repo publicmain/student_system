@@ -1,0 +1,1746 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>学生升学与学业规划管理系统</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+" crossorigin="anonymous">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ════════════════════ 登录页 ════════════════════ -->
+<div id="login-page" class="login-wrapper">
+  <div class="login-card">
+    <div class="text-center mb-4">
+      <div class="logo-icon mb-3"><i class="bi bi-mortarboard-fill"></i></div>
+      <h4 class="fw-bold text-dark">学生升学与学业规划管理系统</h4>
+      <p class="text-muted small">Student Academic Planning System</p>
+    </div>
+    <div id="login-error" class="alert alert-danger d-none"></div>
+    <form id="login-form">
+      <div class="mb-3">
+        <label class="form-label fw-semibold">用户名</label>
+        <input type="text" class="form-control" id="login-username" placeholder="请输入用户名" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-semibold">密码</label>
+        <input type="password" class="form-control" id="login-password" placeholder="请输入密码" required>
+      </div>
+      <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
+        <i class="bi bi-box-arrow-in-right me-1"></i> 登 录
+      </button>
+    </form>
+    <!-- 演示账户提示已移除，请联系管理员获取登录凭据 -->
+  </div>
+</div>
+
+<!-- ════════════════════ 主应用 ════════════════════ -->
+<div id="app" class="d-none">
+
+  <!-- 顶部导航 -->
+  <nav class="top-nav">
+    <div class="d-flex align-items-center gap-3">
+      <button class="btn btn-link text-white p-0" id="sidebar-toggle">
+        <i class="bi bi-list fs-4"></i>
+      </button>
+      <span class="fw-bold fs-5"><i class="bi bi-mortarboard-fill me-2"></i>升学规划系统</span>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+      <!-- 通知铃 -->
+      <div class="position-relative d-none" id="notif-bell-wrap">
+        <button class="btn btn-link text-white p-1" id="notif-bell-btn" title="通知">
+          <i class="bi bi-bell-fill fs-5"></i>
+          <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="notif-badge" style="display:none;font-size:10px"></span>
+        </button>
+      </div>
+      <span class="badge bg-light text-dark" id="nav-role-badge"></span>
+      <span class="text-white" id="nav-username"></span>
+      <button class="btn btn-outline-light btn-sm" onclick="openChangePasswordModal()" title="修改密码">
+        <i class="bi bi-key"></i>
+      </button>
+      <button class="btn btn-outline-light btn-sm" id="logout-btn">
+        <i class="bi bi-box-arrow-right me-1"></i>退出
+      </button>
+    </div>
+  </nav>
+
+  <!-- 通知面板（下拉） -->
+  <div id="notif-panel" class="card shadow" style="display:none;position:fixed;top:56px;right:16px;width:360px;max-height:480px;overflow-y:auto;z-index:1050">
+    <div class="card-header d-flex justify-content-between align-items-center py-2">
+      <span class="fw-semibold"><i class="bi bi-bell me-1"></i>通知中心</span>
+      <div class="d-flex gap-1">
+        <button class="btn btn-link btn-sm p-0 text-secondary" id="notif-generate-btn" title="生成新通知（检测逾期任务/到期事项）"><i class="bi bi-magic"></i></button>
+        <button class="btn btn-link btn-sm p-0 text-secondary" id="notif-read-all-btn" title="全部已读"><i class="bi bi-check-all"></i></button>
+        <button class="btn btn-link btn-sm p-0 text-secondary" onclick="document.getElementById('notif-panel').style.display='none'"><i class="bi bi-x-lg"></i></button>
+      </div>
+    </div>
+    <div id="notif-list" class="list-group list-group-flush"></div>
+  </div>
+
+  <div class="app-body">
+    <!-- 侧边栏 -->
+    <aside id="sidebar" class="sidebar">
+      <nav class="sidebar-nav">
+        <div class="nav-section-title">主导航</div>
+
+        <a href="#" class="nav-item" data-page="dashboard" data-roles="principal,counselor">
+          <i class="bi bi-speedometer2"></i><span>总览仪表盘</span>
+        </a>
+        <a href="#" class="nav-item" data-page="counselor" data-roles="counselor,principal">
+          <i class="bi bi-person-lines-fill"></i><span>规划师工作台</span>
+        </a>
+        <a href="#" class="nav-item" data-page="mentor" data-roles="mentor,principal">
+          <i class="bi bi-person-check-fill"></i><span>导师工作台</span>
+        </a>
+        <a href="#" class="nav-item" data-page="student-portal" data-roles="student">
+          <i class="bi bi-person-fill"></i><span>我的门户</span>
+        </a>
+        <a href="#" class="nav-item" data-page="parent-portal" data-roles="parent">
+          <i class="bi bi-people-fill"></i><span>家长门户</span>
+        </a>
+
+        <div class="nav-section-title mt-3">管理</div>
+
+        <a href="#" class="nav-item" data-page="students" data-roles="principal,counselor,mentor">
+          <i class="bi bi-person-vcard"></i><span>学生管理</span>
+        </a>
+        <a href="#" class="nav-item" data-page="staff" data-roles="principal,counselor">
+          <i class="bi bi-people"></i><span>师资管理</span>
+        </a>
+        <a href="#" class="nav-item" data-page="materials" data-roles="principal,counselor,mentor">
+          <i class="bi bi-folder2-open"></i><span>材料看板</span>
+        </a>
+        <!-- intake_staff 专用快捷入口（在管理分区显示学生列表供查询） -->
+        <a href="#" class="nav-item" data-page="students" data-roles="intake_staff">
+          <i class="bi bi-person-vcard"></i><span>学生查询</span>
+        </a>
+        <a href="#" class="nav-item" data-page="feedback-list" data-roles="principal,counselor">
+          <i class="bi bi-chat-dots"></i><span>反馈管理</span>
+        </a>
+        <a href="#" class="nav-item" data-page="admission-programs" data-roles="principal,counselor">
+          <i class="bi bi-mortarboard-fill"></i><span>录取评估库</span>
+        </a>
+        <a href="#" class="nav-item" data-page="analytics" data-roles="principal,counselor">
+          <i class="bi bi-bar-chart-line-fill"></i><span>数据分析</span>
+        </a>
+        <a href="#" class="nav-item" data-page="audit" data-roles="principal">
+          <i class="bi bi-clock-history"></i><span>操作审计</span>
+        </a>
+        <a href="#" class="nav-item" data-page="settings" data-roles="principal,counselor">
+          <i class="bi bi-gear"></i><span>系统设置</span>
+        </a>
+
+        <div class="nav-section-title mt-3">入学管理</div>
+
+        <a href="#" class="nav-item" data-page="intake-dashboard" data-roles="principal,intake_staff,student_admin">
+          <i class="bi bi-house-door"></i><span>入学总览</span>
+        </a>
+        <a href="#" class="nav-item" data-page="intake-cases" data-roles="principal,intake_staff,student_admin">
+          <i class="bi bi-person-lines-fill"></i><span>入学案例</span>
+        </a>
+
+      </nav>
+    </aside>
+
+    <!-- 主内容 -->
+    <main id="main-content" class="main-content">
+      <!-- 动态渲染 -->
+    </main>
+  </div>
+</div>
+
+<!-- ════════════════════ 模态框 ════════════════════ -->
+
+<!-- 通用确认框 -->
+<div class="modal fade" id="confirm-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title" id="confirm-title">确认操作</h5></div>
+      <div class="modal-body" id="confirm-body">确定执行此操作？</div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-danger btn-sm" id="confirm-ok">确定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 通用表单弹窗 -->
+<div class="modal fade" id="generic-form-modal" tabindex="-1">
+  <div class="modal-dialog modal-md">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="generic-form-title">操作</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="generic-form-body"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary btn-sm" id="generic-form-ok">确定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 学生表单 -->
+<div class="modal fade" id="student-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title" id="student-modal-title">新增学生</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="s-id">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">姓名 *</label>
+            <input class="form-control" id="s-name" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">年级 *</label>
+            <select class="form-select" id="s-grade">
+              <option value="G9">G9</option><option value="G10">G10</option>
+              <option value="G11">G11</option><option value="G12" selected>G12</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">考试局</label>
+            <select class="form-select" id="s-board">
+              <option value="Edexcel">Edexcel</option>
+              <option value="CIE">CIE / Cambridge</option>
+              <option value="A-Level">A-Level (英国本土)</option>
+              <option value="">未指定</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">入学日期</label>
+            <input type="date" class="form-control" id="s-enrol">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">出生日期 <span class="text-muted small">（用于未满14岁合规判断）</span></label>
+            <input type="date" class="form-control" id="s-dob">
+          </div>
+          <div class="col-12">
+            <label class="form-label">备注</label>
+            <textarea class="form-control" id="s-notes" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="save-student-btn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 教职工表单 -->
+<div class="modal fade" id="staff-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title" id="staff-modal-title">新增教职工</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="st-id">
+        <div class="row g-3">
+          <div class="col-md-6"><label class="form-label">姓名 *</label><input class="form-control" id="st-name"></div>
+          <div class="col-md-6">
+            <label class="form-label">角色 *</label>
+            <select class="form-select" id="st-role">
+              <option value="counselor">升学规划师</option>
+              <option value="mentor">导师</option>
+              <option value="teacher">学科教师</option>
+              <option value="external">外部顾问</option>
+              <option value="principal">校长</option>
+            </select>
+          </div>
+          <div class="col-md-6"><label class="form-label">邮箱</label><input class="form-control" id="st-email" type="email"></div>
+          <div class="col-md-6"><label class="form-label">电话</label><input class="form-control" id="st-phone"></div>
+          <div class="col-md-6">
+            <label class="form-label">考试局经验</label>
+            <div class="d-flex gap-2 flex-wrap">
+              <div class="form-check"><input class="form-check-input" type="checkbox" value="Edexcel" id="eb-edexcel"><label class="form-check-label" for="eb-edexcel">Edexcel</label></div>
+              <div class="form-check"><input class="form-check-input" type="checkbox" value="CIE" id="eb-cie"><label class="form-check-label" for="eb-cie">CIE</label></div>
+              <div class="form-check"><input class="form-check-input" type="checkbox" value="A-Level" id="eb-alevel"><label class="form-check-label" for="eb-alevel">A-Level</label></div>
+            </div>
+          </div>
+          <div class="col-md-6"><label class="form-label">最大带学生数</label><input class="form-control" id="st-capacity" type="number" value="20"></div>
+          <div class="col-12"><label class="form-label">擅长科目 (逗号分隔)</label><input class="form-control" id="st-subjects" placeholder="数学, 物理, 化学"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-success" id="save-staff-btn">保存（自动创建账号）</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 任务表单 -->
+<div class="modal fade" id="task-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-warning">
+        <h5 class="modal-title">添加里程碑任务</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="task-student-id">
+        <input type="hidden" id="task-app-id">
+        <input type="hidden" id="task-id">
+        <div class="mb-2"><label class="form-label">任务标题 *</label><input class="form-control" id="task-title"></div>
+        <div class="mb-2"><label class="form-label">说明</label><textarea class="form-control" id="task-desc" rows="2"></textarea></div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label">类别</label>
+            <select class="form-select" id="task-category">
+              <option>材料</option><option>考试</option><option>申请</option>
+              <option>面试</option><option>沟通</option><option>其他</option>
+            </select>
+          </div>
+          <div class="col-6"><label class="form-label">截止日期</label><input type="date" class="form-control" id="task-due"></div>
+          <div class="col-6">
+            <label class="form-label">优先级</label>
+            <select class="form-select" id="task-priority">
+              <option value="high">高</option><option value="normal" selected>普通</option><option value="low">低</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">状态</label>
+            <select class="form-select" id="task-status">
+              <option value="pending">待处理</option><option value="in_progress">进行中</option>
+              <option value="done">已完成</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-warning" id="save-task-btn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 材料表单 -->
+<div class="modal fade" id="material-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title">材料管理</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="mat-id">
+        <input type="hidden" id="mat-student-id">
+        <div class="mb-2">
+          <label class="form-label">材料类型</label>
+          <select class="form-select" id="mat-type">
+            <option>成绩单</option><option>推荐信</option><option>活动证明</option>
+            <option>个人陈述</option><option>语言成绩</option><option>其他</option>
+          </select>
+        </div>
+        <div class="mb-2"><label class="form-label">标题/说明</label><input class="form-control" id="mat-title"></div>
+        <div class="mb-2">
+          <label class="form-label">状态</label>
+          <select class="form-select" id="mat-status">
+            <option>未开始</option><option>收集中</option><option>已上传</option>
+            <option>已审核</option><option>已提交</option><option>需补件</option>
+          </select>
+        </div>
+        <div class="mb-2"><label class="form-label">备注</label><textarea class="form-control" id="mat-notes" rows="2"></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-info text-white" id="save-material-btn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 目标院校表单 -->
+<div class="modal fade" id="target-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">添加目标院校</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="tgt-student-id">
+        <input type="hidden" id="tgt-id">
+        <div class="mb-2"><label class="form-label">院校名称 *</label><input class="form-control" id="tgt-name"></div>
+        <div class="mb-2"><label class="form-label">申请专业</label><input class="form-control" id="tgt-dept"></div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label">梯度</label>
+            <select class="form-select" id="tgt-tier">
+              <option value="冲刺">冲刺</option><option value="意向" selected>意向</option><option value="保底">保底</option>
+            </select>
+          </div>
+          <div class="col-6"><label class="form-label">排序</label><input class="form-control" id="tgt-rank" type="number" value="1"></div>
+        </div>
+        <div class="mt-2"><label class="form-label">选择理由</label><textarea class="form-control" id="tgt-rationale" rows="2"></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="save-target-btn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 申请表单 -->
+<div class="modal fade" id="application-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title" id="app-modal-title">添加申请</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="app-id">
+        <input type="hidden" id="app-student-id">
+        <div class="row g-3">
+          <div class="col-md-6"><label class="form-label">院校名称 *</label><input class="form-control" id="app-uni"></div>
+          <div class="col-md-6"><label class="form-label">申请专业</label><input class="form-control" id="app-dept"></div>
+          <div class="col-md-4">
+            <label class="form-label">梯度</label>
+            <select class="form-select" id="app-tier">
+              <option value="冲刺">冲刺</option><option value="意向" selected>意向</option><option value="保底">保底</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">申请通道</label>
+            <select class="form-select" id="app-route">
+              <option value="UK-UG">英国本科 UK-UG</option>
+              <option value="US">美国 US</option>
+              <option value="CA">加拿大 CA</option>
+              <option value="AU">澳洲 AU</option>
+            </select>
+          </div>
+          <div class="col-md-4"><label class="form-label">入学年份</label><input class="form-control" id="app-year" type="number" value="2026"></div>
+          <div class="col-md-6"><label class="form-label">提交截止日</label><input type="date" class="form-control" id="app-deadline"></div>
+          <div class="col-md-6"><label class="form-label">实际提交日</label><input type="date" class="form-control" id="app-submit-date"></div>
+          <div class="col-md-6">
+            <label class="form-label">Offer类型</label>
+            <select class="form-select" id="app-offer-type">
+              <option value="Pending">待定</option><option value="Conditional">条件offer</option>
+              <option value="Unconditional">无条件offer</option><option value="Rejected">拒信</option><option value="Waitlist">候补</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">申请状态</label>
+            <select class="form-select" id="app-status">
+              <option value="pending">准备中</option><option value="applied">已提交</option>
+              <option value="offer">有Offer</option><option value="firm">已确认</option>
+              <option value="declined">已拒绝</option><option value="enrolled">已入学</option>
+            </select>
+          </div>
+          <div class="col-12"><label class="form-label">条件说明 / 备注</label><textarea class="form-control" id="app-notes" rows="2"></textarea></div>
+          <!-- 路线专属扩展字段（动态注入） -->
+          <div id="app-ext-fields" class="row g-3"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="save-application-btn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 沟通记录表单 -->
+<div class="modal fade" id="comm-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">添加沟通记录</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="comm-student-id">
+        <div class="mb-2">
+          <label class="form-label">沟通渠道</label>
+          <select class="form-select" id="comm-channel">
+            <option>微信</option><option>邮件</option><option>电话</option><option>面谈</option>
+          </select>
+        </div>
+        <div class="mb-2"><label class="form-label">沟通日期</label><input type="datetime-local" class="form-control" id="comm-date"></div>
+        <div class="mb-2"><label class="form-label">沟通摘要 *</label><textarea class="form-control" id="comm-summary" rows="3"></textarea></div>
+        <div class="mb-2"><label class="form-label">待办事项</label><textarea class="form-control" id="comm-actions" rows="2"></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="save-comm-btn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 个人陈述编辑 -->
+<div class="modal fade" id="ps-modal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title" id="ps-modal-title">个人陈述编辑（三问结构 2026起）</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="ps-id">
+        <input type="hidden" id="ps-student-id">
+        <div class="alert alert-info small py-2" id="ps-info-text-display">
+          <i class="bi bi-info-circle me-1"></i>
+          英国2026年起个人陈述采用三问结构，总字符数限制约4000字符。
+        </div>
+        <div class="row g-3">
+          <div id="ps-questions-container" class="col-12">
+            <!-- dynamically rendered by app.js -->
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">状态</label>
+            <select class="form-select" id="ps-status">
+              <option value="草稿">草稿</option><option value="一审中">一审中</option>
+              <option value="需修改">需修改</option><option value="二审中">二审中</option>
+              <option value="定稿">定稿</option><option value="已提交">已提交</option>
+            </select>
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">审阅意见</label>
+            <input class="form-control" id="ps-review-notes" placeholder="导师/规划师的审阅意见...">
+          </div>
+        </div>
+        <div class="mt-2 text-end">
+          <span class="fw-bold">总字符数：</span><span id="ps-total-count" class="text-primary">0</span> / <span id="ps-char-limit-display">4000</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="save-ps-btn">保存新版本</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 生成时间线 -->
+<div class="modal fade" id="timeline-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-calendar-event me-2"></i>从模板生成时间线</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="tl-student-id">
+        <div class="alert alert-info small py-2">
+          <i class="bi bi-info-circle me-1"></i>
+          选择一个模板，系统将根据每项任务的"提前天数"从申请截止日倒推自动生成里程碑。
+        </div>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label fw-semibold">选择模板 *</label>
+            <select class="form-select" id="tl-template-id">
+              <option value="">— 加载中 —</option>
+            </select>
+          </div>
+          <div id="tl-template-preview" class="col-12 d-none">
+            <div class="border rounded p-2 bg-light small text-muted" id="tl-preview-text"></div>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">申请截止基准日期 *</label>
+            <input type="date" class="form-control" id="tl-deadline">
+            <div class="form-text">任务日期将从此日期向前倒推计算</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="gen-timeline-btn"><i class="bi bi-magic me-1"></i>生成任务</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 反馈表单 -->
+<div class="modal fade" id="feedback-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">提交反馈</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="fb-student-id">
+        <div class="mb-2">
+          <label class="form-label">反馈类型</label>
+          <select class="form-select" id="fb-type">
+            <option>阶段反馈</option><option>满意度</option><option>疑问</option><option>建议</option><option>投诉</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">评分（1-5星）</label>
+          <select class="form-select" id="fb-rating">
+            <option value="">不评分</option>
+            <option value="5">⭐⭐⭐⭐⭐ 非常满意</option>
+            <option value="4">⭐⭐⭐⭐ 满意</option>
+            <option value="3">⭐⭐⭐ 一般</option>
+            <option value="2">⭐⭐ 不满意</option>
+            <option value="1">⭐ 非常不满意</option>
+          </select>
+        </div>
+        <div class="mb-2"><label class="form-label">内容 *</label><textarea class="form-control" id="fb-content" rows="4"></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="save-feedback-btn">提交反馈</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 分配导师 -->
+<div class="modal fade" id="assign-mentor-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">分配导师/规划师</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="am-student-id">
+        <div class="mb-2">
+          <label class="form-label">角色</label>
+          <select class="form-select" id="am-role">
+            <option value="升学规划师">升学规划师</option>
+            <option value="导师">导师</option>
+            <option value="学科导师">学科导师</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">选择教职工</label>
+          <select class="form-select" id="am-staff"></select>
+        </div>
+        <div class="mb-2"><label class="form-label">开始日期</label><input type="date" class="form-control" id="am-date"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="save-mentor-btn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 入学评估表单 -->
+<div class="modal fade" id="assessment-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title">添加入学评估 / 语言成绩</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="asm-student-id">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">评估日期 *</label>
+            <input type="date" class="form-control" id="asm-date">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">评估类型 *</label>
+            <select class="form-select" id="asm-type" onchange="onAssessTypeChange(this.value)">
+              <option value="数学测评">数学测评</option>
+              <option value="英语测评">英语测评</option>
+              <option value="雅思 IELTS">雅思 IELTS</option>
+              <option value="托福 TOEFL">托福 TOEFL</option>
+              <option value="SAT">SAT</option>
+              <option value="ACT">ACT</option>
+              <option value="A-Level模考">A-Level模考</option>
+              <option value="面试评估">面试评估</option>
+              <option value="综合测评">综合测评</option>
+              <option value="其他">其他</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">科目 / 考试名称</label>
+            <input class="form-control" id="asm-subject" placeholder="如：数学、IELTS Overall、Math SAT">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">得分 *</label>
+            <input type="number" class="form-control" id="asm-score" step="0.1" placeholder="0">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">满分</label>
+            <input type="number" class="form-control" id="asm-max" step="0.1" value="100">
+          </div>
+          <div id="asm-subscore-section" class="col-12 d-none">
+            <div class="alert alert-info py-2 small mb-0">
+              <strong>雅思分项成绩（可选）</strong>
+              <div class="row g-2 mt-1">
+                <div class="col-3"><label class="form-label mb-0 small">听力 L</label><input type="number" class="form-control form-control-sm" id="asm-ielts-l" step="0.5" min="0" max="9"></div>
+                <div class="col-3"><label class="form-label mb-0 small">阅读 R</label><input type="number" class="form-control form-control-sm" id="asm-ielts-r" step="0.5" min="0" max="9"></div>
+                <div class="col-3"><label class="form-label mb-0 small">写作 W</label><input type="number" class="form-control form-control-sm" id="asm-ielts-w" step="0.5" min="0" max="9"></div>
+                <div class="col-3"><label class="form-label mb-0 small">口语 S</label><input type="number" class="form-control form-control-sm" id="asm-ielts-s" step="0.5" min="0" max="9"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">百分位（可选）</label>
+            <input type="number" class="form-control" id="asm-percentile" step="0.1" placeholder="如 75 表示超过75%考生">
+          </div>
+          <div class="col-12">
+            <label class="form-label">备注</label>
+            <textarea class="form-control" id="asm-notes" rows="2" placeholder="考试地点、考试机构、额外备注..."></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-success" id="save-assessment-btn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 时间线模板编辑器 -->
+<div class="modal fade" id="template-edit-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title" id="tpl-modal-title">新建时间线模板</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="tpl-id">
+        <div class="row g-3 mb-3">
+          <div class="col-md-6"><label class="form-label">模板名称 *</label><input class="form-control" id="tpl-name" placeholder="如：英国本科冲刺模板"></div>
+          <div class="col-md-3">
+            <label class="form-label">申请通道</label>
+            <select class="form-select" id="tpl-route">
+              <option value="UK-UG">英国本科 UK-UG</option>
+              <option value="US">美国</option>
+              <option value="CA">加拿大</option>
+              <option value="AU">澳洲</option>
+              <option value="通用">通用</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">目标梯度</label>
+            <select class="form-select" id="tpl-tier">
+              <option value="冲刺">冲刺</option>
+              <option value="意向" selected>意向</option>
+              <option value="保底">保底</option>
+              <option value="通用">通用</option>
+            </select>
+          </div>
+          <div class="col-12"><label class="form-label">描述</label><input class="form-control" id="tpl-desc" placeholder="简要描述此模板的适用场景..."></div>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-semibold">任务项列表</div>
+          <button class="btn btn-sm btn-outline-primary" onclick="addTemplateItemRow()"><i class="bi bi-plus me-1"></i>添加任务项</button>
+        </div>
+        <div id="tpl-items-list" class="border rounded" style="min-height:100px;max-height:400px;overflow-y:auto">
+          <!-- 任务项动态渲染 -->
+        </div>
+        <div class="mt-2 small text-muted"><i class="bi bi-info-circle me-1"></i>
+          "提前天数"是相对于申请截止日提前多少天，应用模板时系统会自动计算每个任务的截止日期。
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="save-template-btn">保存模板</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 应用模板到学生 -->
+<div class="modal fade" id="apply-template-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-magic me-2"></i>应用模板到学生</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="apply-tpl-id">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">选择学生</label>
+          <select class="form-select" id="apply-tpl-student"></select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">申请截止基准日期</label>
+          <input type="date" class="form-control" id="apply-tpl-deadline">
+          <div class="form-text">系统会根据每个任务的"提前天数"，从此日期倒推计算各任务截止日。</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="do-apply-template-btn"><i class="bi bi-magic me-1"></i>生成任务</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 选科记录 -->
+<div class="modal fade" id="subject-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title"><i class="bi bi-book me-2"></i>添加选科记录</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="subj-student-id">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">科目 *</label>
+          <select class="form-select" id="subj-code"></select>
+        </div>
+        <div class="row g-3">
+          <div class="col-6">
+            <label class="form-label fw-semibold">级别</label>
+            <select class="form-select" id="subj-level"></select>
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-semibold">考试局</label>
+            <select class="form-select" id="subj-board"></select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-info text-white" id="save-subject-btn">保存选科</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 监护人同意记录 -->
+<div class="modal fade" id="consent-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title"><i class="bi bi-shield-check me-2"></i>监护人同意记录</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="consent-student-id">
+        <div class="alert alert-info small mb-3">
+          <i class="bi bi-info-circle me-1"></i>
+          根据《个人信息保护法》，处理不满14周岁未成年人个人信息须取得监护人同意，并留存记录。
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">监护人姓名 *</label>
+            <input class="form-control" id="consent-guardian-name" placeholder="如 张某某（父）">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">关系</label>
+            <select class="form-select" id="consent-relation">
+              <option value="父">父</option>
+              <option value="母">母</option>
+              <option value="法定监护人">法定监护人</option>
+              <option value="其他">其他</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">同意日期 *</label>
+            <input type="date" class="form-control" id="consent-date">
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">同意范围</label>
+            <div class="d-flex gap-3 flex-wrap">
+              <div class="form-check"><input class="form-check-input consent-scope" type="checkbox" value="data_storage" id="cs-storage" checked><label class="form-check-label" for="cs-storage">数据存储与管理</label></div>
+              <div class="form-check"><input class="form-check-input consent-scope" type="checkbox" value="counseling" id="cs-counsel" checked><label class="form-check-label" for="cs-counsel">升学辅导服务</label></div>
+              <div class="form-check"><input class="form-check-input consent-scope" type="checkbox" value="sharing_internal" id="cs-int"><label class="form-check-label" for="cs-int">内部教职工共享</label></div>
+              <div class="form-check"><input class="form-check-input consent-scope" type="checkbox" value="sharing_external" id="cs-ext"><label class="form-check-label" for="cs-ext">对外分享（如推荐信导师）</label></div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">政策版本</label>
+            <input class="form-control" id="consent-version" value="1.0" placeholder="1.0">
+          </div>
+        </div>
+        <hr>
+        <div id="consent-history-list" class="mt-2"><p class="text-muted small">加载中...</p></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+        <button class="btn btn-warning text-dark" id="save-consent-btn"><i class="bi bi-shield-check me-1"></i>记录同意</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 设置：科目条目编辑 -->
+<div class="modal fade" id="subject-item-modal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title"><i class="bi bi-book me-2"></i>编辑科目</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="subj-item-idx">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">科目代码 *</label>
+          <input class="form-control" id="subj-item-code" placeholder="如 MATH">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">科目名称 *</label>
+          <input class="form-control" id="subj-item-name" placeholder="如 数学 Mathematics">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-info text-white" id="save-subject-item-btn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 添加家长/监护人 -->
+<div class="modal fade" id="parent-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-person-hearts me-2"></i>添加家长/监护人</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="par-student-id">
+        <div class="row g-3">
+          <div class="col-md-8">
+            <label class="form-label fw-semibold">姓名 *</label>
+            <input class="form-control" id="par-name" placeholder="家长姓名">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">关系</label>
+            <select class="form-select" id="par-relation">
+              <option value="父">父</option>
+              <option value="母">母</option>
+              <option value="监护人">监护人</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">手机号</label>
+            <input class="form-control" id="par-phone" placeholder="138xxxxxxxx">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">邮箱</label>
+            <input class="form-control" id="par-email" placeholder="email@example.com">
+          </div>
+          <div class="col-12">
+            <label class="form-label">微信号</label>
+            <input class="form-control" id="par-wechat" placeholder="微信号（选填）">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="save-parent-btn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 反馈回复 -->
+<div class="modal fade" id="feedback-response-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-reply me-2"></i>回复反馈</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="fbr-id">
+        <div class="mb-2">
+          <div class="alert alert-light border small py-2 mb-3" id="fbr-original"></div>
+          <label class="form-label fw-semibold">回复内容 *</label>
+          <textarea class="form-control" id="fbr-response" rows="4" placeholder="请输入回复内容..."></textarea>
+        </div>
+        <div>
+          <label class="form-label">处理结果</label>
+          <select class="form-select" id="fbr-status">
+            <option value="reviewed">已阅，持续跟进</option>
+            <option value="resolved">已解决</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="save-feedback-response-btn"><i class="bi bi-reply me-1"></i>提交回复</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 模板任务项编辑 -->
+<div class="modal fade" id="template-item-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="tpl-item-modal-title">添加任务项</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="tpl-item-idx" value="-1">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">任务名称 *</label>
+          <input class="form-control" id="tpl-item-title" placeholder="如：提交UCAS申请">
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">分类</label>
+            <select class="form-select" id="tpl-item-category">
+              <option>材料</option><option>申请</option><option>考试</option>
+              <option>面试</option><option>沟通</option><option>其他</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">优先级</label>
+            <select class="form-select" id="tpl-item-priority">
+              <option value="high">高</option>
+              <option value="normal" selected>普通</option>
+              <option value="low">低</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">在申请截止日前多少天？</label>
+            <div class="input-group">
+              <input type="number" class="form-control" id="tpl-item-days" value="30" min="-365" max="730">
+              <span class="input-group-text">天（负数 = 截止日之后）</span>
+            </div>
+          </div>
+          <div class="col-12">
+            <label class="form-label">任务说明（选填）</label>
+            <textarea class="form-control" id="tpl-item-desc" rows="2" placeholder="补充说明..."></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="save-tpl-item-btn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 考试记录编辑 -->
+<div class="modal fade" id="exam-sitting-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="exam-sitting-modal-title">添加考试记录</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="es-id" value="">
+        <input type="hidden" id="es-student-id" value="">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">考试局 *</label>
+            <select class="form-select" id="es-board">
+              <option>CIE</option><option>Edexcel</option><option>OCR</option><option>AQA</option><option>IB</option><option>其他</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">考试季 *</label>
+            <select class="form-select" id="es-session">
+              <option value="May/Jun">May/Jun</option>
+              <option value="Oct/Nov">Oct/Nov</option>
+              <option value="Jan">Jan</option>
+              <option value="其他">其他</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">年份 *</label>
+            <input type="number" class="form-control" id="es-year" min="2020" max="2035" value="2025">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">科目 *</label>
+            <input class="form-control" id="es-subject" placeholder="如：Mathematics">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">级别</label>
+            <select class="form-select" id="es-level">
+              <option value="">—</option>
+              <option>A2</option><option>AS</option><option>Full A-Level</option><option>IGCSE</option><option>HL</option><option>SL</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">题卷号</label>
+            <input class="form-control" id="es-paper-code" placeholder="如：9709/12">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">预期成绩</label>
+            <input class="form-control" id="es-predicted" placeholder="如：A*">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">实际成绩</label>
+            <input class="form-control" id="es-actual" placeholder="考后填写">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">考试日期</label>
+            <input type="date" class="form-control" id="es-exam-date">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">结果发布日期</label>
+            <input type="date" class="form-control" id="es-result-date">
+          </div>
+          <div class="col-12">
+            <label class="form-label">备注</label>
+            <textarea class="form-control" id="es-notes" rows="2" placeholder="补充说明..."></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="save-exam-sitting-btn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 院校专业要求表单 -->
+<div class="modal fade" id="uni-program-modal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title" id="uni-program-modal-title">新增院校专业</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="up-id">
+        <ul class="nav nav-tabs mb-3" id="up-tabs">
+          <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#up-tab-basic">基本信息</a></li>
+          <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#up-tab-grades">学术要求</a></li>
+          <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#up-tab-lang">语言 & 测试</a></li>
+          <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#up-tab-hist">历史数据</a></li>
+        </ul>
+        <div class="tab-content">
+          <!-- 基本信息 -->
+          <div class="tab-pane fade show active" id="up-tab-basic">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">院校名称 *</label>
+                <input type="text" class="form-control" id="up-uni-name" placeholder="如: University of Cambridge">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">专业/项目名称 *</label>
+                <input type="text" class="form-control" id="up-program-name" placeholder="如: Computer Science BA">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">院系</label>
+                <input type="text" class="form-control" id="up-department" placeholder="如: Faculty of Engineering">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">国家/地区</label>
+                <select class="form-select" id="up-country">
+                  <option value="UK">英国 (UK)</option>
+                  <option value="US">美国 (US)</option>
+                  <option value="SG">新加坡 (SG)</option>
+                  <option value="CA">加拿大 (CA)</option>
+                  <option value="AU">澳大利亚 (AU)</option>
+                  <option value="其他">其他</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">申请通道</label>
+                <select class="form-select" id="up-route">
+                  <option value="UK-UG">UK-UG (UCAS)</option>
+                  <option value="US">US</option>
+                  <option value="SG">SG</option>
+                  <option value="CA">CA</option>
+                  <option value="通用">通用</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">申请年份</label>
+                <input type="number" class="form-control" id="up-cycle-year" min="2025" max="2035" placeholder="2026">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">申请截止日期</label>
+                <input type="date" class="form-control" id="up-deadline">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">截止时间</label>
+                <input type="text" class="form-control" id="up-deadline-time" placeholder="18:00">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">时区</label>
+                <input type="text" class="form-control" id="up-deadline-tz" value="Europe/London">
+              </div>
+              <div class="col-12">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="up-early-deadline">
+                  <label class="form-check-label">牛剑/医学早截止 (10月15日)</label>
+                </div>
+              </div>
+              <div class="col-12">
+                <label class="form-label fw-semibold">备注</label>
+                <textarea class="form-control" id="up-notes" rows="2"></textarea>
+              </div>
+            </div>
+          </div>
+          <!-- 学术要求 -->
+          <div class="tab-pane fade" id="up-tab-grades">
+            <div class="row g-3 mb-3">
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">成绩类型</label>
+                <select class="form-select" id="up-grade-type">
+                  <option value="A-Level">A-Level</option>
+                  <option value="IB">IB (7分制)</option>
+                  <option value="GCSE">GCSE</option>
+                  <option value="SAT">SAT</option>
+                  <option value="混合">混合</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">最少科目数</label>
+                <input type="number" class="form-control" id="up-min-subjects" min="1" max="6" value="3">
+              </div>
+              <div class="col-md-4 d-flex align-items-end">
+                <button class="btn btn-outline-primary w-100" onclick="addGradeRequirement()">
+                  <i class="bi bi-plus"></i> 添加科目要求
+                </button>
+              </div>
+            </div>
+            <div id="grade-req-list">
+              <p class="text-muted small">点击「添加科目要求」来设置每个科目的最低等级。</p>
+            </div>
+            <div class="mt-3 p-3 bg-light rounded small text-muted">
+              A-Level等级参考: A*=100分, A=90, B=80, C=70, D=60, E=50 | 必修科目未达要求将视为未通过硬门槛。
+            </div>
+          </div>
+          <!-- 语言 & 测试 -->
+          <div class="tab-pane fade" id="up-tab-lang">
+            <div class="row g-3 mb-4">
+              <div class="col-12"><h6 class="fw-semibold">语言要求</h6></div>
+              <div class="col-md-3">
+                <label class="form-label">IELTS 总分要求</label>
+                <input type="number" class="form-control" id="up-ielts" min="0" max="9" step="0.5" placeholder="如 6.5">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">IELTS 单项最低</label>
+                <input type="number" class="form-control" id="up-ielts-comp" min="0" max="9" step="0.5" placeholder="如 6.0">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">TOEFL 总分要求</label>
+                <input type="number" class="form-control" id="up-toefl" min="0" max="120" placeholder="如 100">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Duolingo 最低分</label>
+                <input type="number" class="form-control" id="up-duolingo" min="0" max="160" placeholder="如 110">
+              </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-12 d-flex justify-content-between align-items-center">
+                <h6 class="fw-semibold mb-0">额外测试要求 (LNAT / SAT / 笔试等)</h6>
+                <button class="btn btn-outline-primary btn-sm" onclick="addExtraTest()"><i class="bi bi-plus"></i> 添加</button>
+              </div>
+              <div class="col-12">
+                <div id="extra-test-list">
+                  <p class="text-muted small">如 LNAT、Writing Test、Design Challenge 等。</p>
+                </div>
+              </div>
+              <div class="col-12">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="up-ref-required">
+                  <label class="form-check-label fw-semibold">需要推荐信 (Reference)</label>
+                </div>
+              </div>
+              <div class="col-12" id="up-ref-notes-wrap">
+                <label class="form-label">推荐信要求备注</label>
+                <input type="text" class="form-control" id="up-ref-notes" placeholder="如: 学术推荐信1封，导师推荐信1封">
+              </div>
+            </div>
+            <div class="mt-3 p-3 bg-light rounded">
+              <div class="row g-2">
+                <div class="col-12"><small class="text-muted fw-semibold">评分权重调整 (三项之和应≈1.0)</small></div>
+                <div class="col-md-4">
+                  <label class="form-label small">学术权重</label>
+                  <input type="number" class="form-control form-control-sm" id="up-w-academic" min="0" max="1" step="0.05" value="0.6">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label small">语言权重</label>
+                  <input type="number" class="form-control form-control-sm" id="up-w-language" min="0" max="1" step="0.05" value="0.25">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label small">测试权重</label>
+                  <input type="number" class="form-control form-control-sm" id="up-w-extra" min="0" max="1" step="0.05" value="0.15">
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- 历史数据 -->
+          <div class="tab-pane fade" id="up-tab-hist">
+            <div class="row g-3">
+              <div class="col-12 alert alert-info small">
+                历史录取数据用于概率校准。数据量越多（≥20条），评估置信度越高。来源：官方公布数据或本校历史记录。
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">数据来源年份</label>
+                <input type="number" class="form-control" id="up-hist-year" min="2010" max="2030" placeholder="2024">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">历史申请人数</label>
+                <input type="number" class="form-control" id="up-hist-applicants" min="0" placeholder="如 5000">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">历史录取人数</label>
+                <input type="number" class="form-control" id="up-hist-offers" min="0" placeholder="如 500">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">录取率 (自动计算)</label>
+                <input type="text" class="form-control" id="up-hist-rate" readonly placeholder="输入申请/录取后自动计算">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">典型录取成绩描述</label>
+                <input type="text" class="form-control" id="up-hist-avg-grade" placeholder="如 A*AA - AAB，或 IB 38-42">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="save-uni-program-btn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 录取评估结果模态框 -->
+<div class="modal fade" id="eval-result-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title">录取评估报告</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="eval-result-body">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 基准评估向导模态框（学生侧，3步选择） -->
+<div class="modal fade" id="benchmark-eval-modal" tabindex="-1">
+  <div class="modal-dialog modal-md">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title"><i class="bi bi-bar-chart-steps me-2"></i>基准评估</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="benchmark-eval-wizard-body">
+      </div>
+      <div class="modal-footer" id="benchmark-eval-wizard-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 基准管理模态框（管理侧，新建/编辑基准） -->
+<div class="modal fade" id="benchmark-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-secondary text-white">
+        <h5 class="modal-title" id="benchmark-modal-title">新建基准</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="bm-edit-id">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">地区 <span class="text-danger">*</span></label>
+            <select class="form-select" id="bm-country">
+              <option value="">请选择</option>
+              <option value="UK">UK 英国</option>
+              <option value="US">US 美国</option>
+              <option value="CA">CA 加拿大</option>
+              <option value="AU">AU 澳大利亚</option>
+              <option value="NZ">NZ 新西兰</option>
+              <option value="SG">SG 新加坡</option>
+              <option value="HK">HK 香港</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">梯度 <span class="text-danger">*</span></label>
+            <select class="form-select" id="bm-tier">
+              <option value="">请选择</option>
+              <option value="冲刺">冲刺</option>
+              <option value="意向">意向</option>
+              <option value="保底">保底</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">专业领域 <span class="text-danger">*</span></label>
+            <select class="form-select" id="bm-subject-area">
+              <option value="">请选择</option>
+              <option value="CS">计算机科学</option>
+              <option value="Business">商科/经济</option>
+              <option value="Mathematics">数学</option>
+              <option value="Engineering">工程</option>
+              <option value="Science">自然科学</option>
+              <option value="Medicine">医学</option>
+              <option value="Humanities">人文艺术</option>
+              <option value="Law">法律</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">显示名称</label>
+            <input type="text" class="form-control" id="bm-display-name" placeholder="如留空将自动生成">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">成绩类型</label>
+            <select class="form-select" id="bm-grade-type">
+              <option value="A-Level">A-Level</option>
+              <option value="IB">IB Diploma</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">IELTS 要求</label>
+            <input type="number" class="form-control" id="bm-ielts" step="0.5" min="0" max="9" placeholder="如 6.5">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">TOEFL 要求</label>
+            <input type="number" class="form-control" id="bm-toefl" min="0" max="120" placeholder="如 90">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">学术权重</label>
+            <input type="number" class="form-control" id="bm-w-academic" value="0.60" step="0.05" min="0" max="1">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">语言权重</label>
+            <input type="number" class="form-control" id="bm-w-language" value="0.25" step="0.05" min="0" max="1">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">附加权重</label>
+            <input type="number" class="form-control" id="bm-w-extra" value="0.15" step="0.05" min="0" max="1">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">参考通过率 (0-1)</label>
+            <input type="number" class="form-control" id="bm-pass-rate" step="0.01" min="0" max="1" placeholder="如 0.22">
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">成绩要求 (JSON 数组)</label>
+            <textarea class="form-control font-monospace" id="bm-grade-requirements" rows="5"
+              placeholder='[{"subject":"Mathematics","min_grade":"A","required":true,"notes":"必修"}]'></textarea>
+            <div class="form-text">每项含 subject / min_grade / required / notes</div>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">附加考试要求 (JSON 数组，可为 [])</label>
+            <textarea class="form-control font-monospace" id="bm-extra-tests" rows="3"
+              placeholder='[{"test":"UCAT","required":true,"min_score":2700,"notes":""}]'></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">备注</label>
+            <textarea class="form-control" id="bm-notes" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" onclick="saveBenchmark()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 基准评估结果模态框 -->
+<div class="modal fade" id="benchmark-eval-result-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title">基准评估报告</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="benchmark-eval-result-body">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── AI 规划预览 Modal ─────────────────────────── -->
+<div class="modal fade" id="ai-plan-modal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-stars me-2 text-warning"></i>AI 升学规划</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <!-- Status bar -->
+        <div id="ai-plan-status-bar" class="px-4 py-2 bg-light border-bottom d-flex align-items-center gap-3 flex-wrap">
+          <span id="ai-plan-status-badge"></span>
+          <span id="ai-plan-meta-info" class="text-muted small"></span>
+          <span class="ms-auto" id="ai-plan-risk-summary"></span>
+        </div>
+        <!-- Tabs -->
+        <ul class="nav nav-tabs px-4 pt-2" id="ai-plan-tabs">
+          <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#ai-tab-parent">家长视图</a></li>
+          <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ai-tab-counselor">规划师视图</a></li>
+          <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ai-tab-apply">执行动作</a></li>
+        </ul>
+        <div class="tab-content p-4">
+          <!-- 家长视图 -->
+          <div class="tab-pane fade show active" id="ai-tab-parent">
+            <div id="ai-parent-view-content"></div>
+          </div>
+          <!-- 规划师视图 -->
+          <div class="tab-pane fade" id="ai-tab-counselor">
+            <div id="ai-counselor-view-content"></div>
+          </div>
+          <!-- 执行动作 -->
+          <div class="tab-pane fade" id="ai-tab-apply">
+            <div id="ai-apply-content"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer flex-wrap gap-2" id="ai-plan-modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+        <span id="ai-plan-action-btns"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast 通知 -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+  <div id="toast" class="toast align-items-center text-white border-0" role="alert">
+    <div class="d-flex">
+      <div class="toast-body" id="toast-body"></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+
+<!-- 修改密码弹窗 -->
+<div class="modal fade" id="change-password-modal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-key me-1"></i>修改密码</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3"><label class="form-label">当前密码</label><input type="password" class="form-control" id="pwd-current" autocomplete="current-password"></div>
+        <div class="mb-3"><label class="form-label">新密码</label><input type="password" class="form-control" id="pwd-new" autocomplete="new-password"></div>
+        <div class="mb-3"><label class="form-label">确认新密码</label><input type="password" class="form-control" id="pwd-confirm" autocomplete="new-password"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" onclick="submitChangePassword()">确认修改</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 入学案例详情子模态框（全局，避免随页面重渲染导致 Bootstrap 状态错乱） -->
+<div class="modal fade" id="addCaseTaskModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">添加任务</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-3"><label class="form-label">任务标题 *</label><input type="text" class="form-control" id="newTaskTitle"></div>
+        <div class="mb-3"><label class="form-label">截止日期</label><input type="date" class="form-control" id="newTaskDue"></div>
+        <div class="mb-3"><label class="form-label">优先级</label><select class="form-select" id="newTaskPriority"><option value="normal">普通</option><option value="high">高</option><option value="low">低</option></select></div>
+        <div class="mb-3"><label class="form-label">分类</label><input type="text" class="form-control" id="newTaskCategory" placeholder="签证/材料/财务/其他"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="submitTaskBtn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal fade" id="addDocModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">添加材料</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-3"><label class="form-label">材料类型 *</label><select class="form-select" id="newDocType"><option value="护照">护照</option><option value="学历证书">学历证书</option><option value="成绩单">成绩单</option><option value="照片">照片</option><option value="体检报告">体检报告</option><option value="推荐信">推荐信</option><option value="其他">其他</option></select></div>
+        <div class="mb-3"><label class="form-label">材料名称</label><input type="text" class="form-control" id="newDocTitle"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="submitDocBtn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal fade" id="createInvoiceModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">生成账单</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-3"><label class="form-label">费用项目</label><input type="text" class="form-control" id="invItemName" placeholder="Course Fee Deposit"></div>
+        <div class="mb-3"><label class="form-label">金额 (SGD)</label><input type="number" class="form-control" id="invAmount" min="0"></div>
+        <div class="mb-3"><label class="form-label">到期日</label><input type="date" class="form-control" id="invDue"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-success" id="submitInvBtn">生成账单</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal fade" id="addPaymentModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">录入收款</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-3"><label class="form-label">收款金额</label><input type="number" class="form-control" id="payAmount" min="0"></div>
+        <div class="mb-3"><label class="form-label">支付方式</label><select class="form-select" id="payMethod"><option value="bank_transfer">银行转账</option><option value="card">刷卡</option><option value="cash">现金</option><option value="online">线上支付</option></select></div>
+        <div class="mb-3"><label class="form-label">支付日期</label><input type="date" class="form-control" id="payDate"></div>
+        <div class="mb-3"><label class="form-label">参考号</label><input type="text" class="form-control" id="payRef"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="submitPayBtn">录入</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal fade" id="surveyModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">到校后回访问卷</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-3"><label class="form-label">总体满意度 (1-5)</label><input type="number" class="form-control" id="survSatisfaction" min="1" max="5" value="5"></div>
+        <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="survAccom" checked><label class="form-check-label">住宿满意</label></div>
+        <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="survOrient" checked><label class="form-check-label">Orientation有帮助</label></div>
+        <div class="mb-3"><label class="form-label">需要支持</label><input type="text" class="form-control" id="survSupport"></div>
+        <div class="mb-3"><label class="form-label">备注</label><textarea class="form-control" id="survComments" rows="3"></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="submitSurvBtn">提交问卷</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 新建入学案例 Modal（全局，避免随页面重渲染导致 Bootstrap 状态错乱） -->
+<div class="modal fade" id="createIntakeModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">新建入学案例</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">学生姓名 <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="createIntakeStudentName" placeholder="请输入学生姓名">
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">课程/项目 <span class="text-danger">*</span></label>
+            <select class="form-select" id="createIntakeProgram" onchange="toggleProgramOther(this)">
+              <option value="">-- 请选择课程/项目 --</option>
+              <optgroup label="GCE 系列">
+                <option>GCE A-Level</option>
+                <option>GCE O-Level</option>
+                <option>GCE N-Level</option>
+              </optgroup>
+              <optgroup label="Diploma 系列">
+                <option>Diploma in Business</option>
+                <option>Diploma in Information Technology</option>
+                <option>Diploma in Engineering</option>
+                <option>Diploma in Hospitality &amp; Tourism</option>
+                <option>Diploma in Design &amp; Media</option>
+                <option>Diploma in Accountancy</option>
+              </optgroup>
+              <optgroup label="Foundation / Pre-University">
+                <option>Foundation Programme</option>
+                <option>International Baccalaureate (IB)</option>
+                <option>Cambridge IGCSE</option>
+                <option>IELTS Preparation Programme</option>
+                <option>English Language Programme (ELP)</option>
+              </optgroup>
+              <optgroup label="Degree">
+                <option>Bachelor of Business Administration</option>
+                <option>Bachelor of Computing</option>
+                <option>Bachelor of Engineering</option>
+                <option>Master of Business Administration (MBA)</option>
+              </optgroup>
+              <option value="__other__">其他（自填）</option>
+            </select>
+            <input type="text" class="form-control mt-1 d-none" id="createIntakeProgramOther" placeholder="请输入课程/项目名称">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">入学学年 <span class="text-danger">*</span></label>
+            <!-- U-10: 加 placeholder 说明含义 -->
+            <input type="number" class="form-control" id="createIntakeYear" placeholder="如 2025（入学年份）">
+            <div class="form-text">填写学生实际入学的年份</div>
+          </div>
+          <div class="col-md-3">
+            <!-- U-09: 来源类型加说明 -->
+            <label class="form-label">学生来源 <i class="bi bi-question-circle text-muted" title="记录该学生是通过什么渠道来的：代理机构、个人推荐或自然获客"></i></label>
+            <select class="form-select" id="createIntakeSourceType" onchange="toggleIntakeAgentSelect(this.value)">
+              <option value="">-- 不记录 --</option>
+              <option value="agent">代理机构介绍</option>
+              <option value="personal">朋友/家长推荐</option>
+              <option value="organic">自然流量/官网</option>
+            </select>
+          </div>
+          <div class="col-md-3" id="createIntakeAgentWrap" style="display:none">
+            <label class="form-label">选择代理 <span class="text-danger">*</span></label>
+            <select class="form-select" id="createIntakeAgentId">
+              <option value="">-- 请选择 --</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">备注</label>
+            <textarea class="form-control" id="createIntakeNotes" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" onclick="submitCreateIntake()">创建案例</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 打包发送文件 Modal -->
+<div class="modal fade" id="sendDocsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-send me-2"></i>打包发送文件至学生</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">学生邮箱地址 <span class="text-danger">*</span></label>
+          <input type="email" class="form-control" id="sendDocsEmail" placeholder="student@example.com">
+        </div>
+        <div id="sendDocsFileList" class="text-muted small p-2 bg-light rounded">加载文件列表中...</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-success" onclick="confirmSendDocs()"><i class="bi bi-send me-1"></i>发送</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+<script src="app.js"></script>
+</body>
+</html>

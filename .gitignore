@@ -1,0 +1,24 @@
+# 敏感文件 — 绝对不要上传
+.env
+data.sqlite
+data.sqlite-journal
+
+# 上传文件 — 单独备份，不纳入版本控制
+uploads/
+
+# 依赖包（服务器上运行 npm install 重新安装）
+node_modules/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+*.log
+
+# Claude Code 配置
+.claude/
+
+# 临时脚本（部署时不需要）
+fix_*.js
+seed_*.js
+cookies.txt
+start.bat

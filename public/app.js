@@ -7484,7 +7484,7 @@ function openFxNewModal(caseId) {
         await api('PUT', `/api/file-exchange/${rec.id}/send`);
       }
       showSuccess('文件记录已创建');
-      await loadCaseDetail(caseId);
+      loadCaseDetail(caseId); // 不 await — modal 立即关闭，页面后台刷新
     } catch(e) { showError(e.message); return false; }
   }, '保存', 'lg');
 }

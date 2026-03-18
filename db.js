@@ -500,14 +500,16 @@ function createSchema() {
 
   // ── 时间线模板 ───────────────────────────────────────
   db.run(`CREATE TABLE IF NOT EXISTS timeline_templates (
-    id          TEXT PRIMARY KEY,
-    name        TEXT NOT NULL,
-    description TEXT,
-    route       TEXT DEFAULT 'UK-UG',
-    tier        TEXT DEFAULT '意向',
-    is_system   INTEGER DEFAULT 0,
-    created_by  TEXT,
-    created_at  TEXT DEFAULT (datetime('now'))
+    id                TEXT PRIMARY KEY,
+    name              TEXT NOT NULL,
+    description       TEXT,
+    route             TEXT DEFAULT 'UK-UG',
+    tier              TEXT DEFAULT '意向',
+    is_system         INTEGER DEFAULT 0,
+    created_by        TEXT,
+    created_at        TEXT DEFAULT (datetime('now')),
+    deadline_time     TEXT,
+    deadline_timezone TEXT
   )`);
 
   db.run(`CREATE TABLE IF NOT EXISTS template_items (

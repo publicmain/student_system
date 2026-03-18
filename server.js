@@ -133,9 +133,10 @@ app.use(session({
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
+  rolling: true,  // 每次有请求就自动续期，只要还在活跃就不掉线
   name: 'ssid',
   cookie: {
-    maxAge: 8 * 60 * 60 * 1000,
+    maxAge: 8 * 60 * 60 * 1000, // 8小时无操作才过期
     httpOnly: true,
     sameSite: 'lax',
     secure: IS_PROD, // 生产环境强制 HTTPS-only Cookie

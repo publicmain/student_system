@@ -218,6 +218,8 @@ function showModal(title, bodyHtml, onOk, okLabel = '确定', size = '') {
   okBtn.onclick = async () => {
     if (okBtn.disabled) return;
     okBtn.disabled = true;
+    const originalHtml = okBtn.innerHTML;
+    okBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>处理中…`;
     try {
       const result = await onOk();
       if (result !== false) modal.hide();
@@ -225,6 +227,7 @@ function showModal(title, bodyHtml, onOk, okLabel = '确定', size = '') {
       showError(e.message);
     } finally {
       okBtn.disabled = false;
+      okBtn.innerHTML = originalHtml;
     }
   };
 }

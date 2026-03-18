@@ -52,6 +52,9 @@ async function sendMail(to, subject, html, attachments = []) {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    connectionTimeout: 10000,  // 10秒连接超时
+    greetingTimeout: 10000,    // 10秒握手超时
+    socketTimeout: 30000,      // 30秒传输超时
   });
 
   try {

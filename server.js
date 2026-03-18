@@ -3327,22 +3327,22 @@ app.put('/api/file-exchange/:id/send', requireRole('principal','intake_staff'), 
   const ic = db.get('SELECT student_name, program_name FROM intake_cases WHERE id=?', [rec.case_id]);
   const host = `${req.protocol}://${req.get('host')}`;
   const viewUrl = `${host}/s/fx/${accessToken}`;
-  if (email) {
-    try {
-      await sendMail(email, `文件通知：${rec.title} — ${ic?.student_name||''}`,
-        `<p>您好 ${sname||'同学'}，</p>
-        <p>顾问老师已向您发送文件：<strong>${rec.title}</strong></p>
-        ${rec.description ? `<p>${rec.description}</p>` : ''}
-        <p><a href="${viewUrl}" style="font-size:1.1em;font-weight:bold;">${viewUrl}</a></p>
-        ${rec.request_reply ? `<p style="color:#d97706"><strong>⚠ 请在查看后，通过以上链接上传回传文件${rec.deadline_at ? `（截止：${rec.deadline_at}）` : ''}。</strong></p>${rec.reply_instruction ? `<p>回传说明：${rec.reply_instruction}</p>` : ''}` : ''}
-        <p>如有疑问请联系顾问老师。</p>`
-      );
-      fxLog(req.params.id, rec.case_id, 'email_sent', 'system', 'system', `邮件已发送至 ${email}`, null);
-    } catch(e) { console.error('fx send mail failed:', e.message); }
-  }
   fxLog(req.params.id, rec.case_id, 'sent', 'admin', req.session.user.name||req.session.user.username, `发送给 ${sname||'—'} (${email||'无邮件'})`, req.ip);
   audit(req, 'FX_SEND', 'file_exchange_records', req.params.id, { email, request_reply: rec.request_reply });
+  // 先返回响应，邮件在后台发——避免 SMTP 延迟阻塞前端
   res.json({ ok: true, access_token: accessToken, upload_token: uploadToken, view_url: viewUrl });
+  if (email) {
+    sendMail(email, `文件通知：${rec.title} — ${ic?.student_name||''}`,
+      `<p>您好 ${sname||'同学'}，</p>
+      <p>顾问老师已向您发送文件：<strong>${rec.title}</strong></p>
+      ${rec.description ? `<p>${rec.description}</p>` : ''}
+      <p><a href="${viewUrl}" style="font-size:1.1em;font-weight:bold;">${viewUrl}</a></p>
+      ${rec.request_reply ? `<p style="color:#d97706"><strong>⚠ 请在查看后，通过以上链接上传回传文件${rec.deadline_at ? `（截止：${rec.deadline_at}）` : ''}。</strong></p>${rec.reply_instruction ? `<p>回传说明：${rec.reply_instruction}</p>` : ''}` : ''}
+      <p>如有疑问请联系顾问老师。</p>`
+    ).then(() => {
+      fxLog(req.params.id, rec.case_id, 'email_sent', 'system', 'system', `邮件已发送至 ${email}`, null);
+    }).catch(e => { console.error('fx send mail failed:', e.message); });
+  }
 });
 
 // 关闭记录
@@ -3402,17 +3402,13 @@ app.post('/api/file-exchange/:id/remind', requireRole('principal','intake_staff'
   }
   const host = `${req.protocol}://${req.get('host')}`;
   const viewUrl = `${host}/s/fx/${rec.access_token}`;
-  try {
-    await sendMail(email, `【催办】请查看/上传文件：${rec.title}`,
-      `<p>您好，顾问老师提醒您查看并回传文件：<strong>${rec.title}</strong></p>
-      <p><a href="${viewUrl}">${viewUrl}</a></p>
-      ${rec.deadline_at ? `<p><strong style="color:red">截止时间：${rec.deadline_at}</strong></p>` : ''}`
-    );
-    fxLog(req.params.id, rec.case_id, 'reminded', 'admin', req.session.user.name||req.session.user.username, `催办邮件已发至 ${email}`, req.ip);
-    res.json({ ok: true });
-  } catch(e) {
-    res.status(500).json({ error: '邮件发送失败：' + e.message });
-  }
+  fxLog(req.params.id, rec.case_id, 'reminded', 'admin', req.session.user.name||req.session.user.username, `催办邮件已发至 ${email}`, req.ip);
+  res.json({ ok: true });
+  sendMail(email, `【催办】请查看/上传文件：${rec.title}`,
+    `<p>您好，顾问老师提醒您查看并回传文件：<strong>${rec.title}</strong></p>
+    <p><a href="${viewUrl}">${viewUrl}</a></p>
+    ${rec.deadline_at ? `<p><strong style="color:red">截止时间：${rec.deadline_at}</strong></p>` : ''}`
+  ).catch(e => { console.error('fx remind mail failed:', e.message); });
 });
 
 // 管理员下载文件
@@ -3621,16 +3617,14 @@ app.post('/api/case-files/:id/send', requireRole('principal','intake_staff'), as
      req.session.user.id, req.session.user.name || req.session.user.username, watermark, wmText]);
   const fileUrl = `${req.protocol}://${req.get('host')}/s/file/${token}`;
   if (student_email) {
-    try {
-      const ic = db.get('SELECT student_name, program_name FROM intake_cases WHERE id=?', [f.case_id]);
-      await sendMail(student_email,
-        `文件通知 - ${ic?.student_name || ''} - ${f.display_name}`,
-        `<p>您好 ${student_name||'同学'}，</p><p>请点击以下链接查看文件：<strong>${f.display_name}</strong></p>
-        <p><a href="${fileUrl}" style="font-size:1.1em;font-weight:bold;">${fileUrl}</a></p>
-        ${watermark ? `<p style="color:#888;font-size:0.9em;">注：该文件为${wmText}版本</p>` : ''}
-        <p>如有疑问请联系顾问老师。</p>`
-      );
-    } catch(e) { console.error('send file email failed:', e.message); }
+    const ic = db.get('SELECT student_name, program_name FROM intake_cases WHERE id=?', [f.case_id]);
+    sendMail(student_email,
+      `文件通知 - ${ic?.student_name || ''} - ${f.display_name}`,
+      `<p>您好 ${student_name||'同学'}，</p><p>请点击以下链接查看文件：<strong>${f.display_name}</strong></p>
+      <p><a href="${fileUrl}" style="font-size:1.1em;font-weight:bold;">${fileUrl}</a></p>
+      ${watermark ? `<p style="color:#888;font-size:0.9em;">注：该文件为${wmText}版本</p>` : ''}
+      <p>如有疑问请联系顾问老师。</p>`
+    ).catch(e => { console.error('send file email failed:', e.message); });
   }
   audit(req, 'SEND_CASE_FILE', 'case_file_sends', sendId, { file_id: f.id, student_email, with_watermark: watermark });
   res.json({ ok: true, token, url: fileUrl, send_id: sendId });
@@ -3648,15 +3642,13 @@ app.post('/api/intake-cases/:id/contract-upload-link', requireRole('principal','
      req.session.user.id, req.session.user.name || req.session.user.username]);
   const uploadUrl = `${req.protocol}://${req.get('host')}/s/upload/${token}`;
   if (student_email) {
-    try {
-      await sendMail(student_email,
-        `请上传已签合同 - ${ic.student_name}`,
-        `<p>您好 ${student_name||ic.student_name}，</p>
-        <p>请点击以下链接，上传您签署好的合同：</p>
-        <p><a href="${uploadUrl}" style="font-size:1.1em;font-weight:bold;">${uploadUrl}</a></p>
-        <p>上传后我们将尽快确认，如有疑问请联系顾问老师。</p>`
-      );
-    } catch(e) { console.error('contract upload email failed:', e.message); }
+    sendMail(student_email,
+      `请上传已签合同 - ${ic.student_name}`,
+      `<p>您好 ${student_name||ic.student_name}，</p>
+      <p>请点击以下链接，上传您签署好的合同：</p>
+      <p><a href="${uploadUrl}" style="font-size:1.1em;font-weight:bold;">${uploadUrl}</a></p>
+      <p>上传后我们将尽快确认，如有疑问请联系顾问老师。</p>`
+    ).catch(e => { console.error('contract upload email failed:', e.message); });
   }
   audit(req, 'GEN_UPLOAD_LINK', 'case_file_sends', sendId, { case_id: req.params.id, student_email });
   res.json({ ok: true, token, url: uploadUrl, send_id: sendId });
@@ -3676,16 +3668,14 @@ app.post('/api/intake-cases/:id/signature-requests', requireRole('principal','in
      title||'签字确认', description||null, expiresAt]);
   const signUrl = `${req.protocol}://${req.get('host')}/s/sign/${token}`;
   if (student_email) {
-    try {
-      await sendMail(student_email,
-        `请签字确认 - ${title||'签字确认'} - ${ic.student_name}`,
-        `<p>您好 ${student_name||ic.student_name}，</p>
-        <p>请点击以下链接完成签字：<strong>${title||'签字确认'}</strong></p>
-        ${description ? `<p>${description}</p>` : ''}
-        <p><a href="${signUrl}" style="font-size:1.1em;font-weight:bold;">${signUrl}</a></p>
-        <p>如有疑问请联系顾问老师。</p>`
-      );
-    } catch(e) { console.error('signature email failed:', e.message); }
+    sendMail(student_email,
+      `请签字确认 - ${title||'签字确认'} - ${ic.student_name}`,
+      `<p>您好 ${student_name||ic.student_name}，</p>
+      <p>请点击以下链接完成签字：<strong>${title||'签字确认'}</strong></p>
+      ${description ? `<p>${description}</p>` : ''}
+      <p><a href="${signUrl}" style="font-size:1.1em;font-weight:bold;">${signUrl}</a></p>
+      <p>如有疑问请联系顾问老师。</p>`
+    ).catch(e => { console.error('signature email failed:', e.message); });
   }
   audit(req, 'GEN_SIGN_LINK', 'case_file_sends', sendId, { case_id: req.params.id, student_email, title });
   res.json({ ok: true, token, url: signUrl, send_id: sendId });
@@ -4066,11 +4056,11 @@ app.post('/api/intake-cases/:id/send-survey-link', requireAdmissionModule, async
     }
     const surveyUrl = `${req.protocol}://${req.get('host')}/survey/${link.token}`;
     const ic = db.get(`SELECT program_name, student_name FROM intake_cases WHERE id=?`, [req.params.id]);
-    await sendMail(email,
+    res.json({ ok: true, survey_url: surveyUrl });
+    sendMail(email,
       `满意度调查邀请 - ${ic?.student_name || ''}`,
       `<p>您好，</p><p>感谢您选择我们！请花几分钟填写入学满意度调查：</p><p><a href="${surveyUrl}" style="font-size:1.1em;font-weight:bold;">${surveyUrl}</a></p><p>您的反馈对我们非常重要。</p>`
-    );
-    res.json({ ok: true, survey_url: surveyUrl });
+    ).catch(e => { console.error('send-survey-link 失败:', e.message); });
   } catch(e) {
     console.error('send-survey-link 失败:', e.message);
     res.status(500).json({ error: e.message });

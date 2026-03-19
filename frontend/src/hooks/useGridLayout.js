@@ -1,53 +1,47 @@
 import { useState, useCallback } from 'react'
 
-const STORAGE_KEY = 'student-overview-grid-layout'
-
 /**
- * 管理概览 Grid 的卡片顺序和宽度
- * 持久化到 localStorage，刷新后恢复
+ * 管理概览 Grid 卡片顺序和宽度
+ * key 参数 = studentId，每个学生独立保存布局
  */
-export function useGridLayout(defaultCards) {
+export function useGridLayout(defaultCards, key = 'default') {
+  const storageKey = `student-overview-layout:${key}`
+
   const [cards, setCards] = useState(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-      if (saved.length === 0) return defaultCards
-
-      // 用保存的顺序 + span 合并默认卡片（防止新卡片丢失）
+      const saved = JSON.parse(localStorage.getItem(storageKey) || '[]')
+      if (!saved.length) return defaultCards
       const savedMap = Object.fromEntries(saved.map(c => [c.id, c]))
+      // 按保存顺序重建，追加新卡片到末尾
       const merged = saved
         .filter(s => defaultCards.find(d => d.id === s.id))
         .map(s => ({ ...defaultCards.find(d => d.id === s.id), span: s.span }))
-
-      // 追加没有保存记录的新卡片
-      defaultCards.forEach(d => {
-        if (!savedMap[d.id]) merged.push(d)
-      })
+      defaultCards.forEach(d => { if (!savedMap[d.id]) merged.push(d) })
       return merged
-    } catch {
-      return defaultCards
-    }
+    } catch { return defaultCards }
   })
 
-  // 拖拽结束后更新顺序
+  const persist = useCallback((next) => {
+    localStorage.setItem(storageKey, JSON.stringify(next.map(c => ({ id: c.id, span: c.span }))))
+  }, [storageKey])
+
   const reorder = useCallback((newCards) => {
     setCards(newCards)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newCards.map(c => ({ id: c.id, span: c.span }))))
-  }, [])
+    persist(newCards)
+  }, [persist])
 
-  // 切换卡片宽度（span 1 ↔ 2）
   const toggleSpan = useCallback((id) => {
     setCards(prev => {
       const next = prev.map(c => c.id === id ? { ...c, span: c.span === 1 ? 2 : 1 } : c)
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next.map(c => ({ id: c.id, span: c.span }))))
+      persist(next)
       return next
     })
-  }, [])
+  }, [persist])
 
-  // 重置为默认布局
   const reset = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(storageKey)
     setCards(defaultCards)
-  }, [defaultCards])
+  }, [storageKey, defaultCards])
 
   return { cards, reorder, toggleSpan, reset }
 }

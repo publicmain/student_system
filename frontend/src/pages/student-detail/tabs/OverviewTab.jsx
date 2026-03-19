@@ -37,7 +37,8 @@ const DEFAULT_CARDS = [
 ]
 
 export function OverviewTab({ student, assessments, subjects, targets, mentors, parents, canEdit, handlers }) {
-  const { cards, reorder, toggleSpan, reset } = useGridLayout(DEFAULT_CARDS)
+  // 每个学生用独立 localStorage key，互不干扰
+  const { cards, reorder, toggleSpan, reset } = useGridLayout(DEFAULT_CARDS, student?.id || 'default')
   const [activeId, setActiveId] = useState(null)
 
   // dnd-kit 传感器 — PointerSensor 带 5px 容差，防止点击触发拖拽
@@ -117,9 +118,10 @@ export function OverviewTab({ student, assessments, subjects, targets, mentors, 
             CSS Grid 2列，卡片通过 style.gridColumn 控制跨列
             AnimatePresence 让卡片排序时有平滑动画
           */}
+          {/* 响应式：移动端1列，平板/桌面2列 */}
           <motion.div
             layout
-            className="grid grid-cols-2 gap-4 items-start"
+            className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start"
           >
             <AnimatePresence>
               {cards.map(card => renderCard(card))}

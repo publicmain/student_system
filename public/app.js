@@ -1160,129 +1160,170 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
     <div class="tab-content" id="student-tab-content">
       <!-- 概览 -->
       <div class="tab-pane fade show active" id="tab-overview">
-        <div class="row g-3">
+        <div class="overview-grid" id="overview-grid">
+
           <!-- 基本信息 -->
-          <div class="col-md-4">
-            <div class="card">
-              <div class="card-header fw-semibold"><i class="bi bi-person-fill me-1 text-primary"></i>基本信息</div>
-              <div class="card-body">
-                <table class="table table-sm table-borderless mb-0">
-                  <tr><th class="text-muted" width="40%">姓名</th><td>${escapeHtml(student.name)}</td></tr>
-                  <tr><th class="text-muted">年级</th><td>${escapeHtml(student.grade_level)}</td></tr>
-                  <tr><th class="text-muted">考试局</th><td>${escapeHtml(student.exam_board||'—')}</td></tr>
-                  <tr><th class="text-muted">入学日期</th><td>${fmtDate(student.enrol_date)}</td></tr>
-                  <tr><th class="text-muted">出生日期</th><td>${fmtDate(student.date_of_birth)||'—'}${isUnder14(student.date_of_birth) ? ' <span class="badge bg-warning text-dark ms-1">未满14岁</span>' : ''}</td></tr>
-                  <tr><th class="text-muted">备注</th><td class="small text-muted">${escapeHtml(student.notes||'—')}</td></tr>
+          <div class="overview-card" data-card-id="basic" data-span="1" draggable="true">
+            <div class="ov-card">
+              <div class="ov-card-header">
+                <i class="bi bi-grip-vertical ov-drag-handle" title="拖动排序"></i>
+                <span class="ov-card-title"><i class="bi bi-person-fill text-primary"></i>基本信息</span>
+                <div class="ov-card-actions">
+                  <button class="ov-card-btn" onclick="toggleCardSpan('basic')" title="切换宽度"><i class="bi bi-arrows-fullscreen"></i></button>
+                </div>
+              </div>
+              <div class="ov-card-body">
+                <table class="ov-info-table">
+                  <tr><th>姓名</th><td>${escapeHtml(student.name)}</td></tr>
+                  <tr><th>年级</th><td>${escapeHtml(student.grade_level)}</td></tr>
+                  <tr><th>考试局</th><td>${escapeHtml(student.exam_board||'—')}</td></tr>
+                  <tr><th>入学日期</th><td>${fmtDate(student.enrol_date)}</td></tr>
+                  <tr><th>出生日期</th><td>${fmtDate(student.date_of_birth)||'—'}${isUnder14(student.date_of_birth) ? ' <span class="badge bg-warning text-dark ms-1" style="font-size:.7rem">未满14岁</span>' : ''}</td></tr>
+                  ${student.notes ? `<tr><th>备注</th><td style="color:var(--text-secondary);font-size:.82rem">${escapeHtml(student.notes)}</td></tr>` : ''}
                 </table>
               </div>
             </div>
           </div>
 
+          <!-- 导师/规划师 -->
+          <div class="overview-card" data-card-id="mentor" data-span="1" draggable="true">
+            <div class="ov-card">
+              <div class="ov-card-header">
+                <i class="bi bi-grip-vertical ov-drag-handle" title="拖动排序"></i>
+                <span class="ov-card-title"><i class="bi bi-person-check text-warning"></i>导师 / 规划师</span>
+                <div class="ov-card-actions">
+                  ${canEdit ? `<button class="ov-card-btn" onclick="openAssignMentorModal('${id}')" title="分配导师"><i class="bi bi-plus-lg"></i></button>` : ''}
+                  <button class="ov-card-btn" onclick="toggleCardSpan('mentor')" title="切换宽度"><i class="bi bi-arrows-fullscreen"></i></button>
+                </div>
+              </div>
+              <div class="ov-card-body p-0">
+                ${mentors.length === 0
+                  ? `<div class="ov-empty"><i class="bi bi-person-check"></i><span>暂未分配导师</span></div>`
+                  : mentors.map(m => `<div class="ov-row-item">
+                      <div class="ov-avatar">${escapeHtml(m.staff_name.charAt(0))}</div>
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:.875rem;font-weight:600;color:var(--text-primary)">${escapeHtml(m.staff_name)}</div>
+                        <div style="font-size:.78rem;color:var(--text-tertiary)">${escapeHtml(m.role)}</div>
+                      </div>
+                      ${canEdit ? `<button class="ov-card-btn" style="color:#dc2626" onclick="removeMentor('${m.id}','${id}')" title="移除"><i class="bi bi-x-circle"></i></button>` : ''}
+                    </div>`).join('')}
+              </div>
+            </div>
+          </div>
+
           <!-- 入学评估 -->
-          <div class="col-md-4">
-            <div class="card">
-              <div class="card-header fw-semibold d-flex justify-content-between">
-                <span><i class="bi bi-graph-up me-1 text-success"></i>入学评估</span>
-                ${canEdit ? `<button class="btn btn-link btn-sm p-0" onclick="openAssessmentModal('${id}')"><i class="bi bi-plus"></i></button>` : ''}
+          <div class="overview-card" data-card-id="assessment" data-span="1" draggable="true">
+            <div class="ov-card">
+              <div class="ov-card-header">
+                <i class="bi bi-grip-vertical ov-drag-handle" title="拖动排序"></i>
+                <span class="ov-card-title"><i class="bi bi-graph-up text-success"></i>入学评估</span>
+                <div class="ov-card-actions">
+                  ${canEdit ? `<button class="ov-card-btn" onclick="openAssessmentModal('${id}')" title="添加评估"><i class="bi bi-plus-lg"></i></button>` : ''}
+                  <button class="ov-card-btn" onclick="toggleCardSpan('assessment')" title="切换宽度"><i class="bi bi-arrows-fullscreen"></i></button>
+                </div>
               </div>
-              <div class="card-body p-0">
-                ${assessments.length === 0 ? emptyStateSm('暂无评估记录','graph-up') :
-                assessments.map(a => `<div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
-                  <div>
-                    <div class="small fw-semibold">${escapeHtml(a.assess_type)}</div>
-                    <div class="small text-muted">${escapeHtml(a.subject||'—')} · ${fmtDate(a.assess_date)}</div>
-                  </div>
-                  <div class="text-end">
-                    <div class="fw-bold text-primary">${a.score} <small class="text-muted">/ ${a.max_score}</small></div>
-                    ${a.percentile ? `<div class="small text-muted">${a.percentile}%ile</div>` : ''}
-                  </div>
-                </div>`).join('')}
-              </div>
-            </div>
-          </div>
-
-          <!-- 导师分配 -->
-          <div class="col-md-4">
-            <div class="card">
-              <div class="card-header fw-semibold d-flex justify-content-between">
-                <span><i class="bi bi-person-check me-1 text-warning"></i>导师/规划师</span>
-                ${canEdit ? `<button class="btn btn-link btn-sm p-0" onclick="openAssignMentorModal('${id}')"><i class="bi bi-plus"></i></button>` : ''}
-              </div>
-              <div class="card-body p-0">
-                ${mentors.length === 0 ? '<p class="text-center text-muted py-3 small">暂未分配</p>' :
-                mentors.map(m => `<div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
-                  <div class="avatar-sm">${escapeHtml(m.staff_name.charAt(0))}</div>
-                  <div class="flex-grow-1">
-                    <div class="small fw-semibold">${escapeHtml(m.staff_name)}</div>
-                    <div class="small text-muted">${escapeHtml(m.role)}</div>
-                  </div>
-                  ${canEdit ? `<button class="btn btn-link btn-sm text-danger p-0" onclick="removeMentor('${m.id}','${id}')"><i class="bi bi-x-circle"></i></button>` : ''}
-                </div>`).join('')}
+              <div class="ov-card-body p-0">
+                ${assessments.length === 0
+                  ? `<div class="ov-empty"><i class="bi bi-graph-up"></i><span>暂无评估记录</span></div>`
+                  : assessments.map(a => `<div class="ov-row-item">
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:.875rem;font-weight:600;color:var(--text-primary)">${escapeHtml(a.assess_type)}</div>
+                        <div style="font-size:.78rem;color:var(--text-tertiary)">${escapeHtml(a.subject||'—')} · ${fmtDate(a.assess_date)}</div>
+                      </div>
+                      <div style="text-align:right;flex-shrink:0">
+                        <div class="ov-score">${a.score}<small style="color:var(--text-tertiary);font-size:.75rem;font-weight:400"> / ${a.max_score}</small></div>
+                        ${a.percentile ? `<div style="font-size:.75rem;color:var(--text-tertiary)">${a.percentile}%ile</div>` : ''}
+                      </div>
+                    </div>`).join('')}
               </div>
             </div>
           </div>
 
-          <!-- 选科 -->
-          <div class="col-md-6">
-            <div class="card">
-              <div class="card-header fw-semibold d-flex justify-content-between">
-                <span><i class="bi bi-book me-1 text-info"></i>选科记录</span>
-                ${canEdit ? `<button class="btn btn-link btn-sm p-0" onclick="openSubjectModal('${id}')"><i class="bi bi-plus"></i></button>` : ''}
+          <!-- 选科记录 -->
+          <div class="overview-card" data-card-id="subjects" data-span="1" draggable="true">
+            <div class="ov-card">
+              <div class="ov-card-header">
+                <i class="bi bi-grip-vertical ov-drag-handle" title="拖动排序"></i>
+                <span class="ov-card-title"><i class="bi bi-book text-info"></i>选科记录</span>
+                <div class="ov-card-actions">
+                  ${canEdit ? `<button class="ov-card-btn" onclick="openSubjectModal('${id}')" title="添加科目"><i class="bi bi-plus-lg"></i></button>` : ''}
+                  <button class="ov-card-btn" onclick="toggleCardSpan('subjects')" title="切换宽度"><i class="bi bi-arrows-fullscreen"></i></button>
+                </div>
               </div>
-              <div class="card-body">
-                ${subjects.length === 0 ? '<p class="text-muted small">暂无选科记录</p>' :
-                `<div class="d-flex flex-wrap gap-2">
-                  ${subjects.map(s => `<span class="badge bg-light text-dark border">
-                    ${escapeHtml(s.code)} ${escapeHtml(s.level||'')} <span class="text-muted">(${escapeHtml(s.exam_board||'—')})</span>
-                    ${canEdit ? `<button class="btn-close ms-1" style="font-size:8px" onclick="removeSubject('${s.id}','${id}')"></button>` : ''}
-                  </span>`).join('')}
-                </div>`}
+              <div class="ov-card-body">
+                ${subjects.length === 0
+                  ? `<div class="ov-empty" style="padding:.75rem"><i class="bi bi-book"></i><span>暂无选科记录</span></div>`
+                  : `<div style="display:flex;flex-wrap:wrap;gap:.5rem">
+                      ${subjects.map(s => `<span class="ov-subject-tag">
+                        <strong>${escapeHtml(s.code)}</strong>
+                        ${s.level ? `<span style="color:var(--text-secondary)">${escapeHtml(s.level)}</span>` : ''}
+                        <span style="color:var(--text-tertiary);font-size:.75rem">${escapeHtml(s.exam_board||'')}</span>
+                        ${canEdit ? `<button class="tag-remove" onclick="removeSubject('${s.id}','${id}')" title="移除"><i class="bi bi-x"></i></button>` : ''}
+                      </span>`).join('')}
+                    </div>`}
               </div>
             </div>
           </div>
 
           <!-- 目标院校 -->
-          <div class="col-md-6">
-            <div class="card">
-              <div class="card-header fw-semibold d-flex justify-content-between">
-                <span><i class="bi bi-building me-1 text-danger"></i>目标院校</span>
-                ${canEdit ? `<button class="btn btn-link btn-sm p-0" onclick="openTargetModal('${id}')"><i class="bi bi-plus"></i></button>` : ''}
+          <div class="overview-card" data-card-id="targets" data-span="2" draggable="true">
+            <div class="ov-card">
+              <div class="ov-card-header">
+                <i class="bi bi-grip-vertical ov-drag-handle" title="拖动排序"></i>
+                <span class="ov-card-title"><i class="bi bi-mortarboard text-danger"></i>目标院校</span>
+                <div class="ov-card-actions">
+                  ${canEdit ? `<button class="ov-card-btn" onclick="openTargetModal('${id}')" title="添加院校"><i class="bi bi-plus-lg"></i></button>` : ''}
+                  <button class="ov-card-btn" onclick="toggleCardSpan('targets')" title="切换宽度"><i class="bi bi-arrows-fullscreen"></i></button>
+                </div>
               </div>
-              <div class="card-body p-0">
-                ${targets.length === 0 ? emptyStateSm('暂无目标院校','mortarboard') :
-                `<table class="table table-sm mb-0">
-                  <thead class="table-light"><tr><th>院校</th><th>专业</th><th>梯度</th>${canEdit?'<th></th>':''}</tr></thead>
-                  <tbody>
-                    ${targets.map(t => `<tr>
-                      <td>${escapeHtml(t.uni_name)}</td>
-                      <td class="small text-muted">${escapeHtml(t.department||'—')}</td>
-                      <td>${tierBadge(t.tier)}</td>
-                      ${canEdit ? `<td><button class="btn btn-link btn-sm text-danger p-0" onclick="deleteTarget('${t.id}','${id}')"><i class="bi bi-trash"></i></button></td>` : ''}
-                    </tr>`).join('')}
-                  </tbody>
-                </table>`}
+              <div class="ov-card-body p-0">
+                ${targets.length === 0
+                  ? `<div class="ov-empty"><i class="bi bi-mortarboard"></i><span>暂无目标院校，点击右上角 + 添加</span></div>`
+                  : `<table style="width:100%;border-collapse:collapse;font-size:.875rem">
+                      <thead><tr style="background:var(--surface-2)">
+                        <th style="padding:.5rem 1rem;color:var(--text-tertiary);font-weight:500">院校</th>
+                        <th style="padding:.5rem 1rem;color:var(--text-tertiary);font-weight:500">专业 / 方向</th>
+                        <th style="padding:.5rem 1rem;color:var(--text-tertiary);font-weight:500">梯度</th>
+                        ${canEdit ? '<th style="padding:.5rem 1rem;width:40px"></th>' : ''}
+                      </tr></thead>
+                      <tbody>
+                        ${targets.map(t => `<tr style="border-top:1px solid var(--border)">
+                          <td style="padding:.6rem 1rem;font-weight:500;color:var(--text-primary)">${escapeHtml(t.uni_name)}</td>
+                          <td style="padding:.6rem 1rem;color:var(--text-secondary)">${escapeHtml(t.department||'—')}</td>
+                          <td style="padding:.6rem 1rem">${tierBadge(t.tier)}</td>
+                          ${canEdit ? `<td style="padding:.6rem 1rem"><button class="ov-card-btn" style="color:#dc2626" onclick="deleteTarget('${t.id}','${id}')"><i class="bi bi-trash"></i></button></td>` : ''}
+                        </tr>`).join('')}
+                      </tbody>
+                    </table>`}
               </div>
             </div>
           </div>
 
-          <!-- 家长 -->
-          <div class="col-md-8">
-            <div class="card">
-              <div class="card-header fw-semibold d-flex justify-content-between">
-                <span><i class="bi bi-person-heart me-1 text-secondary"></i>家长/监护人</span>
-                ${canEdit ? `<button class="btn btn-link btn-sm p-0" onclick="openParentModal('${id}')"><i class="bi bi-plus"></i></button>` : ''}
+          <!-- 家长/监护人 -->
+          <div class="overview-card" data-card-id="parents" data-span="2" draggable="true">
+            <div class="ov-card">
+              <div class="ov-card-header">
+                <i class="bi bi-grip-vertical ov-drag-handle" title="拖动排序"></i>
+                <span class="ov-card-title"><i class="bi bi-people text-secondary"></i>家长 / 监护人</span>
+                <div class="ov-card-actions">
+                  ${canEdit ? `<button class="ov-card-btn" onclick="openParentModal('${id}')" title="添加家长"><i class="bi bi-plus-lg"></i></button>` : ''}
+                  <button class="ov-card-btn" onclick="toggleCardSpan('parents')" title="切换宽度"><i class="bi bi-arrows-fullscreen"></i></button>
+                </div>
               </div>
-              <div class="card-body">
-                ${parents.length === 0 ? '<p class="text-muted small">暂无家长信息</p>' :
-                `<div class="row g-2">
-                  ${parents.map(p => `<div class="col-md-4">
-                    <div class="border rounded p-2 small">
-                      <div class="fw-semibold">${escapeHtml(p.name)} <span class="text-muted">(${escapeHtml(p.relation||'—')})</span></div>
-                      <div class="text-muted">${escapeHtml(p.phone||'')} ${escapeHtml(p.email||'')}</div>
-                      ${p.wechat ? `<div class="text-muted">微信: ${escapeHtml(p.wechat)}</div>` : ''}
-                    </div>
-                  </div>`).join('')}
-                </div>`}
+              <div class="ov-card-body">
+                ${parents.length === 0
+                  ? `<div class="ov-empty" style="padding:.75rem"><i class="bi bi-people"></i><span>暂无家长信息</span></div>`
+                  : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.75rem">
+                      ${parents.map(p => `<div class="ov-parent-card">
+                        <div style="font-weight:600;color:var(--text-primary);margin-bottom:.3rem">
+                          ${escapeHtml(p.name)}
+                          <span style="font-weight:400;color:var(--text-tertiary);font-size:.8rem;margin-left:.3rem">${escapeHtml(p.relation||'')}</span>
+                        </div>
+                        ${p.phone ? `<div style="color:var(--text-secondary)"><i class="bi bi-telephone me-1"></i>${escapeHtml(p.phone)}</div>` : ''}
+                        ${p.email ? `<div style="color:var(--text-secondary);word-break:break-all"><i class="bi bi-envelope me-1"></i>${escapeHtml(p.email)}</div>` : ''}
+                        ${p.wechat ? `<div style="color:var(--text-secondary)"><i class="bi bi-wechat me-1"></i>${escapeHtml(p.wechat)}</div>` : ''}
+                      </div>`).join('')}
+                    </div>`}
               </div>
             </div>
           </div>
@@ -1402,6 +1443,9 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
       </div>
     </div>`;
 
+    // 初始化概览卡片拖拽
+    initOverviewDrag();
+
     // 激活指定标签页（如 tab-timeline）
     activateTab(activeTab);
 
@@ -1434,6 +1478,82 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
   } catch(e) {
     mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
   }
+}
+
+// ════════════════════════════════════════════════════════
+//  概览卡片拖拽 & 布局持久化
+// ════════════════════════════════════════════════════════
+function initOverviewDrag() {
+  const grid = document.getElementById('overview-grid');
+  if (!grid) return;
+
+  // 应用已保存布局（顺序 + 宽度）
+  const saved = JSON.parse(localStorage.getItem('student-overview-layout') || '[]');
+  if (saved.length > 0) {
+    saved.forEach(({ id, span }) => {
+      const card = grid.querySelector(`[data-card-id="${id}"]`);
+      if (card) {
+        card.dataset.span = span;
+        card.style.gridColumn = `span ${span}`;
+      }
+    });
+    // 按保存顺序重排 DOM
+    saved.forEach(({ id }) => {
+      const card = grid.querySelector(`[data-card-id="${id}"]`);
+      if (card) grid.appendChild(card);
+    });
+  } else {
+    // 应用默认 data-span
+    grid.querySelectorAll('.overview-card').forEach(card => {
+      card.style.gridColumn = `span ${card.dataset.span || 1}`;
+    });
+  }
+
+  // 拖拽逻辑
+  let dragSrc = null;
+  grid.querySelectorAll('.overview-card').forEach(card => {
+    card.addEventListener('dragstart', e => {
+      dragSrc = card;
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => card.classList.add('dragging'), 0);
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      grid.querySelectorAll('.overview-card').forEach(c => c.classList.remove('drag-over'));
+      dragSrc = null;
+      saveOverviewLayout();
+    });
+    card.addEventListener('dragover', e => {
+      e.preventDefault();
+      if (!dragSrc || dragSrc === card) return;
+      const rect = card.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      card.classList.add('drag-over');
+      if (e.clientY < mid) grid.insertBefore(dragSrc, card);
+      else grid.insertBefore(dragSrc, card.nextSibling);
+    });
+    card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+  });
+}
+
+function saveOverviewLayout() {
+  const grid = document.getElementById('overview-grid');
+  if (!grid) return;
+  const layout = [...grid.querySelectorAll('.overview-card')].map(c => ({
+    id: c.dataset.cardId,
+    span: parseInt(c.dataset.span) || 1,
+  }));
+  localStorage.setItem('student-overview-layout', JSON.stringify(layout));
+}
+
+function toggleCardSpan(cardId) {
+  const card = document.querySelector(`[data-card-id="${cardId}"]`);
+  if (!card) return;
+  const current = parseInt(card.dataset.span) || 1;
+  const next = current === 1 ? 2 : 1;
+  card.dataset.span = next;
+  card.style.gridColumn = `span ${next}`;
+  saveOverviewLayout();
 }
 
 function renderTaskList(tasks, studentId, canEdit) {

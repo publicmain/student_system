@@ -1557,3 +1557,180 @@ body.dark-mode .timeline-node.done { background: #14532d; border-color: #22c55e;
   border-bottom-color: var(--primary, #2563eb);
   text-decoration: none;
 }
+
+/* ═══════════════════════════════════════════════════
+   Overview Grid — 可拖拽卡片布局
+   ═══════════════════════════════════════════════════ */
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+.overview-card {
+  grid-column: span 1;
+  transition: opacity var(--ease-normal);
+}
+.overview-card[data-span="2"] {
+  grid-column: span 2;
+}
+.overview-card.drag-over {
+  outline: 2px dashed var(--primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+.overview-card.dragging {
+  opacity: 0.4;
+}
+.ov-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--ease-normal);
+  overflow: hidden;
+}
+.ov-card:hover {
+  box-shadow: var(--shadow-md);
+}
+.ov-card-header {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  user-select: none;
+}
+.ov-drag-handle {
+  color: var(--text-tertiary);
+  cursor: grab;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 2px 3px;
+  border-radius: 4px;
+  transition: color var(--ease-fast), background var(--ease-fast);
+}
+.ov-drag-handle:hover {
+  color: var(--text-secondary);
+  background: var(--surface-3);
+}
+.ov-drag-handle:active { cursor: grabbing; }
+.ov-card-title {
+  flex: 1;
+  font-size: .875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+.ov-card-actions {
+  display: flex;
+  align-items: center;
+  gap: .25rem;
+}
+.ov-card-btn {
+  background: none;
+  border: none;
+  padding: 3px 6px;
+  border-radius: 5px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: .875rem;
+  line-height: 1;
+  transition: color var(--ease-fast), background var(--ease-fast);
+}
+.ov-card-btn:hover {
+  color: var(--primary);
+  background: var(--primary-light);
+}
+.ov-card-body {
+  padding: 1rem;
+}
+.ov-card-body.p-0 { padding: 0; }
+/* Info table */
+.ov-info-table {
+  width: 100%;
+  font-size: .875rem;
+  border-collapse: collapse;
+}
+.ov-info-table tr + tr td,
+.ov-info-table tr + tr th { border-top: 1px solid var(--border); }
+.ov-info-table th {
+  padding: .5rem .75rem .5rem 0;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  white-space: nowrap;
+  width: 35%;
+}
+.ov-info-table td {
+  padding: .5rem 0;
+  color: var(--text-primary);
+}
+/* Row item (mentors, assessments etc) */
+.ov-row-item {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .6rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.ov-row-item:last-child { border-bottom: none; }
+/* Mini avatar */
+.ov-avatar {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+  font-size: .8rem;
+  flex-shrink: 0;
+}
+/* Empty micro */
+.ov-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  color: var(--text-tertiary);
+  font-size: .8rem;
+  gap: .4rem;
+}
+.ov-empty i { font-size: 1.5rem; }
+/* Subject tags */
+.ov-subject-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .25rem .6rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-size: .8rem;
+  color: var(--text-primary);
+}
+.ov-subject-tag .tag-remove {
+  background: none; border: none; padding: 0;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: .7rem;
+  line-height: 1;
+  margin-left: .1rem;
+}
+.ov-subject-tag .tag-remove:hover { color: #dc2626; }
+/* Score badge */
+.ov-score {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+/* Parent card mini */
+.ov-parent-card {
+  padding: .65rem .9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: .82rem;
+}

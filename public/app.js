@@ -2495,23 +2495,19 @@ async function saveParent() {
 async function openSubjectModal(studentId) {
   document.getElementById('subj-student-id').value = studentId;
 
-  // Populate subject list from settings (with fallback to /api/subjects)
-  const settingsSubjects = getSubjectList();
+  // Populate subject list — always use /api/subjects for UUID-based values
   const subjSel = document.getElementById('subj-code');
-  if (settingsSubjects.length > 0) {
-    subjSel.innerHTML = settingsSubjects.map(s =>
-      `<option value="${escapeHtml(s.code)}">${escapeHtml(s.code)} — ${escapeHtml(s.name)}</option>`
+  try {
+    if (!State.subjectList || State.subjectList.length === 0) {
+      State.subjectList = await GET('/api/subjects');
+    }
+    subjSel.innerHTML = State.subjectList.map(s =>
+      `<option value="${escapeHtml(s.id)}">${escapeHtml(s.code)} — ${escapeHtml(s.name)}</option>`
     ).join('');
-  } else {
-    try {
-      if (State.subjectList.length === 0) {
-        State.subjectList = await GET('/api/subjects');
-      }
-      subjSel.innerHTML = State.subjectList.map(s =>
-        `<option value="${escapeHtml(s.id)}">${escapeHtml(s.code)} — ${escapeHtml(s.name)}</option>`
-      ).join('');
-    } catch(e) { showError('科目列表加载失败'); return; }
-  }
+    if (State.subjectList.length === 0) {
+      subjSel.innerHTML = '<option value="">暂无科目，请先在系统设置中添加</option>';
+    }
+  } catch(e) { showError('科目列表加载失败'); return; }
 
   // Populate level and exam board from settings
   const levelSel = document.getElementById('subj-level');

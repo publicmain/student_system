@@ -430,7 +430,7 @@ app.get('/api/students/:id', requireAuth, (req, res) => {
     JOIN referrals r ON r.id=ic.referral_id
     JOIN agents a ON a.id=r.agent_id
     WHERE ic.student_id=? AND r.source_type='agent'
-    ORDER BY ic.created_at DESC LIMIT 1
+    ORDER BY ic.created_at DESC, ic.rowid DESC LIMIT 1
   `, [id]);
   // fallback: 直接用 students.agent_id
   if (!agentInfo && student.agent_id) {
@@ -2496,7 +2496,7 @@ app.get('/api/intake-cases', requireAdmissionModule, (req, res) => {
         LEFT JOIN referrals r ON r.id=ic.referral_id
         LEFT JOIN agents a ON a.id=r.agent_id
         WHERE ${where.join(' AND ')}
-        ORDER BY ic.created_at DESC
+        ORDER BY ic.created_at DESC, ic.rowid DESC
       `, params)
     : db.all(`
         SELECT ic.id, ic.student_name, ic.intake_year, ic.program_name, ic.status,
@@ -2512,7 +2512,7 @@ app.get('/api/intake-cases', requireAdmissionModule, (req, res) => {
         LEFT JOIN visa_cases vc ON vc.case_id=ic.id
         LEFT JOIN finance_invoices fi ON fi.case_id=ic.id AND fi.status != 'void'
         WHERE ${where.join(' AND ')}
-        ORDER BY ic.created_at DESC
+        ORDER BY ic.created_at DESC, ic.rowid DESC
       `, params);
   res.json(cases);
 });
@@ -4726,7 +4726,7 @@ app.get('/api/agent/my-students', requireRole('agent'), (req, res) => {
     JOIN intake_cases ic ON ic.referral_id=r.id
     JOIN students s ON s.id=ic.student_id
     WHERE r.agent_id=? AND s.status != 'deleted'
-    ORDER BY ic.created_at DESC
+    ORDER BY ic.created_at DESC, ic.rowid DESC
   `, [agentId]);
   res.json(students);
 });

@@ -965,6 +965,7 @@ async function submitAll(){
     return;
   }
   if(!confirm(t('submit_confirm')))return;
+  // 锁定提交（放在 confirm 之后，所有 early return 之后）
   S._submitting=true;
   // 显示加载动画
   const submitBtn=document.querySelector('.btn-submit');

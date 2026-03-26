@@ -5266,9 +5266,13 @@ app.post('/api/agent/uif/submit', (req, res) => {
   if (mr && ['CANCELLED', 'COMPLETED'].includes(mr.status)) {
     return res.status(403).json({ error: `REQUEST_${mr.status}` });
   }
-  // 不允许已提交后重复提交（除非被打回）
+  // 不允许已提交后重复提交（除非被打回或 UIF 状态不一致）
   if (mr && mr.status === 'SUBMITTED') {
-    return res.status(400).json({ error: '已提交，请等待审核' });
+    const uifCheck = db.get(`SELECT status FROM mat_uif_submissions WHERE request_id=?`, [v.rec.request_id]);
+    if (uifCheck && uifCheck.status === 'SUBMITTED') {
+      return res.status(400).json({ error: '已提交，请等待审核' });
+    }
+    // UIF 状态不是 SUBMITTED（可能是 DRAFT 不一致），允许继续提交修复
   }
 
   const { data } = req.body;

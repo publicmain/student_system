@@ -11368,6 +11368,7 @@ async function submitAddMatContact(companyId) {
       is_admin: document.getElementById('newContactIsAdmin')?.checked ? 1 : 0,
     });
     showSuccess('联系人已添加');
+    renderMatCompanies(); // 刷新主列表（更新联系人数）
     const company = await GET('/api/mat-companies');
     const c = company.find(x => x.id === companyId);
     await showMatCompanyDetail(companyId, c?.name || '');

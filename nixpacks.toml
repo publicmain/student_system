@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["...", "python312", "python312Packages.pip"]
+
+[phases.install]
+cmds = ["npm ci --production", "pip install -r pdf-filler/requirements.txt"]
+
+[start]
+cmd = "node server.js"

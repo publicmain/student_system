@@ -6,7 +6,7 @@
   <title>学生升学与学业规划管理系统</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+" crossorigin="anonymous">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20260326">
 </head>
 <body>
 
@@ -51,11 +51,11 @@
       <!-- 通知铃 -->
       <div class="position-relative d-none" id="notif-bell-wrap">
         <button class="btn btn-link text-white p-1" id="notif-bell-btn" title="通知">
-          <i class="bi bi-bell-fill fs-5"></i>
+          <i class="bi bi-bell-fill" style="font-size:1rem"></i>
           <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="notif-badge" style="display:none;font-size:10px"></span>
         </button>
       </div>
-      <span class="badge bg-light text-dark" id="nav-role-badge"></span>
+      <span class="badge" id="nav-role-badge" style="background:rgba(255,255,255,0.15);color:#e2e8f0;font-weight:500;font-size:11px"></span>
       <span class="text-white" id="nav-username"></span>
       <button class="btn btn-outline-light btn-sm" onclick="openChangePasswordModal()" title="修改密码">
         <i class="bi bi-key"></i>
@@ -109,9 +109,7 @@
         <a href="#" class="nav-item" data-page="staff" data-roles="principal,counselor">
           <i class="bi bi-people"></i><span>师资管理</span>
         </a>
-        <a href="#" class="nav-item" data-page="materials" data-roles="principal,counselor,mentor">
-          <i class="bi bi-folder2-open"></i><span>材料看板</span>
-        </a>
+        <!-- 材料看板已整合到入学案例详情 -->
         <!-- intake_staff 专用快捷入口（在管理分区显示学生列表供查询） -->
         <a href="#" class="nav-item" data-page="students" data-roles="intake_staff">
           <i class="bi bi-person-vcard"></i><span>学生查询</span>
@@ -140,6 +138,8 @@
         <a href="#" class="nav-item" data-page="intake-cases" data-roles="principal,intake_staff,student_admin">
           <i class="bi bi-person-lines-fill"></i><span>入学案例</span>
         </a>
+
+        <!-- 招生申请、材料收集、中介公司已整合到入学案例详情 -->
 
       </nav>
     </aside>
@@ -1741,6 +1741,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
-<script src="app.js"></script>
+<script>document.write('<script src="app.js?v='+Date.now()+'"><\/script>')</script>
 </body>
 </html>

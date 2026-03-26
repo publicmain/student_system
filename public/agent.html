@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Application – Equistar International College</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+<!-- Inter font loaded via system fallback to avoid CSP issues -->
+<style>
+/* ═══════════════════════════════════════════════
+   DESIGN TOKENS — Harvard Red Theme
+   ═══════════════════════════════════════════════ */
+:root{
+  --crimson:#A51C30; --crimson-d:#8C1A28; --crimson-l:#C44056;
+  --gold:#C4956A; --gold-l:#E8D5B7;
+  --bg:#F7F5F2; --card:#FFFFFF; --bdr:#E5E0DA;
+  --txt:#2D2926; --txt2:#5C5651; --txt3:#8A8380;
+  --ok:#1B7F4B; --ok-bg:#E8F5ED; --err:#C41E3A; --err-bg:#FDF0F2;
+  --info-bg:#FFF8F0; --pri-bg:#FDF5F3;
+  --radius:10px; --shadow:0 2px 12px rgba(45,41,38,.06);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Inter',system-ui,-apple-system,sans-serif;color:var(--txt);background:var(--bg);-webkit-font-smoothing:antialiased}
+
+/* ═══ WELCOME PAGE ═══ */
+.welcome{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:linear-gradient(170deg,#FDF5F3 0%,#F7F5F2 40%,#EDEBE8 100%);padding:24px;text-align:center}
+.welcome-card{max-width:520px;width:100%;background:var(--card);border-radius:16px;padding:48px 40px;box-shadow:var(--shadow)}
+.welcome .logo{width:110px;height:auto;margin-bottom:24px}
+.welcome h1{font-size:1.5rem;font-weight:700;color:var(--crimson);margin:0 0 8px}
+.welcome .subtitle{font-size:.95rem;color:var(--txt2);margin-bottom:28px;line-height:1.6}
+.welcome .checklist{text-align:left;margin:0 auto 28px;max-width:380px}
+.welcome .checklist li{font-size:.85rem;color:var(--txt2);padding:5px 0;list-style:none;display:flex;align-items:flex-start;gap:8px}
+.welcome .checklist li i{color:var(--crimson);flex-shrink:0;margin-top:2px}
+.btn-start{background:var(--crimson);color:#fff;border:none;padding:14px 48px;border-radius:var(--radius);
+  font-size:1rem;font-weight:600;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:8px}
+.btn-start:hover{background:var(--crimson-d);color:#fff;transform:translateY(-1px);box-shadow:0 4px 16px rgba(165,28,48,.25)}
+.lang-toggle{position:absolute;top:20px;right:24px;display:flex;gap:2px;background:var(--card);border-radius:6px;
+  padding:2px;box-shadow:0 1px 4px rgba(0,0,0,.08);z-index:50}
+.lang-btn{border:none;background:transparent;padding:6px 14px;font-size:.78rem;font-weight:600;cursor:pointer;
+  border-radius:4px;color:var(--txt3);transition:all .15s}
+.lang-btn.active{background:var(--crimson);color:#fff}
+
+/* ═══ APP SHELL ═══ */
+.app-header{background:var(--card);border-bottom:1px solid var(--bdr);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:40}
+.app-header .logo{height:36px;width:auto}
+.app-header .header-right{display:flex;align-items:center;gap:16px}
+.app-header .meta{font-size:.78rem;color:var(--txt3);text-align:right}
+.app-wrap{display:flex;max-width:1120px;margin:0 auto;padding:24px 16px;gap:24px;min-height:calc(100vh - 61px)}
+.side-nav{width:230px;flex-shrink:0;position:sticky;top:85px;align-self:flex-start}
+.main-panel{flex:1;min-width:0}
+
+/* ═══ STEP NAV ═══ */
+.nav-progress{background:var(--card);border-radius:var(--radius);padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
+.nav-progress .progress{height:5px;border-radius:4px;background:var(--bdr)}
+.nav-progress .progress-bar{background:var(--crimson);border-radius:4px;transition:width .4s}
+.step-list{list-style:none;padding:0;margin:0}
+.step-item{display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:8px;cursor:pointer;
+  margin-bottom:2px;font-size:.82rem;color:var(--txt3);transition:all .15s;user-select:none}
+.step-item:hover{background:var(--pri-bg);color:var(--crimson)}
+.step-item.active{background:var(--pri-bg);color:var(--crimson);font-weight:600}
+.step-item.done{color:var(--ok)}
+.step-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;border:2px solid var(--bdr);background:#fff;flex-shrink:0;transition:all .15s}
+.step-item.active .step-num{border-color:var(--crimson);background:var(--crimson);color:#fff}
+.step-item.done .step-num{border-color:var(--ok);background:var(--ok);color:#fff}
+
+/* ═══ FORM CARD ═══ */
+.form-card{background:var(--card);border-radius:12px;box-shadow:var(--shadow);padding:32px}
+.sec-title{font-size:1.15rem;font-weight:700;color:var(--crimson);margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.sec-desc{font-size:.82rem;color:var(--txt3);margin-bottom:24px;line-height:1.5}
+.sec-divider{border:none;border-top:1px solid var(--bdr);margin:28px 0}
+.sub-heading{font-size:.9rem;font-weight:600;color:var(--crimson);margin:16px 0 12px;display:flex;align-items:center;gap:6px}
+
+/* ═══ FIELDS ═══ */
+.fl{margin-bottom:16px}
+.fl-label{font-size:.78rem;font-weight:600;color:var(--txt);margin-bottom:4px}
+.fl-label .req{color:var(--err);margin-left:2px}
+.fl-hint{font-size:.7rem;color:var(--txt3);margin-top:3px}
+.form-control,.form-select{font-size:.85rem;border-radius:8px;border:1px solid var(--bdr);padding:9px 12px;
+  background:#fff;transition:border-color .15s,box-shadow .15s}
+.form-control:focus,.form-select:focus{border-color:var(--crimson-l);box-shadow:0 0 0 3px rgba(165,28,48,.1);outline:none}
+.form-control.is-invalid{border-color:var(--err)}
+.bool-row{display:flex;gap:20px;padding:6px 0}
+.bool-row label{display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer}
+.bool-row input[type="radio"]{accent-color:var(--crimson);width:16px;height:16px}
+
+/* ═══ DYNAMIC ROWS ═══ */
+.dyn-row{border:1px solid var(--bdr);border-radius:var(--radius);padding:16px 16px 8px;margin-bottom:10px;background:var(--bg);position:relative}
+.dyn-row .rm-btn{position:absolute;top:8px;right:10px;background:none;border:none;color:var(--err);cursor:pointer;opacity:.5;font-size:1.1rem}
+.dyn-row .rm-btn:hover{opacity:1}
+.dyn-row .row-tag{font-size:.72rem;font-weight:700;color:var(--crimson);text-transform:uppercase;margin-bottom:8px}
+.add-btn{border:2px dashed var(--bdr);border-radius:var(--radius);padding:12px;text-align:center;cursor:pointer;
+  color:var(--crimson);font-size:.85rem;font-weight:600;transition:all .15s;background:none;width:100%}
+.add-btn:hover{border-color:var(--crimson-l);background:var(--pri-bg)}
+
+/* ═══ UPLOAD ═══ */
+.upload-zone{border:2px dashed var(--bdr);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;
+  transition:all .15s;background:var(--bg)}
+.upload-zone:hover{border-color:var(--crimson-l);background:var(--pri-bg)}
+.upload-zone.dragging{border-color:var(--crimson);background:rgba(165,28,48,.06)}
+.upload-zone i.icon{font-size:1.6rem;color:var(--crimson-l)}
+.mat-card{border:1px solid var(--bdr);border-radius:var(--radius);padding:14px 16px;margin-bottom:8px;transition:all .15s}
+.mat-card.s-ok{border-color:var(--ok);background:var(--ok-bg)}
+.mat-card.s-up{border-color:var(--crimson-l);background:var(--pri-bg)}
+.mat-card.s-err{border-color:var(--err);background:var(--err-bg)}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:999px;font-size:.7rem;font-weight:600}
+.pill-ok{background:var(--ok-bg);color:var(--ok)} .pill-wait{background:#f1f5f9;color:var(--txt3)}
+.pill-up{background:var(--pri-bg);color:var(--crimson)} .pill-err{background:var(--err-bg);color:var(--err)}
+
+/* ═══ SIGNATURE ═══ */
+.sig-box{border:2px solid var(--bdr);border-radius:8px;cursor:crosshair;touch-action:none;background:#fff;width:100%;max-width:500px}
+.sig-box:hover{border-color:var(--crimson-l)}
+@media(max-width:768px){.sig-box{height:150px}}
+
+/* ═══ CONDITIONAL ═══ */
+.cond-block{border-left:3px solid var(--crimson-l);background:var(--pri-bg);border-radius:0 8px 8px 0;padding:16px 20px;margin:16px 0}
+.cond-label{font-size:.8rem;color:var(--crimson);font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+
+/* ═══ REVIEW ═══ */
+.rv-group{margin-bottom:20px}
+.rv-group h6{font-size:.85rem;font-weight:700;color:var(--crimson);border-bottom:1px solid var(--bdr);padding-bottom:6px;margin-bottom:8px}
+.rv-r{display:flex;padding:3px 0;font-size:.82rem}
+.rv-r .k{width:170px;color:var(--txt3);flex-shrink:0}
+.rv-r .v{flex:1;font-weight:500}
+.rv-r .v.empty{color:var(--err);font-style:italic;font-weight:400}
+
+/* ═══ NAV BUTTONS ═══ */
+.btn-nav{padding:10px 28px;border-radius:8px;font-weight:600;font-size:.9rem;transition:all .15s}
+.btn-next{background:var(--crimson);color:#fff;border:none}
+.btn-next:hover{background:var(--crimson-d);color:#fff}
+.btn-prev{background:#fff;color:var(--txt);border:1px solid var(--bdr)}
+.btn-prev:hover{background:var(--bg)}
+.btn-submit{background:var(--ok);color:#fff;border:none;padding:12px 40px;font-size:.95rem}
+.btn-submit:hover{background:#157a43;color:#fff}
+
+/* ═══ SAVE INDICATOR ═══ */
+.save-ind{position:fixed;bottom:16px;right:16px;font-size:.76rem;color:var(--ok);background:var(--card);
+  padding:6px 14px;border-radius:999px;box-shadow:0 2px 10px rgba(0,0,0,.1);z-index:99;transition:opacity .3s}
+
+/* ═══ ERROR PAGE ═══ */
+.err-page{min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px}
+
+/* ═══ RESPONSIVE ═══ */
+@media(max-width:768px){
+  .welcome-card{padding:32px 24px}
+  .welcome .logo{width:80px}
+  .welcome h1{font-size:1.2rem}
+  .lang-toggle{top:12px;right:12px}
+  .app-header{padding:10px 14px}
+  .app-header .logo{height:28px}
+  .app-header .meta{display:none}
+  .app-wrap{flex-direction:column;padding:12px 10px;gap:12px}
+  .side-nav{width:100%;position:static;order:-1}
+  .step-list{display:flex;overflow-x:auto;gap:2px;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+  .step-item{white-space:nowrap;padding:6px 10px;font-size:.75rem;flex-shrink:0}
+  .step-num{width:20px;height:20px;font-size:9px}
+  .form-card{padding:20px 16px;border-radius:10px}
+  .sec-title{font-size:1rem}
+  .nav-progress{padding:12px}
+  .btn-nav{padding:10px 20px;font-size:.85rem}
+  .dyn-row{padding:12px 12px 6px}
+  .step-nav-btns{padding:8px 0}
+}
+@media(max-width:768px){.step-nav-btns .btn-nav{flex:1}}
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+<div id="toastWrap" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+'use strict';
+
+// ══════════════════════════════════════════════════
+// I18N
+// ══════════════════════════════════════════════════
+const T = {
+  zh: {
+    welcome_title: '入学申请信息收集',
+    welcome_sub: '请在此页面填写完整的申请信息并上传所需材料。<br>提交后，系统将自动生成所需的申请文件。',
+    welcome_prepare: '请准备好以下材料后开始填写：',
+    prepare_items: ['申请人护照信息','家庭成员身份信息','教育背景资料','财务证明文件','护照尺寸照片'],
+    btn_start: '开始填写',
+    steps: ['课程与准证','个人信息','护照与地址','家庭成员','居住历史','教育与语言','工作经历','财务信息','声明事项','同意与签名','材料上传','检查与提交'],
+    progress: '填写进度',
+    prev: '上一步', next: '下一步', submit_btn: '提交申请',
+    draft_saved: '✓ 草稿已保存',
+    // Step titles
+    s0_title: '课程与准证信息', s0_desc: '填写申请课程及新加坡准证相关信息',
+    s1_title: '个人信息', s1_desc: '请按照护照上的信息如实填写',
+    s2_title: '护照与地址', s2_desc: '旅行证件信息及居住地址',
+    s3_title: '家庭成员', s3_desc: '父母、继父母、配偶及兄弟姐妹信息（SAF §4, V36 Part A-C）',
+    s4_title: '近五年居住历史', s4_desc: '列出过去五年中居住满一年的国家/地区',
+    s5_title: '教育背景与语言能力', s5_desc: '按时间顺序填写教育经历',
+    s6_title: '工作经历', s6_desc: '包括实习、工业实习等（V36 Part E）',
+    s7_title: '财务信息', s7_desc: '申请人及家庭的收入与储蓄情况',
+    s8_title: '声明事项', s8_desc: '背景声明及条件信息（Antecedent）',
+    s9_title: '同意与签名', s9_desc: 'PDPA 同意及电子签名',
+    s10_title: '材料上传', s10_desc: '上传所需申请材料',
+    s11_title: '检查与提交', s11_desc: '确认所有信息无误后提交',
+    // Fields
+    course_name: '课程名称', course_code: '课程代码', intake_year: '入学年份', intake_month: '入学月份',
+    study_mode: '学习模式', campus: '校区', school_name: '学校名称',
+    sg_pass_type: '新加坡准证类型', requires_student_pass: '是否需要申请学生准证？',
+    was_ever_sg_citizen: '是否曾为新加坡公民或永久居民？', sg_nric_fin: 'NRIC / FIN 号码', sg_pass_expiry: '准证到期日',
+    surname: '姓', given_name: '名', chinese_name: '中文姓名', alias: '别名',
+    gender: '性别', dob: '出生日期', birth_cert_no: '出生证明号码',
+    nationality: '国籍', birth_country: '出生国家', birth_city: '出生省/州',
+    race: '种族', religion: '宗教', occupation: '职业',
+    marital_status: '婚姻状况', email: '邮箱', phone_mobile: '手机号码', phone_home: '家庭电话',
+    passport_type: '证件类型', passport_no: '护照号码', passport_issue_country: '签发国', passport_issue_place: '签发地',
+    passport_issue_date: '签发日期', passport_expiry: '有效期至',
+    fin: '外国身份证号(FIN)', malaysian_id: '马来西亚身份证号',
+    address1: '地址行1', address2: '地址行2', city: '城市', state: '省/州', postal: '邮编', country_res: '居住国家',
+    hometown_addr: '家乡地址', sg_address: '新加坡住址', sg_tel: '新加坡电话',
+    // Family
+    add_family: '+ 添加家庭成员', relationship: '关系', sex: '性别',
+    sg_status: '新加坡居住身份', passport_nric: '护照/NRIC号', contact_no: '联系电话', sg_mobile: '新加坡手机号',
+    family_hint: '至少需要添加父亲和母亲信息',
+    pr_additional_title: 'SC/PR 父母附加信息（SAF §9, V36 Part G）',
+    sp_additional_title: 'SC/PR 配偶附加信息（V36 Part H）',
+    pr_marriage_cert: '结婚证号', pr_marriage_date: '结婚日期', pr_divorce_cert: '离婚证号', pr_divorce_date: '离婚日期', pr_custody: '监护权归属',
+    pr_school: '学校名称', pr_school_country: '学校所在国', pr_qualification: '最高学历', pr_edu_cert: '学历证书号',
+    pr_company: '公司名称', pr_monthly_income: '月收入(SGD)', pr_annual_income: '年收入(SGD)', pr_cpf: '月均CPF(SGD)',
+    // Residence
+    add_residence: '+ 添加居住记录', country_place: '国家/地区', address: '地址', from: '从', to: '至',
+    // Education
+    add_education: '+ 添加教育记录', institution: '学校名称', lang_instruction: '教学语言',
+    qualification: '获得学历', cert_no: '学历证书号', pass_english: '是否通过英语考试？',
+    native_lang: '母语', english_prof: '英语水平', ielts: '雅思成绩', toefl: '托福成绩',
+    highest_lang: '最高语言能力', other_test: '其他考试', other_score: '其他成绩',
+    need_placement: '是否需要英语分级测试？',
+    // Employment
+    no_edu_declare: '无教育背景信息可申报', no_edu_hint: '勾选后将在 V36 表中标记"无信息申报"',
+    no_emp_declare: '无工作经历信息可申报', no_emp_hint: '勾选后将在 V36 表中标记"无信息申报"', no_emp_checked: '已标记"无工作经历信息可申报"，V36 Part E 将自动勾选。',
+    add_employment: '+ 添加工作记录', employer: '公司/雇主', position: '职位', duties: '工作职责', is_current: '在职？',
+    no_employment_hint: '如无工作经历，留空即可——系统将自动标注"无信息申报"',
+    // Financial
+    monthly_income: '平均月收入(SGD)', current_saving: '当前储蓄(SGD)',
+    applicant: '申请人', father: '父亲', mother: '母亲', spouse: '配偶',
+    other_support: '是否有其他经济支持？', support_details: '详情', support_amount: '金额(SGD)',
+    bank_available: '是否有银行存款证明？',
+    // Antecedent
+    ant_q1: '是否曾在任何国家/地区（包括新加坡）被拒绝入境或被驱逐出境？',
+    ant_q2: '是否曾在任何国家/地区（包括新加坡）被法院定罪？',
+    ant_q3: '是否曾被禁止进入新加坡？',
+    ant_q4: '是否曾使用不同的护照或姓名进入新加坡？',
+    ant_remarks: '如有"是"的回答，请说明详情',
+    guardian_title: '监护人信息（申请人未满18岁必填）',
+    prior_sg: '是否曾在新加坡学习？', prior_school: '原学校名称', prior_year: '学习年份',
+    declarations_title: '表格声明',
+    f16_declaration: '我已阅读并同意 Form 16 声明', f16_declaration_hint: 'Form 16 学生准证申请声明',
+    v36_declaration: '我已阅读并同意 V36 声明', v36_declaration_hint: 'V36 附加信息表声明',
+    // Signature
+    pdpa_title: 'PDPA 个人资料保护同意',
+    pdpa_text: '签署本申请表即表示您同意学校根据《2012年个人资料保护法》收集、使用和披露您的个人资料，用于处理本申请及入学管理。',
+    pdpa_agree: '我同意 PDPA 数据收集和使用',
+    pdpa_marketing_label: '我同意接收营销和推广信息',
+    pdpa_photo: '我同意照片/录像用于宣传用途',
+    general_remarks: '备注',
+    applicant_sig: '申请人签名', guardian_sig: '监护人签名',
+    sig_hint: '请在下方框内使用鼠标或触屏签名', sig_clear: '清除', sig_date: '签名日期',
+    // Materials
+    id_photo_title: '证件照', id_photo_hint: '请上传护照尺寸照片（JPG/PNG，最大5MB）', id_photo_upload: '点击上传证件照',
+    financial_source: '资金来源', self_funded: '自费', parents_funded: '父母资助', sponsor_funded: '赞助人', scholarship: '奖学金', loan: '贷款',
+    sponsor_name: '赞助人姓名', sponsor_relation: '与申请人关系',
+    upload_hint: '点击或拖拽文件至此（PDF/Word/图片，最大10MB）',
+    status_pending: '待上传', status_uploaded: '已上传', status_approved: '已通过', status_rejected: '已退回',
+    reject_reason: '退回原因',
+    // Review
+    review_title: '检查与提交', review_desc: '请仔细检查所有信息，确认无误后提交。可点击左侧步骤返回修改。',
+    review_course: '课程信息', review_personal: '个人信息', review_passport: '证件与地址',
+    review_family: '家庭成员', review_education: '教育背景', review_employment: '工作经历',
+    review_materials: '材料上传',
+    not_filled: '（未填写）', members: '位成员', records: '条记录',
+    submit_confirm: '确认提交申请？提交后不可修改。',
+    submit_success: '申请已成功提交！',
+    submitted_msg: '申请信息已提交，感谢您的配合。',
+    fill_required: '请填写以下必填项：',
+    contact_footer: '如有问题，请联系您的顾问。',
+    // Select options
+    select: '请选择...',
+    male: '男', female: '女',
+    single: '单身', married: '已婚', divorced: '离异', widowed: '丧偶',
+    fulltime: '全日制', parttime: '非全日制',
+    passport: '护照', travel_doc: '旅行证件', ic: '身份证',
+    yes: '是', no: '否',
+    none_sg: '无/不在新加坡', sc: '新加坡公民', pr: '永久居民', ep: '就业准证',
+    dp: '家属准证', sp_pass: '学生准证', ltvp: '长期探访准证', s_pass: 'S准证',
+    father_rel: '父亲', mother_rel: '母亲', step_father: '继父', step_mother: '继母', spouse_rel: '配偶', sibling: '兄弟姐妹',
+  },
+  en: {
+    welcome_title: 'Application Information Collection',
+    welcome_sub: 'Please complete the application form and upload required documents.<br>The system will automatically generate the necessary application forms upon submission.',
+    welcome_prepare: 'Please have the following ready before you begin:',
+    prepare_items: ["Applicant's passport details",'Family members identification','Educational background documents','Financial proof documents','Passport-size photograph'],
+    btn_start: 'Start Application',
+    steps: ['Course & Pass','Personal Info','Passport & Address','Family Members','Residence History','Education & Language','Employment','Financial Info','Declarations','Consent & Signature','Materials Upload','Review & Submit'],
+    progress: 'Progress',
+    prev: 'Previous', next: 'Next', submit_btn: 'Submit Application',
+    draft_saved: '✓ Draft saved',
+    s0_title: 'Course & Pass Type', s0_desc: 'Course details and Singapore pass information',
+    s1_title: 'Personal Details', s1_desc: 'Fill in exactly as shown on passport',
+    s2_title: 'Passport & Address', s2_desc: 'Travel document and residential address',
+    s3_title: 'Family Members', s3_desc: 'Parents, step-parents, spouse and siblings (SAF §4, V36 Part A-C)',
+    s4_title: 'Residence History (Last 5 Years)', s4_desc: 'Countries/places resided for 1 year or more',
+    s5_title: 'Education & Language', s5_desc: 'Educational background in chronological order',
+    s6_title: 'Employment History', s6_desc: 'Including internships and industrial attachments (V36 Part E)',
+    s7_title: 'Financial Support', s7_desc: 'Income and savings of applicant and family',
+    s8_title: 'Declarations', s8_desc: 'Background declarations and conditional sections',
+    s9_title: 'Consent & Signature', s9_desc: 'PDPA consent and electronic signature',
+    s10_title: 'Materials Upload', s10_desc: 'Upload required application documents',
+    s11_title: 'Review & Submit', s11_desc: 'Verify all information before final submission',
+    course_name: 'Course Title', course_code: 'Course Code', intake_year: 'Intake Year', intake_month: 'Intake Month',
+    study_mode: 'Study Mode', campus: 'Campus', school_name: 'School / Institute',
+    sg_pass_type: 'SG Pass Type', requires_student_pass: 'Requires Student Pass?',
+    was_ever_sg_citizen: 'Were you ever a SG Citizen or PR?', sg_nric_fin: 'NRIC / FIN No.', sg_pass_expiry: 'Pass Expiry',
+    surname: 'Surname', given_name: 'Given Name', chinese_name: 'Chinese Name', alias: 'Alias',
+    gender: 'Gender', dob: 'Date of Birth', birth_cert_no: 'Birth Certificate No.',
+    nationality: 'Nationality', birth_country: 'Country of Birth', birth_city: 'Province/State of Birth',
+    race: 'Race', religion: 'Religion', occupation: 'Occupation',
+    marital_status: 'Marital Status', email: 'Email', phone_mobile: 'Mobile Number', phone_home: 'Home Phone',
+    passport_type: 'Document Type', passport_no: 'Passport No.', passport_issue_country: 'Country of Issue', passport_issue_place: 'Place of Issue',
+    passport_issue_date: 'Issue Date', passport_expiry: 'Expiry Date',
+    fin: 'FIN (if applicable)', malaysian_id: 'Malaysian IC No.',
+    address1: 'Address Line 1', address2: 'Address Line 2', city: 'City', state: 'State/Province', postal: 'Postal Code', country_res: 'Country of Residence',
+    hometown_addr: 'Hometown Address', sg_address: 'Singapore Address', sg_tel: 'Singapore Tel.',
+    add_family: '+ Add Family Member', relationship: 'Relationship', sex: 'Sex',
+    sg_status: 'SG Residential Status', passport_nric: 'Passport/NRIC No.', contact_no: 'Contact No.', sg_mobile: 'SG Mobile No.',
+    family_hint: 'At minimum, add Father and Mother information',
+    pr_additional_title: 'SC/PR Parent Additional Info (SAF §9, V36 Part G)',
+    sp_additional_title: 'SC/PR Spouse Additional Info (V36 Part H)',
+    pr_marriage_cert: 'Marriage Cert No.', pr_marriage_date: 'Marriage Date', pr_divorce_cert: 'Divorce Cert No.', pr_divorce_date: 'Divorce Date', pr_custody: 'Custody of Applicant',
+    pr_school: 'School Name', pr_school_country: 'School Country', pr_qualification: 'Highest Qualification', pr_edu_cert: 'Educational Cert No.',
+    pr_company: 'Company Name', pr_monthly_income: 'Monthly Income (SGD)', pr_annual_income: 'Annual Income (SGD)', pr_cpf: 'Avg Monthly CPF (SGD)',
+    add_residence: '+ Add Residence Record', country_place: 'Country/Place', address: 'Address', from: 'From', to: 'To',
+    add_education: '+ Add Education Record', institution: 'Institution Name', lang_instruction: 'Language of Instruction',
+    qualification: 'Qualification', cert_no: 'Certificate No.', pass_english: 'Passed English?',
+    native_lang: 'Native Language', english_prof: 'English Proficiency', ielts: 'IELTS', toefl: 'TOEFL',
+    highest_lang: 'Highest Language Proficiency', other_test: 'Other Test', other_score: 'Other Score',
+    need_placement: 'Need English Placement Test?',
+    no_edu_declare: 'No education info to declare', no_edu_hint: 'If checked, V36 Part D will mark "No information to declare"',
+    no_emp_declare: 'No employment info to declare', no_emp_hint: 'If checked, V36 Part E will mark "No information to declare"', no_emp_checked: 'Marked as "No employment information to declare". V36 Part E checkbox will be auto-checked.',
+    add_employment: '+ Add Employment Record', employer: 'Company/Employer', position: 'Position', duties: 'Nature of Duties', is_current: 'Current?',
+    no_employment_hint: 'If no employment history, leave empty — system will auto-check "No information to declare"',
+    monthly_income: 'Avg Monthly Income (SGD)', current_saving: 'Current Saving (SGD)',
+    applicant: 'Applicant', father: 'Father', mother: 'Mother', spouse: 'Spouse',
+    other_support: 'Other financial support?', support_details: 'Details', support_amount: 'Amount (SGD)',
+    bank_available: 'Bank statement available?',
+    ant_q1: 'Have you ever been refused entry into or deported from any country, including Singapore?',
+    ant_q2: 'Have you ever been convicted in a court of law in any country, including Singapore?',
+    ant_q3: 'Have you ever been prohibited from entering Singapore?',
+    ant_q4: 'Have you ever entered Singapore using a different Passport or Name?',
+    ant_remarks: 'If any answer is "Yes", please provide details',
+    guardian_title: 'Guardian Information (Required for applicants under 18)',
+    prior_sg: 'Previously studied in Singapore?', prior_school: 'Previous School', prior_year: 'Year',
+    declarations_title: 'Form Declarations',
+    f16_declaration: 'I have read and agree to the Form 16 declaration', f16_declaration_hint: 'Student Pass application declaration',
+    v36_declaration: 'I have read and agree to the V36 declaration', v36_declaration_hint: 'Additional information form declaration',
+    pdpa_title: 'PDPA Consent',
+    pdpa_text: 'By signing this form, you agree that the school may collect, use and disclose your personal data in accordance with the Personal Data Protection Act 2012.',
+    pdpa_agree: 'I agree to PDPA data collection',
+    pdpa_marketing_label: 'I consent to receive marketing communications',
+    pdpa_photo: 'I consent to photo/video for publicity',
+    general_remarks: 'Remarks',
+    applicant_sig: 'Applicant Signature', guardian_sig: 'Guardian Signature',
+    sig_hint: 'Sign in the box below using mouse or touch', sig_clear: 'Clear', sig_date: 'Signature Date',
+    id_photo_title: 'Passport Photo', id_photo_hint: 'Upload a passport-size photo (JPG/PNG, max 5MB)', id_photo_upload: 'Click to upload photo',
+    financial_source: 'Financial Source', self_funded: 'Self-funded', parents_funded: 'Parents', sponsor_funded: 'Sponsor', scholarship: 'Scholarship', loan: 'Loan',
+    sponsor_name: 'Sponsor Name', sponsor_relation: 'Relationship to Applicant',
+    upload_hint: 'Click or drag file here (PDF/Word/Image, max 10MB)',
+    status_pending: 'Pending', status_uploaded: 'Uploaded', status_approved: 'Approved', status_rejected: 'Rejected',
+    reject_reason: 'Reason',
+    review_title: 'Review & Submit', review_desc: 'Please verify all information. Click any step on the left to go back and edit.',
+    review_course: 'Course', review_personal: 'Personal', review_passport: 'Passport & Address',
+    review_family: 'Family', review_education: 'Education', review_employment: 'Employment',
+    review_materials: 'Materials',
+    not_filled: '(not filled)', members: ' members', records: ' records',
+    submit_confirm: 'Submit application? This cannot be undone.',
+    submit_success: 'Application submitted successfully!',
+    submitted_msg: 'Application has been submitted. Thank you.',
+    fill_required: 'Please fill required fields: ',
+    contact_footer: 'If you have questions, please contact your counselor.',
+    select: 'Select...', male: 'Male', female: 'Female',
+    single: 'Single', married: 'Married', divorced: 'Divorced', widowed: 'Widowed',
+    fulltime: 'Full-time', parttime: 'Part-time',
+    passport: 'Passport', travel_doc: 'Travel Document', ic: 'IC',
+    yes: 'Yes', no: 'No',
+    none_sg: 'None / Not in SG', sc: 'Singapore Citizen', pr: 'Permanent Resident', ep: 'Employment Pass',
+    dp: "Dependant's Pass", sp_pass: 'Student Pass', ltvp: 'LTVP', s_pass: 'S Pass',
+    father_rel: 'Father', mother_rel: 'Mother', step_father: 'Step-Father', step_mother: 'Step-Mother', spouse_rel: 'Spouse', sibling: 'Sibling',
+  }
+};
+let lang = 'zh';
+function t(key) { return (T[lang] && T[lang][key]) || (T.en[key]) || key; }
+function setLang(l) {
+  lang = l;
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === l));
+  document.documentElement.lang = l === 'zh' ? 'zh-CN' : 'en';
+  if (S.page === 'welcome') renderWelcome();
+  else renderApp();
+}
+
+// ══════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════
+const S = {
+  page: 'welcome', // 'welcome' | 'form'
+  token: null, request: null, contact: null,
+  step: 0, data: {},
+  family: [], residence: [], education: [], employment: [],
+  guardian: {}, signatures: {},
+  materials: [], uifStatus: null, dirty: false,
+};
+
+// ══════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════
+function esc(s){return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function toast(msg,type='success'){const el=document.createElement('div');el.className=`alert alert-${type} py-2 px-3 shadow-sm mb-2`;el.style.cssText='font-size:.85rem;min-width:260px';el.textContent=msg;document.getElementById('toastWrap').appendChild(el);setTimeout(()=>{el.style.opacity='0';setTimeout(()=>el.remove(),300)},3500)}
+async function api(method,path,body){const sep=path.includes('?')?'&':'?';const url=`/api${path}${sep}token=${encodeURIComponent(S.token)}`;const opts={method,headers:{}};if(body&&!(body instanceof FormData)){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(body)}else if(body){opts.body=body}const res=await fetch(url,opts);const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||'Request failed');return data}
+function calcAge(d){if(!d)return null;const b=new Date(d);if(isNaN(b))return null;const n=new Date();let a=n.getFullYear()-b.getFullYear();if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))a--;return a}
+
+// ══════════════════════════════════════════════════
+// FORM FIELD BUILDERS
+// ══════════════════════════════════════════════════
+function F(key,labelKey,type='text',opts={}){
+  const val=S.data[key]||'';const dis=S.uifStatus==='SUBMITTED'?'disabled':'';
+  let inp='';
+  if(type==='textarea')inp=`<textarea class="form-control" name="${key}" rows="${opts.rows||3}" placeholder="${esc(opts.ph||'')}" ${dis}>${esc(val)}</textarea>`;
+  else if(type==='select'){
+    const chg=opts.refresh?` onchange="collect();renderStep()"`:''
+    inp=`<select class="form-select" name="${key}" ${dis}${chg}>${(opts.options||[]).map(([v,lk])=>`<option value="${v}" ${val===v?'selected':''}>${typeof lk==='function'?lk():t(lk)||lk}</option>`).join('')}</select>`;
+  }
+  else if(type==='bool'){
+    const chg=opts.refresh?` onchange="collect();renderStep()"`:''
+    inp=`<div class="bool-row"><label><input type="radio" name="${key}" value="1" ${val==='1'||val===true||val===1?'checked':''} ${dis}${chg}> ${t('yes')}</label><label><input type="radio" name="${key}" value="0" ${val==='0'||val===false||val===0?'checked':''} ${dis}${chg}> ${t('no')}</label></div>`;
+  }
+  else inp=`<input type="${type}" class="form-control" name="${key}" value="${esc(val)}" placeholder="${esc(opts.ph||'')}" ${dis}>`;
+  return `<div class="fl"><div class="fl-label">${t(labelKey)||labelKey}${opts.req?'<span class="req">*</span>':''}</div>${inp}${opts.hint?`<div class="fl-hint">${opts.hint}</div>`:''}</div>`;
+}
+function R2(a,b){return `<div class="row g-3"><div class="col-md-6">${a}</div><div class="col-md-6">${b}</div></div>`}
+function R3(a,b,c){return `<div class="row g-3"><div class="col-md-4">${a}</div><div class="col-md-4">${b}</div><div class="col-md-4">${c}</div></div>`}
+
+// Select option helpers
+function genderOpts(){return[['',t('select')],['Male',t('male')],['Female',t('female')]]}
+function maritalOpts(){return[['',t('select')],['Single',t('single')],['Married',t('married')],['Divorced',t('divorced')],['Widowed',t('widowed')]]}
+function studyOpts(){return[['',t('select')],['Full-time',t('fulltime')],['Part-time',t('parttime')]]}
+function passTypeOpts(){return[['',t('select')],['Passport',t('passport')],['Travel Document',t('travel_doc')],['IC',t('ic')]]}
+function sgPassOpts(){return[['',t('select')],['None',t('none_sg')],['SC',t('sc')],['PR',t('pr')],['EP',t('ep')],['DP',t('dp')],['Student Pass',t('sp_pass')],['LTVP',t('ltvp')],['S Pass',t('s_pass')]]}
+function monthOpts(){const ms=['January','February','March','April','May','June','July','August','September','October','November','December'];return[['',t('select')],...ms.map(m=>[m,m])]}
+function relOpts(){return[['',t('select')],['father',t('father_rel')],['mother',t('mother_rel')],['step_father',t('step_father')],['step_mother',t('step_mother')],['spouse',t('spouse_rel')],['sibling',t('sibling')]]}
+
+// ══════════════════════════════════════════════════
+// WELCOME PAGE
+// ══════════════════════════════════════════════════
+function renderWelcome(){
+  document.getElementById('app').innerHTML=`
+    <div class="welcome" style="position:relative">
+      <div class="lang-toggle">
+        <button class="lang-btn ${lang==='zh'?'active':''}" data-lang="zh" onclick="setLang('zh')">中文</button>
+        <button class="lang-btn ${lang==='en'?'active':''}" data-lang="en" onclick="setLang('en')">EN</button>
+      </div>
+      <div class="welcome-card">
+        <img src="/esic-logo.jpg" alt="Logo" class="logo">
+        <h1>${t('welcome_title')}</h1>
+        <p class="subtitle">${t('welcome_sub')}</p>
+        <div class="checklist">
+          <p style="font-size:.82rem;font-weight:600;color:var(--txt);margin-bottom:8px">${t('welcome_prepare')}</p>
+          <ul style="padding:0;margin:0">
+            ${t('prepare_items').map(item=>`<li><i class="bi bi-check-circle-fill"></i>${item}</li>`).join('')}
+          </ul>
+        </div>
+        <button class="btn-start" onclick="startForm()">
+          ${t('btn_start')} <i class="bi bi-arrow-right"></i>
+        </button>
+        <div style="margin-top:12px">
+          <button style="background:none;border:1px dashed var(--bdr);padding:6px 16px;border-radius:6px;font-size:.75rem;color:var(--txt3);cursor:pointer" onclick="loadDemoData();startForm()">
+            <i class="bi bi-lightning me-1"></i>Demo Mode (auto-fill test data)
+          </button>
+        </div>
+      </div>
+      <div style="margin-top:16px;font-size:.75rem;color:var(--txt3)">Equistar International College</div>
+    </div>`;
+}
+
+async function startForm(){
+  console.log('[startForm] entering form mode, demo=', !!S._isDemo);
+  S.page='form';
+  try{
+    await loadWorkspace();
+    console.log('[startForm] workspace loaded, step=', S.step, 'data keys=', Object.keys(S.data).length);
+  }catch(e){
+    console.error('[startForm] error:', e);
+    showError(e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════
+// STEP RENDERERS
+// ══════════════════════════════════════════════════
+const STEPS = 12; // 0-11
+
+function renderStepContent(idx){
+  const renderers=[rCourse,rPersonal,rPassport,rFamily,rResidence,rEducation,rEmployment,rFinancial,rDeclarations,rSignature,rMaterials,rReview];
+  try{
+    const html=renderers[idx]?renderers[idx]():'<p>Unknown step</p>';
+    console.log('[renderStep] step',idx,'rendered OK, length=',html.length);
+    return html;
+  }catch(e){
+    console.error('[renderStep] step',idx,'CRASHED:',e);
+    return '<div class="p-3 text-danger"><h6>Step '+idx+' Render Error</h6><pre>'+esc(e.message)+'</pre></div>';
+  }
+}
+
+function rCourse(){return`
+  <div class="sec-title"><i class="bi bi-journal-bookmark"></i>${t('s0_title')}</div><div class="sec-desc">${t('s0_desc')}</div>
+  ${R2(F('course_name','course_name','text',{req:true,ph:'Diploma in Business Administration'}),F('course_code','course_code','text',{ph:'DBA-2026'}))}
+  ${R3(F('intake_year','intake_year','text',{req:true,ph:'2026'}),F('intake_month','intake_month','select',{options:monthOpts()}),F('study_mode','study_mode','select',{options:studyOpts()}))}
+  ${R2(F('campus','campus','text',{ph:'Main Campus'}),F('school_name','school_name','text',{ph:'Equistar International College'}))}
+  <hr class="sec-divider"><div class="sub-heading"><i class="bi bi-shield"></i>${t('sg_pass_type')}</div>
+  ${R2(F('sg_pass_type','sg_pass_type','select',{options:sgPassOpts()}),F('requires_student_pass','requires_student_pass','bool'))}
+  ${R2(F('was_ever_sg_citizen_or_pr','was_ever_sg_citizen','bool'),F('sg_nric_fin','sg_nric_fin','text',{ph:'S1234567A'}))}
+  ${F('sg_pass_expiry','sg_pass_expiry','date')}`}
+
+function rPersonal(){return`
+  <div class="sec-title"><i class="bi bi-person"></i>${t('s1_title')}</div><div class="sec-desc">${t('s1_desc')}</div>
+  ${R2(F('surname','surname','text',{req:true,ph:'CHEN'}),F('given_name','given_name','text',{req:true,ph:'Wei Ming'}))}
+  ${R2(F('chinese_name','chinese_name','text',{ph:'陈伟明'}),F('alias','alias','text'))}
+  ${R3(F('gender','gender','select',{req:true,options:genderOpts()}),F('dob','dob','date',{req:true}),F('birth_certificate_no','birth_cert_no','text'))}
+  ${R3(F('nationality','nationality','text',{req:true,ph:'Chinese'}),F('birth_country','birth_country','text',{req:true,ph:'China'}),F('birth_city','birth_city','text',{ph:'Shanghai'}))}
+  ${R3(F('race','race','text',{ph:'Chinese'}),F('religion','religion','text',{ph:'None'}),F('occupation','occupation','text',{ph:'Student'}))}
+  ${R2(F('marital_status','marital_status','select',{req:true,options:maritalOpts(),refresh:true}),F('email','email','email',{req:true,ph:'applicant@email.com'}))}
+  ${R2(F('phone_mobile','phone_mobile','tel',{req:true,ph:'+65-9123-4567'}),F('phone_home','phone_home','tel'))}`}
+
+function rPassport(){return`
+  <div class="sec-title"><i class="bi bi-passport"></i>${t('s2_title')}</div><div class="sec-desc">${t('s2_desc')}</div>
+  ${R3(F('passport_type','passport_type','select',{req:true,options:passTypeOpts()}),F('passport_no','passport_no','text',{req:true,ph:'E12345678'}),F('passport_issue_country','passport_issue_country','text',{ph:'China'}))}
+  ${R3(F('passport_issue_place','passport_issue_place','text',{ph:'Beijing'}),F('passport_issue_date','passport_issue_date','date'),F('passport_expiry','passport_expiry','date',{req:true}))}
+  ${R2(F('foreign_identification_no','fin','text',{ph:'G1234567A'}),F('malaysian_id_no','malaysian_id','text'))}
+  <hr class="sec-divider"><div class="sub-heading"><i class="bi bi-house"></i>${t('address1')}</div>
+  ${F('address_line1','address1','text',{req:true,ph:'Street / Block / Unit'})}
+  ${F('address_line2','address2','text')}
+  ${R3(F('city','city','text',{req:true}),F('state_province','state','text'),F('postal_code','postal','text'))}
+  ${F('country_of_residence','country_res','text',{req:true,ph:'China'})}
+  ${F('hometown_address','hometown_addr','text')}
+  <hr class="sec-divider"><div class="sub-heading"><i class="bi bi-geo-alt"></i>${t('sg_address')}</div>
+  ${F('sg_address','sg_address','text',{ph:'Blk 123 Clementi Ave 3 #05-678'})}
+  ${F('sg_tel_no','sg_tel','tel')}`}
+
+function rFamily(){
+  const rows=S.family.map((m,i)=>`<div class="dyn-row"><button class="rm-btn" onclick="rmFamily(${i})"><i class="bi bi-x-lg"></i></button>
+    <div class="row-tag">#${i+1}</div><div class="row g-2">
+    <div class="col-md-3"><div class="fl-label">${t('relationship')}<span class="req">*</span></div><select class="form-select" data-arr="family" data-idx="${i}" data-key="member_type" onchange="collect();renderStep()">${relOpts().map(([v,l])=>`<option value="${v}" ${m.member_type===v?'selected':''}>${l}</option>`).join('')}</select></div>
+    <div class="col-md-3"><div class="fl-label">${t('surname')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="surname" value="${esc(m.surname||'')}"></div>
+    <div class="col-md-3"><div class="fl-label">${t('given_name')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="given_name" value="${esc(m.given_name||'')}"></div>
+    <div class="col-md-3"><div class="fl-label">${t('sex')}</div><select class="form-select" data-arr="family" data-idx="${i}" data-key="sex"><option value="">-</option><option value="Male" ${m.sex==='Male'?'selected':''}>${t('male')}</option><option value="Female" ${m.sex==='Female'?'selected':''}>${t('female')}</option></select></div>
+    <div class="col-md-3"><div class="fl-label">${t('dob')}</div><input type="date" class="form-control" data-arr="family" data-idx="${i}" data-key="dob" value="${esc(m.dob||'')}"></div>
+    <div class="col-md-3"><div class="fl-label">${t('nationality')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="nationality" value="${esc(m.nationality||'')}"></div>
+    <div class="col-md-3"><div class="fl-label">${t('sg_status')}</div><select class="form-select" data-arr="family" data-idx="${i}" data-key="sg_status" onchange="collect();renderStep()">
+      <option value="">-</option>
+      <option value="SC" ${m.sg_status==='SC'?'selected':''}>${t('sc')}</option>
+      <option value="PR" ${m.sg_status==='PR'?'selected':''}>${t('pr')}</option>
+      <option value="EP" ${m.sg_status==='EP'?'selected':''}>EP</option>
+      <option value="DP" ${m.sg_status==='DP'?'selected':''}>DP</option>
+      <option value="LTVP" ${m.sg_status==='LTVP'?'selected':''}>LTVP</option>
+      <option value="Student Pass" ${m.sg_status==='Student Pass'?'selected':''}>${t('sp_pass')}</option>
+      <option value="None" ${m.sg_status==='None'?'selected':''}>${t('none_sg')}</option>
+    </select></div>
+    <div class="col-md-3"><div class="fl-label">${t('occupation')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="occupation" value="${esc(m.occupation||'')}"></div>
+    <div class="col-md-4"><div class="fl-label">${t('passport_nric')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="passport_no" value="${esc(m.passport_no||'')}"></div>
+    <div class="col-md-3"><div class="fl-label">${t('email')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="email" value="${esc(m.email||'')}"></div>
+    <div class="col-md-3"><div class="fl-label">${t('contact_no')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="contact_number" value="${esc(m.contact_number||'')}" placeholder="+86-..."></div>
+    <div class="col-md-3"><div class="fl-label">${t('sg_mobile')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="sg_mobile" value="${esc(m.sg_mobile||'')}" placeholder="+65-..."></div>
+  </div>
+  ${['SC','PR'].includes(m.sg_status) && ['father','mother','step_father','step_mother'].includes(m.member_type) ? `
+    <div class="cond-block mt-2" style="border-left-color:var(--gold);background:var(--info-bg)">
+      <div class="cond-label"><i class="bi bi-info-circle"></i> ${t('pr_additional_title')}</div>
+      <div class="row g-2">
+        <div class="col-md-3"><div class="fl-label">${t('marital_status')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="pr_marital_status" value="${esc(m.pr_marital_status||'')}"></div>
+        <div class="col-md-3"><div class="fl-label">${t('pr_marriage_cert')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="pr_marriage_cert" value="${esc(m.pr_marriage_cert||'')}"></div>
+        <div class="col-md-3"><div class="fl-label">${t('pr_marriage_date')}</div><input type="date" class="form-control" data-arr="family" data-idx="${i}" data-key="pr_marriage_date" value="${esc(m.pr_marriage_date||'')}"></div>
+        <div class="col-md-3"><div class="fl-label">${t('pr_custody')}</div><select class="form-select" data-arr="family" data-idx="${i}" data-key="pr_custody"><option value="">-</option><option value="1" ${m.pr_custody==='1'?'selected':''}>${t('yes')}</option><option value="0" ${m.pr_custody==='0'?'selected':''}>${t('no')}</option></select></div>
+        <div class="col-md-3"><div class="fl-label">${t('pr_divorce_cert')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="pr_divorce_cert" value="${esc(m.pr_divorce_cert||'')}"></div>
+        <div class="col-md-3"><div class="fl-label">${t('pr_divorce_date')}</div><input type="date" class="form-control" data-arr="family" data-idx="${i}" data-key="pr_divorce_date" value="${esc(m.pr_divorce_date||'')}"></div>
+        <div class="col-md-4"><div class="fl-label">${t('pr_school')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="pr_school" value="${esc(m.pr_school||'')}"></div>
+        <div class="col-md-4"><div class="fl-label">${t('pr_school_country')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="pr_school_country" value="${esc(m.pr_school_country||'')}"></div>
+        <div class="col-md-4"><div class="fl-label">${t('pr_qualification')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="pr_qualification" value="${esc(m.pr_qualification||'')}"></div>
+        <div class="col-md-4"><div class="fl-label">${t('pr_edu_cert')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="pr_edu_cert" value="${esc(m.pr_edu_cert||'')}"></div>
+        <div class="col-md-4"><div class="fl-label">${t('pr_company')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="pr_company" value="${esc(m.pr_company||'')}"></div>
+        <div class="col-md-3"><div class="fl-label">${t('pr_monthly_income')}</div><input type="number" class="form-control" data-arr="family" data-idx="${i}" data-key="pr_monthly_income" value="${esc(m.pr_monthly_income||'')}"></div>
+        <div class="col-md-3"><div class="fl-label">${t('pr_annual_income')}</div><input type="number" class="form-control" data-arr="family" data-idx="${i}" data-key="pr_annual_income" value="${esc(m.pr_annual_income||'')}"></div>
+        <div class="col-md-3"><div class="fl-label">${t('pr_cpf')}</div><input type="number" class="form-control" data-arr="family" data-idx="${i}" data-key="pr_cpf" value="${esc(m.pr_cpf||'')}"></div>
+      </div>
+    </div>` : ''}
+  ${['SC','PR'].includes(m.sg_status) && m.member_type === 'spouse' ? `
+    <div class="cond-block mt-2" style="border-left-color:var(--gold);background:var(--info-bg)">
+      <div class="cond-label"><i class="bi bi-info-circle"></i> ${t('sp_additional_title')}</div>
+      <div class="row g-2">
+        <div class="col-md-3"><div class="fl-label">${t('pr_marriage_cert')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="sp_marriage_cert" value="${esc(m.sp_marriage_cert||'')}"></div>
+        <div class="col-md-3"><div class="fl-label">${t('pr_marriage_date')}</div><input type="date" class="form-control" data-arr="family" data-idx="${i}" data-key="sp_marriage_date" value="${esc(m.sp_marriage_date||'')}"></div>
+        <div class="col-md-3"><div class="fl-label">${t('pr_school')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="sp_school" value="${esc(m.sp_school||'')}"></div>
+        <div class="col-md-3"><div class="fl-label">${t('pr_school_country')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="sp_school_country" value="${esc(m.sp_school_country||'')}"></div>
+        <div class="col-md-3"><div class="fl-label">${t('pr_qualification')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="sp_qualification" value="${esc(m.sp_qualification||'')}"></div>
+        <div class="col-md-3"><div class="fl-label">${t('pr_edu_cert')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="sp_edu_cert" value="${esc(m.sp_edu_cert||'')}"></div>
+        <div class="col-md-3"><div class="fl-label">${t('pr_company')}</div><input class="form-control" data-arr="family" data-idx="${i}" data-key="sp_company" value="${esc(m.sp_company||'')}"></div>
+        <div class="col-md-3"><div class="fl-label">${t('pr_monthly_income')}</div><input type="number" class="form-control" data-arr="family" data-idx="${i}" data-key="sp_monthly_income" value="${esc(m.sp_monthly_income||'')}"></div>
+        <div class="col-md-3"><div class="fl-label">${t('pr_annual_income')}</div><input type="number" class="form-control" data-arr="family" data-idx="${i}" data-key="sp_annual_income" value="${esc(m.sp_annual_income||'')}"></div>
+        <div class="col-md-3"><div class="fl-label">${t('pr_cpf')}</div><input type="number" class="form-control" data-arr="family" data-idx="${i}" data-key="sp_cpf" value="${esc(m.sp_cpf||'')}"></div>
+      </div>
+    </div>` : ''}
+</div>`).join('');
+  return`<div class="sec-title"><i class="bi bi-people"></i>${t('s3_title')}</div><div class="sec-desc">${t('s3_desc')}</div>
+  ${rows}<button class="add-btn" onclick="addFamily()">${t('add_family')}</button>
+  <div class="fl-hint mt-2"><i class="bi bi-info-circle me-1"></i>${t('family_hint')}</div>`}
+function addFamily(){collect();S.family.push({});S.dirty=true;renderStep()}
+function rmFamily(i){collect();S.family.splice(i,1);S.dirty=true;renderStep()}
+
+function rResidence(){
+  const rows=S.residence.map((r,i)=>`<div class="dyn-row"><button class="rm-btn" onclick="rmRes(${i})"><i class="bi bi-x-lg"></i></button>
+    <div class="row-tag">#${i+1}</div><div class="row g-2">
+    <div class="col-md-3"><div class="fl-label">${t('country_place')}</div><input class="form-control" data-arr="residence" data-idx="${i}" data-key="country" value="${esc(r.country||'')}"></div>
+    <div class="col-md-5"><div class="fl-label">${t('address')}</div><input class="form-control" data-arr="residence" data-idx="${i}" data-key="address" value="${esc(r.address||'')}"></div>
+    <div class="col-md-2"><div class="fl-label">${t('from')}</div><input type="date" class="form-control" data-arr="residence" data-idx="${i}" data-key="date_from" value="${esc(r.date_from||'')}"></div>
+    <div class="col-md-2"><div class="fl-label">${t('to')}</div><input type="date" class="form-control" data-arr="residence" data-idx="${i}" data-key="date_to" value="${esc(r.date_to||'')}"></div>
+  </div></div>`).join('');
+  return`<div class="sec-title"><i class="bi bi-house"></i>${t('s4_title')}</div><div class="sec-desc">${t('s4_desc')}</div>
+  ${rows}<button class="add-btn" onclick="addRes()">${t('add_residence')}</button>`}
+function addRes(){collect();S.residence.push({});S.dirty=true;renderStep()}
+function rmRes(i){collect();S.residence.splice(i,1);S.dirty=true;renderStep()}
+
+function rEducation(){
+  const noEdu = S.data.no_education_info === '1';
+  const rows = noEdu ? '' : S.education.map((e,i)=>`<div class="dyn-row"><button class="rm-btn" onclick="rmEdu(${i})"><i class="bi bi-x-lg"></i></button>
+    <div class="row-tag">#${i+1}</div><div class="row g-2">
+    <div class="col-md-4"><div class="fl-label">${t('institution')}<span class="req">*</span></div><input class="form-control" data-arr="education" data-idx="${i}" data-key="institution_name" value="${esc(e.institution_name||'')}"></div>
+    <div class="col-md-3"><div class="fl-label">${t('country_place')}</div><input class="form-control" data-arr="education" data-idx="${i}" data-key="country" value="${esc(e.country||'')}"></div>
+    <div class="col-md-2"><div class="fl-label">${t('state')}</div><input class="form-control" data-arr="education" data-idx="${i}" data-key="state_province" value="${esc(e.state_province||'')}"></div>
+    <div class="col-md-3"><div class="fl-label">${t('lang_instruction')}</div><input class="form-control" data-arr="education" data-idx="${i}" data-key="language_of_instruction" value="${esc(e.language_of_instruction||'')}"></div>
+    <div class="col-md-2"><div class="fl-label">${t('from')}</div><input type="date" class="form-control" data-arr="education" data-idx="${i}" data-key="date_from" value="${esc(e.date_from||'')}"></div>
+    <div class="col-md-2"><div class="fl-label">${t('to')}</div><input type="date" class="form-control" data-arr="education" data-idx="${i}" data-key="date_to" value="${esc(e.date_to||'')}"></div>
+    <div class="col-md-3"><div class="fl-label">${t('qualification')}</div><input class="form-control" data-arr="education" data-idx="${i}" data-key="qualification" value="${esc(e.qualification||'')}"></div>
+    <div class="col-md-3"><div class="fl-label">${t('cert_no')}</div><input class="form-control" data-arr="education" data-idx="${i}" data-key="educational_cert_no" value="${esc(e.educational_cert_no||'')}"></div>
+    <div class="col-md-2"><div class="fl-label">${t('pass_english')}</div><select class="form-select" data-arr="education" data-idx="${i}" data-key="obtained_pass_english"><option value="">-</option><option value="1" ${e.obtained_pass_english?'selected':''}>${t('yes')}</option><option value="0" ${e.obtained_pass_english==='0'?'selected':''}>${t('no')}</option></select></div>
+  </div></div>`).join('');
+  return`<div class="sec-title"><i class="bi bi-mortarboard"></i>${t('s5_title')}</div><div class="sec-desc">${t('s5_desc')}</div>
+  ${F('no_education_info','no_edu_declare','bool',{refresh:true,hint:t('no_edu_hint')})}
+  ${noEdu ? '' : rows + `<button class="add-btn" onclick="addEdu()">${t('add_education')}</button>`}
+  <hr class="sec-divider"><div class="sub-heading"><i class="bi bi-translate"></i>${lang==='zh'?'语言能力':'Language Proficiency'}</div>
+  ${R2(F('native_language','native_lang','text'),F('english_proficiency','english_prof','text'))}
+  ${R3(F('ielts_score','ielts','text'),F('toefl_score','toefl','text'),F('highest_lang_proficiency','highest_lang','text'))}
+  ${R2(F('other_lang_test','other_test','text'),F('other_lang_score','other_score','text'))}
+  ${F('need_english_placement_test','need_placement','bool')}`}
+function addEdu(){collect();S.education.push({});S.dirty=true;renderStep()}
+function rmEdu(i){collect();S.education.splice(i,1);S.dirty=true;renderStep()}
+
+function rEmployment(){
+  const noEmp = S.data.no_employment_info === '1';
+  const rows = noEmp ? '' : S.employment.map((e,i)=>`<div class="dyn-row"><button class="rm-btn" onclick="rmEmp(${i})"><i class="bi bi-x-lg"></i></button>
+    <div class="row-tag">#${i+1}</div><div class="row g-2">
+    <div class="col-md-4"><div class="fl-label">${t('employer')}</div><input class="form-control" data-arr="employment" data-idx="${i}" data-key="employer" value="${esc(e.employer||'')}"></div>
+    <div class="col-md-3"><div class="fl-label">${t('country_place')}</div><input class="form-control" data-arr="employment" data-idx="${i}" data-key="country" value="${esc(e.country||'')}"></div>
+    <div class="col-md-3"><div class="fl-label">${t('position')}</div><input class="form-control" data-arr="employment" data-idx="${i}" data-key="position" value="${esc(e.position||'')}"></div>
+    <div class="col-md-2"><div class="fl-label">${t('from')}</div><input type="date" class="form-control" data-arr="employment" data-idx="${i}" data-key="date_from" value="${esc(e.date_from||'')}"></div>
+    <div class="col-md-2"><div class="fl-label">${t('to')}</div><input type="date" class="form-control" data-arr="employment" data-idx="${i}" data-key="date_to" value="${esc(e.date_to||'')}" ${e.is_current==='1'?'disabled':''}></div>
+    <div class="col-md-2"><div class="fl-label">${t('is_current')}</div><select class="form-select" data-arr="employment" data-idx="${i}" data-key="is_current" onchange="this.closest('.dyn-row').querySelector('[data-key=date_to]').disabled=this.value==='1'"><option value="">-</option><option value="1" ${e.is_current==='1'?'selected':''}>${t('yes')}</option><option value="0" ${e.is_current==='0'?'selected':''}>${t('no')}</option></select></div>
+    <div class="col-md-4"><div class="fl-label">${t('duties')}</div><input class="form-control" data-arr="employment" data-idx="${i}" data-key="nature_of_duties" value="${esc(e.nature_of_duties||'')}"></div>
+  </div></div>`).join('');
+  return`<div class="sec-title"><i class="bi bi-briefcase"></i>${t('s6_title')}</div><div class="sec-desc">${t('s6_desc')}</div>
+  ${F('no_employment_info','no_emp_declare','bool',{refresh:true,hint:t('no_emp_hint')})}
+  ${noEmp ? `<div class="alert alert-info small mt-2"><i class="bi bi-info-circle me-1"></i>${t('no_emp_checked')}</div>` : rows + `<button class="add-btn" onclick="addEmp()">${t('add_employment')}</button>`}`}
+function addEmp(){collect();S.employment.push({});S.dirty=true;renderStep()}
+function rmEmp(i){collect();S.employment.splice(i,1);S.dirty=true;renderStep()}
+
+function rFinancial(){
+  const ms=S.data.marital_status;
+  return`<div class="sec-title"><i class="bi bi-cash-stack"></i>${t('s7_title')}</div><div class="sec-desc">${t('s7_desc')}</div>
+  ${F('financial_source','financial_source','select',{options:[['','select'],['Self','self_funded'],['Parents','parents_funded'],['Sponsor','sponsor_funded'],['Scholarship','scholarship'],['Loan','loan']]})}
+  <div class="sub-heading">${t('applicant')}</div>
+  ${R2(F('applicant_monthly_income','monthly_income','number',{ph:'0'}),F('applicant_current_saving','current_saving','number',{ph:'5000'}))}
+  <div class="sub-heading">${t('father')}</div>
+  ${R2(F('father_monthly_income','monthly_income','number'),F('father_current_saving','current_saving','number'))}
+  <div class="sub-heading">${t('mother')}</div>
+  ${R2(F('mother_monthly_income','monthly_income','number'),F('mother_current_saving','current_saving','number'))}
+  ${ms==='Married'?`<div class="sub-heading">${t('spouse')}</div>${R2(F('spouse_monthly_income','monthly_income','number'),F('spouse_current_saving','current_saving','number'))}`:''}
+  <hr class="sec-divider">
+  ${R2(F('sponsor_name','sponsor_name','text',{ph:'Name of sponsor (if applicable)'}),F('sponsor_relation','sponsor_relation','text',{ph:'Relationship to applicant'}))}
+  ${F('other_financial_support','other_support','bool',{refresh:true})}
+  ${S.data.other_financial_support==='1'?R2(F('other_financial_details','support_details','text',{ph:'e.g. Scholarship from XYZ Foundation'}),F('other_financial_amount','support_amount','number',{ph:'5000'})):''}
+  ${F('bank_statement_available','bank_available','bool')}`}
+
+function rDeclarations(){
+  const age=calcAge(S.data.dob);const isMinor=age!==null&&age<18;
+  return`<div class="sec-title"><i class="bi bi-shield-check"></i>${t('s8_title')}</div><div class="sec-desc">${t('s8_desc')}</div>
+  ${F('antecedent_q1','ant_q1','bool',{req:true})}
+  ${F('antecedent_q2','ant_q2','bool',{req:true})}
+  ${F('antecedent_q3','ant_q3','bool',{req:true})}
+  ${F('antecedent_q4','ant_q4','bool',{req:true})}
+  ${F('antecedent_remarks','ant_remarks','textarea',{rows:3})}
+  ${isMinor?`<div class="cond-block"><div class="cond-label"><i class="bi bi-exclamation-triangle"></i>${t('guardian_title')}</div>
+    ${R2(F('guardian_surname','surname','text',{req:true}),F('guardian_given_name','given_name','text',{req:true}))}
+    ${R2(F('guardian_relation','relationship','text',{req:true}),F('guardian_nationality','nationality','text'))}
+    ${R2(F('guardian_phone','phone_mobile','tel',{req:true}),F('guardian_email','email','email'))}
+    ${F('guardian_address','address','text')}
+    ${R2(F('guardian_passport_no','passport_nric','text'),F('guardian_occupation','occupation','text'))}
+  </div>`:''}
+  <hr class="sec-divider"><div class="sub-heading">${t('prior_sg')}</div>
+  ${F('prior_sg_study','prior_sg','bool')}
+  ${R2(F('prior_sg_school','prior_school','text'),F('prior_sg_year','prior_year','text'))}
+  <hr class="sec-divider"><div class="sub-heading"><i class="bi bi-file-text"></i> ${t('declarations_title')}</div>
+  ${F('f16_declaration_agreed','f16_declaration','bool',{hint:t('f16_declaration_hint')})}
+  ${F('v36_declaration_agreed','v36_declaration','bool',{hint:t('v36_declaration_hint')})}`}
+
+function rSignature(){
+  const isMinor=calcAge(S.data.dob)<18;
+  const photoPreview=S.data._id_photo_data?`<img src="${S.data._id_photo_data}" style="max-width:120px;max-height:150px;border-radius:6px;border:1px solid var(--bdr);margin-top:8px">`:'';
+  return`<div class="sec-title"><i class="bi bi-pen"></i>${t('s9_title')}</div><div class="sec-desc">${t('s9_desc')}</div>
+
+  <div class="sub-heading"><i class="bi bi-camera"></i> ${t('id_photo_title')}</div>
+  <div class="fl-hint mb-2">${t('id_photo_hint')}</div>
+  <div class="d-flex align-items-start gap-3">
+    <div class="upload-zone" style="flex:1;padding:16px" onclick="document.getElementById('photoInput').click()">
+      <i class="bi bi-image icon"></i>
+      <div class="small text-muted mt-1">${t('id_photo_upload')}</div>
+    </div>
+    <input type="file" id="photoInput" class="d-none" accept=".jpg,.jpeg,.png" onchange="handlePhotoUpload(this.files[0])">
+    <div id="photoPreview">${photoPreview}</div>
+  </div>
+
+  <hr class="sec-divider">
+  <div class="sub-heading">${t('pdpa_title')}</div>
+  <div class="small" style="color:var(--txt2);line-height:1.6;margin-bottom:16px">${t('pdpa_text')}</div>
+  ${F('pdpa_consent','pdpa_agree','bool',{req:true})}
+  ${F('pdpa_marketing','pdpa_marketing_label','bool')}
+  ${F('pdpa_photo_video','pdpa_photo','bool')}
+  ${F('remarks','general_remarks','textarea',{rows:2})}
+  <hr class="sec-divider"><div class="sub-heading">${t('applicant_sig')}</div>
+  <div class="fl-hint mb-2">${t('sig_hint')}</div>
+  ${S.signatures.applicant?.sig_data ? `
+    <div class="mb-2 p-2 rounded" style="background:#f0f9f0;border:1px solid #c3e6c3">
+      <div class="small text-success mb-1"><i class="bi bi-check-circle me-1"></i>${lang==='zh'?'签名已保存':'Signature saved'}</div>
+      <img src="${S.signatures.applicant.sig_data}" style="max-width:300px;max-height:80px;border:1px solid #ddd;border-radius:4px;background:#fff">
+    </div>
+    <div class="fl-hint mb-2">${lang==='zh'?'如需重新签名，请在下方画板重新签写：':'To re-sign, draw in the canvas below:'}</div>
+  ` : ''}
+  <canvas id="sigCanvas" class="sig-box" width="400" height="120"></canvas>
+  <div class="mt-2"><button class="btn btn-sm btn-outline-secondary" onclick="clearSig('sigCanvas')"><i class="bi bi-arrow-counterclockwise me-1"></i>${t('sig_clear')}</button></div>
+  ${F('sig_date','sig_date','date',{req:true})}
+  ${isMinor?`<hr class="sec-divider"><div class="sub-heading">${t('guardian_sig')}</div>
+    <div class="fl-hint mb-2">${t('sig_hint')}</div>
+    ${S.signatures.guardian?.sig_data ? `
+      <div class="mb-2 p-2 rounded" style="background:#f0f9f0;border:1px solid #c3e6c3">
+        <div class="small text-success mb-1"><i class="bi bi-check-circle me-1"></i>${lang==='zh'?'监护人签名已保存':'Guardian signature saved'}</div>
+        <img src="${S.signatures.guardian.sig_data}" style="max-width:300px;max-height:80px;border:1px solid #ddd;border-radius:4px;background:#fff">
+      </div>
+    ` : ''}
+    <canvas id="sigGuardian" class="sig-box" width="400" height="120"></canvas>
+    <div class="mt-2"><button class="btn btn-sm btn-outline-secondary" onclick="clearSig('sigGuardian')"><i class="bi bi-arrow-counterclockwise me-1"></i>${t('sig_clear')}</button></div>`:''}`}
+
+function rMaterials(){
+  if(!S.materials.length)return`<div class="sec-title"><i class="bi bi-paperclip"></i>${t('s10_title')}</div><div class="sec-desc">${t('s10_desc')}</div><p class="text-muted small">No materials required.</p>`;
+  const items=S.materials.map(item=>{
+    const cls=item.status==='APPROVED'?'s-ok':item.status==='UPLOADED'?'s-up':item.status==='REJECTED'?'s-err':'';
+    const pill=item.status==='APPROVED'?`<span class="pill pill-ok">${t('status_approved')}</span>`:item.status==='UPLOADED'?`<span class="pill pill-up">${t('status_uploaded')}</span>`:item.status==='REJECTED'?`<span class="pill pill-err">${t('status_rejected')}</span>`:`<span class="pill pill-wait">${t('status_pending')}</span>`;
+    return`<div class="mat-card ${cls}">
+      <div class="d-flex justify-content-between align-items-center"><div><strong>${esc(item.name)}</strong>${item.is_required?' <span class="text-danger">*</span>':''}</div>${pill}</div>
+      ${item.status==='REJECTED'&&item.reject_reason?`<div class="small text-danger mt-1"><i class="bi bi-exclamation-circle me-1"></i>${t('reject_reason')}: ${esc(item.reject_reason)}</div>`:''}
+      ${item.file_name?`<div class="small text-muted mt-1"><i class="bi bi-paperclip me-1"></i>${esc(item.file_name)}</div>`:''}
+      ${item.status!=='APPROVED'?`<div class="upload-zone mt-2" onclick="trigUp('${item.id}')" ondragover="event.preventDefault();this.classList.add('dragging')" ondragleave="this.classList.remove('dragging')" ondrop="hdDrop(event,'${item.id}')">
+        <i class="bi bi-cloud-arrow-up icon"></i><div class="small text-muted mt-1">${t('upload_hint')}</div></div>
+        <input type="file" id="fi-${item.id}" class="d-none" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif" onchange="upFile('${item.id}',this.files[0])">`:''}
+    </div>`}).join('');
+  return`<div class="sec-title"><i class="bi bi-paperclip"></i>${t('s10_title')}</div><div class="sec-desc">${t('s10_desc')}</div>${items}`}
+
+function rReview(){
+  const d=S.data;const rv=(l,v)=>`<div class="rv-r"><div class="k">${l}</div><div class="v ${v?'':'empty'}">${esc(v)||t('not_filled')}</div></div>`;
+  return`<div class="sec-title"><i class="bi bi-check2-all"></i>${t('s11_title')}</div><div class="sec-desc">${t('s11_desc')}</div>
+  <div class="rv-group"><h6>${t('review_course')}</h6>${rv(t('course_name'),d.course_name)}${rv(t('intake_year'),(d.intake_month||'')+' '+(d.intake_year||''))}${rv(t('sg_pass_type'),d.sg_pass_type)}</div>
+  <div class="rv-group"><h6>${t('review_personal')}</h6>${rv(t('surname')+' / '+t('given_name'),(d.surname||'')+' '+(d.given_name||''))}${rv(t('gender'),d.gender)}${rv(t('dob'),d.dob)}${rv(t('nationality'),d.nationality)}${rv(t('email'),d.email)}</div>
+  <div class="rv-group"><h6>${t('review_passport')}</h6>${rv(t('passport_no'),d.passport_no)}${rv(t('passport_expiry'),d.passport_expiry)}${rv(t('country_res'),d.country_of_residence)}</div>
+  <div class="rv-group"><h6>${t('review_family')} (${S.family.length}${t('members')})</h6>${S.family.map(m=>rv(t(m.member_type)||m.member_type,(m.surname||'')+' '+(m.given_name||''))).join('')||`<div class="small text-muted">${t('not_filled')}</div>`}</div>
+  <div class="rv-group"><h6>${t('review_education')} (${S.education.length}${t('records')})</h6>${S.education.map(e=>rv(e.institution_name||'-',(e.date_from||'?')+' — '+(e.date_to||'present'))).join('')}</div>
+  <div class="rv-group"><h6>${t('review_employment')} (${S.employment.length}${t('records')})</h6>${S.employment.length===0?`<div class="small text-muted">No information to declare</div>`:S.employment.map(e=>rv(e.employer||'-',e.position||'')).join('')}</div>
+  <div class="rv-group"><h6>${lang==='zh'?'居住史':'Residence History'} (${S.residence.length}${t('records')})</h6>${S.residence.map(r=>rv(r.country||'-',(r.date_from||'?')+' — '+(r.date_to||'present'))).join('')||`<div class="small text-muted">${t('not_filled')}</div>`}</div>
+  <div class="rv-group"><h6>${lang==='zh'?'财务信息':'Financial Info'}</h6>${rv(lang==='zh'?'资金来源':'Source',d.financial_source)}${rv(lang==='zh'?'申请人月收入':'Applicant Income',d.applicant_monthly_income?'S$'+d.applicant_monthly_income:'')}${rv(lang==='zh'?'父亲月收入':'Father Income',d.father_monthly_income?'S$'+d.father_monthly_income:'')}${rv(lang==='zh'?'母亲月收入':'Mother Income',d.mother_monthly_income?'S$'+d.mother_monthly_income:'')}</div>
+  <div class="rv-group"><h6>${lang==='zh'?'声明事项':'Declarations'}</h6>${rv(lang==='zh'?'曾被拒绝入境/遣返':'Refused entry/deported',d.antecedent_q1==='1'?'Yes':'No')}${rv(lang==='zh'?'曾被法院定罪':'Convicted',d.antecedent_q2==='1'?'Yes':'No')}${rv(lang==='zh'?'曾被禁止入境新加坡':'Prohibited entry SG',d.antecedent_q3==='1'?'Yes':'No')}${rv(lang==='zh'?'曾用不同护照/姓名入境':'Different passport/name',d.antecedent_q4==='1'?'Yes':'No')}</div>
+  <div class="rv-group"><h6>${lang==='zh'?'签名与证件照':'Signature & Photo'}</h6>${rv(lang==='zh'?'学生签名':'Student Signature',S.signatures.applicant?.sig_data?'✓ '+(lang==='zh'?'已签名':'Signed'):lang==='zh'?'未签名':'Not signed')}${rv(lang==='zh'?'证件照':'ID Photo',d._id_photo_data?'✓ '+(lang==='zh'?'已上传':'Uploaded'):lang==='zh'?'未上传':'Not uploaded')}${rv(lang==='zh'?'签名日期':'Signature Date',d.sig_date)}</div>
+  <div class="rv-group"><h6>${lang==='zh'?'材料上传':'Materials'}</h6>${(S.materials||[]).map(m=>rv(m.name+(m.is_required?' *':''),m.status==='UPLOADED'||m.status==='APPROVED'?'✓ '+(lang==='zh'?'已上传':'Uploaded'):lang==='zh'?'未上传':'Not uploaded')).join('')||`<div class="small text-muted">${t('not_filled')}</div>`}</div>
+  ${calcAge(d.dob)<18?`<div class="rv-group"><h6>${lang==='zh'?'监护人信息':'Guardian Info'}</h6>${rv(lang==='zh'?'监护人姓名':'Guardian Name',(d.guardian_surname||'')+' '+(d.guardian_given_name||''))}${rv(lang==='zh'?'关系':'Relationship',d.guardian_relation)}${rv(lang==='zh'?'电话':'Phone',d.guardian_phone)}</div>`:''}
+  <hr class="sec-divider">
+  <div class="text-center">
+    ${S.uifStatus==='SUBMITTED'?`<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>${t('submitted_msg')}</div>`:`
+    <button class="btn btn-submit btn-nav" onclick="submitAll()"><i class="bi bi-send me-2"></i>${t('submit_btn')}</button>
+    <div class="small text-muted mt-2">${t('contact_footer')}</div>`}
+  </div>`}
+
+// ══════════════════════════════════════════════════
+// SIGNATURE CANVAS
+// ══════════════════════════════════════════════════
+function initSig(id){
+  const c=document.getElementById(id);if(!c)return;
+  // 动态设置 canvas 分辨率匹配显示尺寸（避免模糊 + 支持移动端自适应）
+  const rect=c.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  c.width=rect.width*dpr;
+  c.height=rect.height*dpr;
+  const ctx=c.getContext('2d');
+  ctx.scale(dpr,dpr);
+  ctx.strokeStyle='#2D2926';ctx.lineWidth=2;ctx.lineCap='round';
+  let drawing=false;
+  const pos=e=>{const r=c.getBoundingClientRect();const p=e.touches?e.touches[0]:e;return{x:(p.clientX-r.left),y:(p.clientY-r.top)}};
+  const start=e=>{e.preventDefault();drawing=true;const p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y)};
+  const move=e=>{if(!drawing)return;e.preventDefault();const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke()};
+  const end=()=>{
+    if(!drawing)return;
+    drawing=false;S.dirty=true;
+    // 立即保存签名数据到 S.signatures（不等 collect）
+    try{
+      const dataUrl=c.toDataURL('image/png');
+      if(id==='sigCanvas'){
+        S.signatures.applicant={sig_data:dataUrl,sig_date:S.data.sig_date||new Date().toISOString().slice(0,10),signer_name:(S.data.surname||'')+' '+(S.data.given_name||'')};
+      } else if(id==='sigGuardian'){
+        S.signatures.guardian={sig_data:dataUrl,sig_date:S.data.sig_date||'',signer_name:(S.data.guardian_surname||'')+' '+(S.data.guardian_given_name||'')};
+      }
+    }catch(e){console.warn('Sig save on end:',e)}
+  };
+  c.addEventListener('mousedown',start);c.addEventListener('mousemove',move);c.addEventListener('mouseup',end);c.addEventListener('mouseleave',end);
+  c.addEventListener('touchstart',start,{passive:false});c.addEventListener('touchmove',move,{passive:false});c.addEventListener('touchend',end);
+}
+function clearSig(id){
+  const c=document.getElementById(id);
+  if(c)c.getContext('2d').clearRect(0,0,c.width,c.height);
+  if(id==='sigCanvas') delete S.signatures.applicant;
+  if(id==='sigGuardian') delete S.signatures.guardian;
+}
+
+// ── Photo Upload ──
+function handlePhotoUpload(file){
+  if(!file)return;
+  if(file.size>5*1024*1024){toast('Photo must be under 5MB','danger');return}
+  if(!file.type.startsWith('image/')){toast('Please select an image file','danger');return}
+  const reader=new FileReader();
+  reader.onload=function(e){
+    S.data._id_photo_data=e.target.result;
+    const preview=document.getElementById('photoPreview');
+    if(preview)preview.innerHTML=`<img src="${e.target.result}" style="max-width:120px;max-height:150px;border-radius:6px;border:1px solid var(--bdr)">`;
+    S.dirty=true;scheduleSave();
+  };
+  reader.readAsDataURL(file);
+}
+
+// ══════════════════════════════════════════════════
+// FILE UPLOAD
+// ══════════════════════════════════════════════════
+function trigUp(id){document.getElementById(`fi-${id}`)?.click()}
+function hdDrop(e,id){e.preventDefault();e.currentTarget.classList.remove('dragging');const f=e.dataTransfer?.files?.[0];if(f)upFile(id,f)}
+async function upFile(id,file){if(!file)return;if(file.size>10*1024*1024){toast('File > 10MB','danger');return}
+  const fd=new FormData();fd.append('file',file);try{await api('POST',`/agent/upload/${id}`,fd);toast(file.name+' ✓');await loadWorkspace()}catch(e){toast(e.message,'danger')}}
+
+// ══════════════════════════════════════════════════
+// DATA COLLECTION & SAVE
+// ══════════════════════════════════════════════════
+function collect(){
+  try{
+    document.querySelectorAll('input[name],select[name],textarea[name]').forEach(el=>{
+      if(!el.name)return;
+      const v=String(el.value||'');
+      if(el.type==='radio'){if(el.checked)S.data[el.name]=v}
+      else{if(v.trim())S.data[el.name]=v.trim();else delete S.data[el.name]}
+    });
+    document.querySelectorAll('[data-arr][data-idx][data-key]').forEach(el=>{
+      const a=el.dataset.arr,i=parseInt(el.dataset.idx),k=el.dataset.key,v=String(el.value||'');
+      if(S[a]&&i>=0&&i<S[a].length){if(v.trim())S[a][i][k]=v.trim();else delete S[a][i][k]}
+    });
+    // 签名数据已在 canvas mouseup/touchend 时即时保存到 S.signatures
+    // 此处不再扫描 canvas — 避免跨步骤时 canvas 不存在或空白导致数据丢失
+  }catch(e){console.error('collect() error:',e)}
+}
+let _st=null;
+function scheduleSave(){clearTimeout(_st);_st=setTimeout(saveDraft,8000)}
+async function saveDraft(){
+  // 已提交/已通过状态下不保存草稿（但不阻断页面）
+  const noSave = ['SUBMITTED','APPROVED','MERGED'];
+  if(S.uifStatus && noSave.includes(S.uifStatus)) return;
+  if(S.request?.status && noSave.includes(S.request.status)) return;
+  collect();
+  // 保护签名和证件照：只在有值时才发送，避免空覆盖
+  const payload = {...S.data,_family:S.family,_residence:S.residence,_education:S.education,_employment:S.employment,_guardian:S.guardian,_step:S.step};
+  if(S.signatures && Object.keys(S.signatures).length) payload._signatures = S.signatures;
+  if(S.data._id_photo_data) payload._id_photo_data = S.data._id_photo_data;
+  try{await api('PUT','/agent/uif',{data:payload});
+    let ind=document.getElementById('svInd');if(!ind){ind=document.createElement('div');ind.id='svInd';ind.className='save-ind';document.body.appendChild(ind)}
+    ind.textContent=t('draft_saved');ind.style.opacity='1';setTimeout(()=>ind.style.opacity='0',2500)}catch(e){}}
+
+// ══════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════
+function goStep(i){
+  try{
+    collect();
+    S.step=Math.max(0,Math.min(STEPS-1,i));
+    renderApp();
+    saveDraft();
+    window.scrollTo({top:0,behavior:'smooth'});
+  }catch(e){console.error('goStep error:',e);alert('Navigation error: '+e.message)}
+}
+function renderStep(){const el=document.getElementById('stepContent');if(el){el.innerHTML=renderStepContent(S.step);attachInputs()}}
+function attachInputs(){
+  document.querySelectorAll('#stepContent input,#stepContent select,#stepContent textarea').forEach(el=>el.addEventListener('input',()=>{S.dirty=true;scheduleSave()}));
+  if(S.step===9){setTimeout(()=>{initSig('sigCanvas');initSig('sigGuardian')},80)}
+  // 显示字段级打回备注
+  if(S.fieldNotes && typeof S.fieldNotes === 'object'){
+    document.querySelectorAll('#stepContent [name]').forEach(el=>{
+      const key = el.getAttribute('name') || el.getAttribute('data-key');
+      if(key && S.fieldNotes[key]){
+        el.style.borderColor='#dc2626';
+        el.style.boxShadow='0 0 0 2px rgba(220,38,38,.15)';
+        const note=document.createElement('div');
+        note.className='field-note';
+        note.style.cssText='color:#dc2626;font-size:.8rem;margin-top:2px;display:flex;align-items:center;gap:4px';
+        note.innerHTML='<i class="bi bi-exclamation-circle"></i>'+S.fieldNotes[key].replace(/</g,'&lt;');
+        el.parentElement.appendChild(note);
+      }
+    });
+  }
+  // 已提交状态下禁用表单输入（但保留文件上传框可用）
+  if(!S.editable){
+    document.querySelectorAll('#stepContent input,#stepContent select,#stepContent textarea').forEach(el=>{
+      if(el.type==='file') return; // 文件上传框不禁用，允许补传材料
+      el.disabled=true;
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════
+// SUBMIT
+// ══════════════════════════════════════════════════
+async function submitAll(){
+  if(S._submitting){toast(lang==='zh'?'正在提交中，请稍候...':'Submitting, please wait...','warning');return}
+  collect();
+  // 已提交状态下不允许重复提交
+  if(S.request?.status === 'SUBMITTED') {
+    toast(lang==='zh'?'表单已提交，请等待审核':'Already submitted, please wait for review','warning');return;
+  }
+  const req=['surname','given_name','dob','nationality','email','phone_mobile','passport_no','passport_expiry','country_of_residence'];
+  // Add guardian validation for minors
+  const age=calcAge(S.data.dob);
+  if(age!==null&&age<18){req.push('guardian_surname','guardian_given_name','guardian_relation','guardian_phone')}
+  const miss=req.filter(k=>!S.data[k]);if(miss.length){toast(t('fill_required')+miss.join(', '),'warning');return}
+  // Warn if no family members
+  if(S.family.length===0){if(!confirm(lang==='zh'?'未添加家庭成员信息，确认继续？':'No family members added. Continue anyway?'))return}
+  // Warn if no signature
+  if(!S.signatures.applicant || !S.signatures.applicant.sig_data){
+    if(!confirm(lang==='zh'?'尚未签名（请在"同意与签名"步骤用鼠标签名）。确认不签名直接提交？':'No signature detected. Submit without signature?'))return;
+  }
+  // Check required materials uploaded
+  const missingFiles = (S.materials||[]).filter(m => m.is_required && m.status === 'PENDING');
+  if(missingFiles.length){
+    const names = missingFiles.map(m => m.name).join('、');
+    toast(lang==='zh' ? `以下必须材料尚未上传：${names}` : `Required files not uploaded: ${names}`, 'warning');
+    return;
+  }
+  if(!confirm(t('submit_confirm')))return;
+  S._submitting=true;await saveDraft();
+  try{await api('POST','/agent/uif/submit',{data:{...S.data,_family:S.family,_residence:S.residence,_education:S.education,_employment:S.employment,_guardian:S.guardian,_signatures:S.signatures}});
+    toast(t('submit_success'));S.uifStatus='SUBMITTED';renderApp()}catch(e){toast(e.message,'danger')}finally{S._submitting=false}}
+
+// ══════════════════════════════════════════════════
+// RENDER APP (FORM PAGE)
+// ══════════════════════════════════════════════════
+function renderApp(){
+  try{
+  if(S.page==='welcome'){renderWelcome();return}
+  const pct=Math.round((S.step/(STEPS-1))*100);
+  const stepNames=t('steps');
+  if(!Array.isArray(stepNames)){console.error('stepNames not array:',stepNames);return}
+  document.getElementById('app').innerHTML=`
+    <div class="app-header">
+      <div class="d-flex align-items-center gap-12" style="gap:12px">
+        <img src="/esic-logo.jpg" alt="Logo" class="logo">
+        <div style="font-size:.82rem;font-weight:600;color:var(--crimson)">${S.request?.title||t('welcome_title')}</div>
+      </div>
+      <div class="header-right">
+        <div class="meta">
+          <div>${S.contact?.name?'Contact: '+S.contact.name:''}</div>
+          <div>${S.request?.deadline?'Deadline: '+S.request.deadline:''}</div>
+        </div>
+        <div class="lang-toggle" style="position:static;box-shadow:none">
+          <button class="lang-btn ${lang==='zh'?'active':''}" data-lang="zh" onclick="setLang('zh')">中文</button>
+          <button class="lang-btn ${lang==='en'?'active':''}" data-lang="en" onclick="setLang('en')">EN</button>
+        </div>
+      </div>
+    </div>
+    <div class="app-wrap">
+      <div class="side-nav">
+        <div class="nav-progress">
+          <div class="d-flex justify-content-between small mb-1"><span style="color:var(--txt3)">${t('progress')}</span><span style="font-weight:600">${S.step+1}/${STEPS}</span></div>
+          <div class="progress"><div class="progress-bar" style="width:${pct}%"></div></div>
+        </div>
+        <ul class="step-list">
+          ${stepNames.map((name,i)=>`<li class="step-item ${i===S.step?'active':''} ${i<S.step?'done':''}" onclick="goStep(${i})">
+            <span class="step-num">${i<S.step?'<i class="bi bi-check"></i>':i+1}</span><span>${name}</span></li>`).join('')}
+        </ul>
+      </div>
+      <div class="main-panel">
+        ${S.request?.status==='REVISION_NEEDED' ? (() => {
+          const fn = S.fieldNotes || {};
+          const fieldIssues = Object.entries(fn).filter(([k])=>!k.startsWith('_file_')&&k!=='_consistency');
+          const fileIssues = Object.entries(fn).filter(([k])=>k.startsWith('_file_')).map(([k,v])=>[k.replace('_file_',''),v]);
+          const consistency = fn._consistency || '';
+          return `
+        <div style="background:#fef2f2;border:1.5px solid #fca5a5;border-radius:10px;padding:16px 18px;margin-bottom:16px;">
+          <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px">
+            <i class="bi bi-exclamation-triangle-fill" style="color:#dc2626;font-size:1.3rem;flex-shrink:0;margin-top:1px"></i>
+            <div>
+              <div style="font-weight:700;color:#dc2626;margin-bottom:4px">${lang==='zh'?'材料需要修改':'Revision Required'}</div>
+              <div style="color:#7f1d1d;font-size:.9rem">${S.request.return_reason ? S.request.return_reason.replace(/</g,'&lt;') : ''}</div>
+            </div>
+          </div>
+          ${fieldIssues.length ? `<div style="background:#fff;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin:8px 0">
+            <div style="font-weight:600;color:#dc2626;font-size:.85rem;margin-bottom:6px"><i class="bi bi-input-cursor-text me-1"></i>${lang==='zh'?'表单字段问题':'Form Field Issues'}</div>
+            ${fieldIssues.map(([k,v])=>'<div style="font-size:.83rem;color:#991b1b;padding:2px 0"><code style="background:#fde8e8;padding:1px 4px;border-radius:3px">'+k+'</code> '+v.replace(/</g,'&lt;')+'</div>').join('')}
+          </div>` : ''}
+          ${fileIssues.length ? `<div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin:8px 0">
+            <div style="font-weight:600;color:#d97706;font-size:.85rem;margin-bottom:6px"><i class="bi bi-file-earmark-x me-1"></i>${lang==='zh'?'文件问题':'File Issues'}</div>
+            ${fileIssues.map(([k,v])=>'<div style="font-size:.83rem;color:#92400e;padding:2px 0"><b>'+k+'</b>: '+v.replace(/</g,'&lt;')+'</div>').join('')}
+          </div>` : ''}
+          ${consistency ? `<div style="background:#fff;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin:8px 0">
+            <div style="font-weight:600;color:#dc2626;font-size:.85rem;margin-bottom:4px"><i class="bi bi-exclamation-diamond me-1"></i>${lang==='zh'?'一致性问题':'Consistency Issues'}</div>
+            <div style="font-size:.83rem;color:#991b1b">${consistency.replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>
+          </div>` : ''}
+          <div style="color:#991b1b;font-size:.85rem;margin-top:8px;font-weight:500">${lang==='zh'?'请根据以上意见修改后重新提交。':'Please revise based on the feedback above and resubmit.'}</div>
+        </div>`;
+        })() : ''}
+        ${S.uifStatus==='SUBMITTED' && S.request?.status==='SUBMITTED' ? `
+        <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:14px 18px;margin-bottom:16px;text-align:center">
+          <i class="bi bi-check-circle-fill" style="color:#16a34a;font-size:1.5rem"></i>
+          <div style="font-weight:600;color:#16a34a;margin-top:4px">${lang==='zh'?'已提交，等待审核':'Submitted, awaiting review'}</div>
+          <div style="font-size:.85rem;color:#666;margin-top:2px">${lang==='zh'?'您的信息已提交，学校正在审核中。如需修改请等待审核反馈。':'Your information has been submitted. Please wait for review feedback.'}</div>
+        </div>` : ''}
+        <div class="form-card" id="stepContent">${renderStepContent(S.step)}</div>
+        <div class="d-flex justify-content-between mt-3 step-nav-btns">
+          ${S.step>0?`<button class="btn btn-nav btn-prev" onclick="goStep(${S.step-1})"><i class="bi bi-arrow-left me-1"></i>${t('prev')}</button>`:'<div></div>'}
+          ${S.step<STEPS-1?`<button class="btn btn-nav btn-next" onclick="goStep(${S.step+1})">${t('next')} <i class="bi bi-arrow-right ms-1"></i></button>`:'<div></div>'}
+        </div>
+      </div>
+    </div>`;
+  attachInputs();
+  }catch(e){console.error('renderApp error:',e);document.getElementById('app').innerHTML='<div class="p-4"><h5 class="text-danger">Render Error</h5><pre>'+e.message+'\\n'+e.stack+'</pre></div>'}
+}
+
+// ══════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════
+async function loadWorkspace(){
+  try{const ws=await api('GET','/agent/workspace');S.request=ws;S.materials=ws.items||[];S.uifStatus=ws.uif?.status;
+    // 加载打回信息
+    S.fieldNotes = ws.field_notes || null;  // {field_key: "note text", ...}
+    S.versions = ws.versions || [];
+    S.editable = ws.editable !== false;
+    try{const uif=await api('GET','/agent/uif');const raw=uif.data||'{}';const p=JSON.parse(raw);
+      if(S._isDemo && uif.status === 'DRAFT' && !p._signatures){
+        // Demo 模式 + 全新草稿：使用 demo 预填数据，不覆盖
+      } else {
+        // 正常模式 或 已有服务器数据（包括打回后）：从服务器恢复
+        S.family=p._family||S.family||[];
+        S.residence=p._residence||S.residence||[];
+        S.education=p._education||S.education||[];
+        S.employment=p._employment||S.employment||[];
+        S.guardian=p._guardian||S.guardian||{};
+        // 签名和照片：服务器有就用服务器的，否则保留当前（demo 数据）
+        if(p._signatures && Object.keys(p._signatures).length) S.signatures=p._signatures;
+        S.step=p._step||S.step||0;
+        delete p._family;delete p._residence;delete p._education;delete p._employment;delete p._guardian;delete p._signatures;delete p._step;
+        // 合并数据：服务器字段覆盖 demo 字段，保留 demo 中有但服务器没有的
+        S.data = {...S.data, ...p};
+        // 证件照：服务器有就用服务器的
+        if(p._id_photo_data) S.data._id_photo_data = p._id_photo_data;
+      }
+    }catch(e){if(!S._isDemo)S.data={}}
+    renderApp()}catch(e){showError(e.message)}}
+
+// ── TEST DATA (URL 加 &demo=1 自动预填) ──
+function loadDemoData(){
+  S.data={
+    // ── Step 0: Course & Pass Type ──
+    course_name:'Diploma in Business Administration',course_code:'DBA-2026',intake_year:'2026',intake_month:'July',
+    study_mode:'Full-time',campus:'Main Campus',school_name:'Equistar International College',
+    sg_pass_type:'Student Pass',requires_student_pass:'1',was_ever_sg_citizen_or_pr:'0',
+    sg_nric_fin:'G1234567N',sg_pass_expiry:'2027-12-31',
+    // ── Step 1: Personal Details ──
+    surname:'CHEN',given_name:'Wei Ming',chinese_name:'陈伟明',alias:'Andy Chen',
+    gender:'Male',dob:'2008-09-15',birth_certificate_no:'310115200809150012',
+    nationality:'Chinese',birth_country:'China',birth_city:'Shanghai',
+    race:'Chinese',religion:'Buddhism',occupation:'Student',
+    marital_status:'Married',email:'chenweiming@gmail.com',phone_mobile:'+86-13812345678',phone_home:'+86-21-62345678',
+    // ── Step 2: Passport & Address ──
+    passport_type:'Passport',passport_no:'E12345678',passport_issue_country:'China',passport_issue_place:'Shanghai PSB',
+    passport_issue_date:'2023-05-10',passport_expiry:'2033-05-09',
+    foreign_identification_no:'G1234567N',malaysian_id_no:'',
+    address_line1:'200 Nanjing Road, Huangpu District',address_line2:'Building A, Unit 1501',
+    city:'Shanghai',state_province:'Shanghai',postal_code:'200001',country_of_residence:'China',
+    hometown_address:'88 Zhongshan Road, Pudong New Area, Shanghai 200120, China',
+    sg_address:'Blk 123 Clementi Ave 3 #05-678 Singapore 120123',sg_tel_no:'+65-91234567',
+    // ── Step 5: Language ──
+    native_language:'Mandarin Chinese',english_proficiency:'Upper Intermediate (B2)',ielts_score:'6.5',toefl_score:'85',
+    highest_lang_proficiency:'IELTS 6.5',other_lang_test:'Duolingo English Test',other_lang_score:'115',need_english_placement_test:'0',
+    // ── Step 7: Financial ──
+    financial_source:'Parents',
+    applicant_monthly_income:'500',applicant_current_saving:'8000',
+    father_monthly_income:'18000',father_current_saving:'350000',
+    mother_monthly_income:'12000',mother_current_saving:'180000',
+    spouse_monthly_income:'3000',spouse_current_saving:'15000',
+    sponsor_name:'Chen Foundation',sponsor_relation:'Family Trust',
+    other_financial_support:'1',other_financial_details:'Partial scholarship from Shanghai Municipal Education Commission + family education fund',other_financial_amount:'25000',
+    bank_statement_available:'1',
+    // ── Step 8: Declarations ──
+    antecedent_q1:'0',antecedent_q2:'0',antecedent_q3:'0',antecedent_q4:'1',
+    antecedent_remarks:'Previously entered Singapore in 2022 under passport number E00001111 (old passport, since renewed). No other issues.',
+    guardian_surname:'TAN',guardian_given_name:'Ah Kow',guardian_relation:'Uncle (Mother\'s brother)',guardian_nationality:'Singaporean',
+    guardian_phone:'+65-91112222',guardian_email:'tankow@singnet.com.sg',
+    guardian_address:'Blk 456 Bedok North Ave 3 #12-345 Singapore 460456',
+    guardian_passport_no:'S7654321A',guardian_occupation:'Senior Business Consultant',
+    prior_sg_study:'1',prior_sg_school:'ACS International School',prior_sg_year:'2023-2024',
+    f16_declaration_agreed:'1',v36_declaration_agreed:'1',
+    // ── Step 9: Consent ──
+    pdpa_consent:'1',pdpa_marketing:'0',pdpa_photo_video:'1',
+    remarks:'',
+    sig_date:'2026-03-25',
+    // Flags
+    no_education_info:'0',no_employment_info:'0',
+  };
+  S.family=[
+    // Father — Singapore PR → triggers SAF §9 + V36 Part G
+    {member_type:'father',surname:'CHEN',given_name:'Daming',sex:'Male',dob:'1970-06-20',nationality:'Chinese',
+     sg_status:'PR',occupation:'Senior Civil Engineer',passport_no:'E98765432',email:'chendaming@qq.com',
+     contact_number:'+86-13900001111',sg_mobile:'+65-91001001',
+     pr_marital_status:'Married',pr_marriage_cert:'MC-2000-SH-12345',pr_marriage_date:'2000-01-15',
+     pr_divorce_cert:'',pr_divorce_date:'',pr_custody:'1',
+     pr_school:'Tsinghua University',pr_school_country:'China',pr_qualification:'Bachelor of Civil Engineering',pr_edu_cert:'TU-1992-CE-6789',
+     pr_company:'DBS Engineering Pte Ltd',pr_monthly_income:'18000',pr_annual_income:'216000',pr_cpf:'3600'},
+    // Mother — not SC/PR
+    {member_type:'mother',surname:'LI',given_name:'Xiulan',sex:'Female',dob:'1972-11-03',nationality:'Chinese',
+     sg_status:'LTVP',occupation:'Primary School Teacher',passport_no:'E87654321',email:'lixiulan@163.com',
+     contact_number:'+86-13900002222',sg_mobile:'+65-82002002'},
+    // Step-father — Singapore Citizen → triggers additional info
+    {member_type:'step_father',surname:'WONG',given_name:'Ah Beng',sex:'Male',dob:'1968-03-22',nationality:'Singaporean',
+     sg_status:'SC',occupation:'Regional Manager',passport_no:'S1234567B',email:'wongbeng@gmail.com',
+     contact_number:'+65-91003003',sg_mobile:'+65-91003003',
+     pr_marital_status:'Married',pr_marriage_cert:'MC-2015-SG-54321',pr_marriage_date:'2015-08-20',
+     pr_divorce_cert:'DC-2010-SG-99999',pr_divorce_date:'2010-12-01',pr_custody:'0',
+     pr_school:'National University of Singapore',pr_school_country:'Singapore',pr_qualification:'Master of Business Administration',pr_edu_cert:'NUS-2005-MBA-1234',
+     pr_company:'OCBC Bank Ltd',pr_monthly_income:'22000',pr_annual_income:'264000',pr_cpf:'4400'},
+    // Spouse — Singapore PR → triggers V36 Part H
+    {member_type:'spouse',surname:'LIM',given_name:'Mei Ling',sex:'Female',dob:'2008-12-05',nationality:'Singaporean',
+     sg_status:'PR',occupation:'Student',passport_no:'S9988776A',email:'meiling.lim@gmail.com',
+     contact_number:'+65-90005000',sg_mobile:'+65-90005000',
+     sp_marriage_cert:'MC-2025-SG-00001',sp_marriage_date:'2025-06-18',
+     sp_school:'Raffles Girls School',sp_school_country:'Singapore',sp_qualification:'GCE O-Level',sp_edu_cert:'RGS-2024-OL-5678',
+     sp_company:'Part-time tutor (self-employed)',sp_monthly_income:'800',sp_annual_income:'9600',sp_cpf:'160'},
+    // Sibling 1
+    {member_type:'sibling',surname:'CHEN',given_name:'Wei Hua',sex:'Female',dob:'2005-08-12',nationality:'Chinese',
+     sg_status:'LTVP',occupation:'Polytechnic Student',passport_no:'E11223344',email:'chenhua2005@qq.com',
+     contact_number:'+86-13900003333',sg_mobile:'+65-83003003'},
+    // Sibling 2
+    {member_type:'sibling',surname:'CHEN',given_name:'Wei Jun',sex:'Male',dob:'2010-02-28',nationality:'Chinese',
+     sg_status:'',occupation:'Primary School Student',passport_no:'E55667788',email:'',
+     contact_number:'+86-13900004444',sg_mobile:''},
+    // Sibling 3
+    {member_type:'sibling',surname:'WONG',given_name:'Jia Yi',sex:'Female',dob:'2016-07-14',nationality:'Singaporean',
+     sg_status:'SC',occupation:'Kindergarten',passport_no:'S2233445C',email:'',
+     contact_number:'',sg_mobile:'+65-91003003'},
+  ];
+  S.residence=[
+    {country:'China',address:'200 Nanjing Road, Huangpu District, Shanghai 200001',date_from:'2008-09-15',date_to:'2022-06-30'},
+    {country:'China',address:'88 Zhongshan Road, Pudong New Area, Shanghai 200120',date_from:'2022-07-01',date_to:'2023-12-31'},
+    {country:'Singapore',address:'Blk 123 Clementi Ave 3 #05-678 Singapore 120123',date_from:'2024-01-15',date_to:''},
+  ];
+  S.education=[
+    {institution_name:'Shanghai Huangpu District No.1 Primary School',country:'China',state_province:'Shanghai',
+     language_of_instruction:'Mandarin',date_from:'2015-09-01',date_to:'2021-06-30',
+     qualification:'Primary School Completion',educational_cert_no:'SHPS-2021-00123',obtained_pass_english:'1'},
+    {institution_name:'Shanghai Jianping High School (Affiliated)',country:'China',state_province:'Shanghai',
+     language_of_instruction:'Mandarin',date_from:'2021-09-01',date_to:'2023-06-30',
+     qualification:'Secondary 4 (Zhongkao)',educational_cert_no:'JPHS-2023-12345',obtained_pass_english:'1'},
+    {institution_name:'ABC Language Academy Pte Ltd',country:'Singapore',state_province:'Singapore',
+     language_of_instruction:'English',date_from:'2024-01-15',date_to:'2024-12-20',
+     qualification:'English Preparatory Certificate (CEFR B2)',educational_cert_no:'ABC-2024-EP-678',obtained_pass_english:'1'},
+    {institution_name:'Equistar International College',country:'Singapore',state_province:'Singapore',
+     language_of_instruction:'English',date_from:'2025-01-06',date_to:'',
+     qualification:'Diploma in Business Administration (In Progress)',educational_cert_no:'',obtained_pass_english:'1'},
+  ];
+  S.employment=[
+    {employer:'Shanghai Youth Volunteer Service Center',country:'China',position:'Volunteer Coordinator Assistant',
+     date_from:'2022-07-01',date_to:'2022-08-31',nature_of_duties:'Organized community events, coordinated 50+ volunteers for summer programs',is_current:'0'},
+    {employer:'Uncle Bob Tea House',country:'Singapore',position:'Part-time Service Crew',
+     date_from:'2024-06-01',date_to:'2024-08-31',nature_of_duties:'Customer service, cashier operations, inventory management during school break',is_current:'0'},
+    {employer:'Freelance Online Tutoring',country:'Singapore',position:'Mathematics Tutor (Self-employed)',
+     date_from:'2025-02-01',date_to:'',nature_of_duties:'Online tutoring for primary and secondary mathematics students via Zoom',is_current:'1'},
+  ];
+  S.guardian={};
+  S.signatures={};
+  S._isDemo=true;
+}
+
+async function init(){
+  const params=new URLSearchParams(window.location.search);S.token=params.get('token');
+  if(!S.token){showError('Missing access token. Please use the link from your email.');return}
+  // 未保存离开提醒
+  window.addEventListener('beforeunload',e=>{if(S.dirty&&S.page==='form'&&S.editable){e.preventDefault();e.returnValue=''}});
+  // Demo mode: &demo=1 预填测试数据
+  if(params.get('demo')==='1') loadDemoData();
+  try{const auth=await api('GET','/agent/auth');S.request=auth.request;S.contact=auth.contact;
+    document.getElementById('app').dataset.ready='1';
+    renderWelcome()}catch(e){showError(e.message)}}
+
+function showError(msg){
+  document.getElementById('app').innerHTML=`<div class="err-page"><div>
+    <i class="bi bi-shield-lock" style="font-size:3.5rem;color:var(--crimson)"></i>
+    <h5 class="mt-3" style="color:var(--crimson)">Access Denied</h5>
+    <p style="color:var(--txt2)">${esc(msg)}</p></div></div>`}
+
+init();
+</script>
+</body>
+</html>

@@ -12,6 +12,7 @@ const State = {
   currentStudentId: null,
   currentTaskId: null,
   currentCaseId: null,
+  currentMatRequestId: null,
   staffList: [],
   subjectList: [],
   templateItems: [],   // 模板编辑器中的临时任务项列表
@@ -108,8 +109,9 @@ async function api(method, url, body) {
   };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
-  // 会话过期：返回登录页
-  if (res.status === 401 && url !== '/api/auth/login') {
+  // 会话过期：返回登录页（排除登录和初始会话检查端点，避免首次打开页面误报"会话已过期"）
+  const silentUrls = ['/api/auth/login', '/api/auth/me'];
+  if (res.status === 401 && !silentUrls.includes(url)) {
     State.user = null;
     showToast('会话已过期，请重新登录', 'warning');
     setTimeout(() => { document.getElementById('main-content').innerHTML = ''; renderLogin(); }, 1200);
@@ -317,6 +319,13 @@ const PAGES = {
   'intake-case-detail': renderIntakeCaseDetail,
   'agents-management': renderAgentsManagement,
   'task-detail': renderTaskDetail,
+  // MAT/ADM 独立页面已整合到入学案例详情 → 重定向
+  'mat-requests': () => { showToast('材料收集已整合到入学案例详情页','info'); navigate('intake-cases'); },
+  'mat-request-detail': () => { navigate('intake-cases'); },
+  'mat-companies': renderMatCompanies, // 保留公司管理（可从创建材料收集弹窗访问）
+  'adm-profiles': () => { showToast('申请表管理已整合到入学案例详情页','info'); navigate('intake-cases'); },
+  'adm-form': () => { navigate('intake-cases'); },
+  'adm-case-detail': () => { navigate('intake-cases'); },
 };
 
 // ── 页面级权限矩阵 ───────────────────────────────────────
@@ -347,6 +356,14 @@ const PAGE_ROLES = {
   'intake-case-detail': ['principal', 'intake_staff', 'student_admin'],
   // ── 代理市场（仅 principal）
   'agents-management':  ['principal'],
+  // ── 中介协作模块
+  'mat-requests':       ['principal', 'counselor', 'intake_staff'],
+  'mat-request-detail': ['principal', 'counselor', 'intake_staff'],
+  'mat-companies':      ['principal', 'counselor', 'intake_staff'],
+  // ── 招生申请模块
+  'adm-profiles':       ['principal', 'counselor', 'intake_staff'],
+  'adm-form':           ['principal', 'counselor', 'intake_staff'],
+  'adm-case-detail':    ['principal', 'counselor', 'intake_staff'],
 };
 
 function canAccessPage(page) {
@@ -355,7 +372,68 @@ function canAccessPage(page) {
   return allowed.includes(State.user?.role);
 }
 
+function _forceCleanupModals() {
+  // Only dispose/remove dynamically rendered or nav-moved modals — leave static index.html modals intact
+  document.querySelectorAll('[data-nav-moved="1"],[data-rendered-modal="1"]').forEach(el => {
+    const inst = bootstrap.Modal.getInstance(el);
+    if (inst) { try { inst.dispose(); } catch(e) {} }
+    el.remove();
+  });
+  // Also hide any lingering open static modals without disposing them
+  document.querySelectorAll('.modal.show').forEach(el => {
+    if (el.dataset.navMoved !== '1' && el.dataset.renderedModal !== '1') {
+      const inst = bootstrap.Modal.getInstance(el);
+      if (inst) { try { inst.hide(); } catch(e) {} }
+      el.classList.remove('show');
+      el.style.display = 'none';
+      el.removeAttribute('aria-modal');
+      el.setAttribute('aria-hidden', 'true');
+    }
+  });
+  document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+  document.body.classList.remove('modal-open');
+  document.body.style.removeProperty('padding-right');
+  document.body.style.removeProperty('overflow');
+}
+
 function navigate(page, params = {}) {
+  const mainContent = document.getElementById('main-content');
+  const openModal = document.querySelector('.modal.show');
+
+  if (openModal) {
+    const inst = bootstrap.Modal.getInstance(openModal);
+    if (inst) {
+      // KEY FIX: move the modal from #main-content to body BEFORE calling hide().
+      // Bootstrap's hide animation relies on transitionend firing on the element.
+      // If the element lives inside #main-content and we replace innerHTML during
+      // the animation, the element is detached and Bootstrap's cleanup never completes,
+      // leaving the backdrop and modal-open class behind (page appears frozen).
+      // Moving to body makes the element stable for the full close animation.
+      if (mainContent && mainContent.contains(openModal)) {
+        openModal.dataset.navMoved = '1';
+        document.body.appendChild(openModal);
+      }
+
+      openModal.addEventListener('hidden.bs.modal', () => {
+        // Remove moved/rendered modals and any residual Bootstrap state
+        document.querySelectorAll('[data-nav-moved="1"],[data-rendered-modal="1"]').forEach(el => el.remove());
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('padding-right');
+        document.body.style.removeProperty('overflow');
+        _doNavigate(page, params);
+      }, { once: true });
+
+      inst.hide();
+      return;
+    }
+  }
+
+  _forceCleanupModals();
+  _doNavigate(page, params);
+}
+
+function _doNavigate(page, params = {}) {
   // ── 前端路由守卫：角色无权访问则拦截 ──
   if (State.user && !canAccessPage(page)) {
     document.getElementById('main-content').innerHTML = `
@@ -379,6 +457,25 @@ function navigate(page, params = {}) {
   if (params.studentId) State.currentStudentId = params.studentId;
   if (params.taskId) State.currentTaskId = params.taskId;
   if (params.caseId) State.currentCaseId = params.caseId;
+  if (params.requestId) State.currentMatRequestId = params.requestId;
+
+  // ── 写入 URL hash，刷新时可恢复 ──
+  try {
+    const hashParams = new URLSearchParams();
+    // 只序列化有值的参数
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null && v !== '') hashParams.set(k, v);
+    }
+    // 如果是案例详情页，确保 caseId 在 hash 中
+    if (page === 'intake-case-detail' && State.currentCaseId && !hashParams.has('caseId')) {
+      hashParams.set('caseId', State.currentCaseId);
+    }
+    if (page === 'student-detail' && State.currentStudentId && !hashParams.has('studentId')) {
+      hashParams.set('studentId', State.currentStudentId);
+    }
+    const hashStr = page + (hashParams.toString() ? '?' + hashParams.toString() : '');
+    window.history.replaceState(null, '', '#' + hashStr);
+  } catch(e) {}
 
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.page === page);
@@ -3268,7 +3365,7 @@ function initApp() {
   // 启动打印按钮注入观察器
   _mainObs.observe(document.getElementById('main-content'), { childList: true });
 
-  // 根据角色跳转默认页面
+  // ── 恢复 URL hash 中的页面状态，否则跳默认页 ──
   const defaultPages = {
     principal: 'dashboard',
     counselor: 'counselor',
@@ -3279,7 +3376,22 @@ function initApp() {
     intake_staff: 'intake-dashboard',
     student_admin: 'intake-dashboard',
   };
-  navigate(defaultPages[user.role] || 'dashboard');
+  let restored = false;
+  try {
+    const hash = window.location.hash.slice(1);
+    if (hash && hash.length > 2) {
+      const qIdx = hash.indexOf('?');
+      const hashPage = qIdx >= 0 ? hash.substring(0, qIdx) : hash;
+      const hashQuery = qIdx >= 0 ? hash.substring(qIdx + 1) : '';
+      if (hashPage && PAGES[hashPage]) {
+        const params = {};
+        if (hashQuery) new URLSearchParams(hashQuery).forEach((v, k) => { params[k] = v; });
+        navigate(hashPage, params);
+        restored = true;
+      }
+    }
+  } catch(e) {}
+  if (!restored) navigate(defaultPages[user.role] || 'dashboard');
 
   // 会话超时提醒
   _setupSessionWarning();
@@ -7209,7 +7321,8 @@ async function renderIntakeCases(params = {}) {
         <td><div class="fw-semibold">${escapeHtml(c.student_name||'')}</div><div class="text-xs text-muted">${c.intake_year||''}</div></td>
         <td>${escapeHtml(c.program_name||'')}</td>
         <td>${c.referral_type ? `<span class="badge bg-${srcBg}" title="${srcMap[c.referral_type]||c.referral_type}">${srcLabel}</span>` : '<span class="text-muted">—</span>'}</td>
-        <td><span class="badge bg-${statusColor[c.status]||'secondary'}">${statusMap[c.status]||c.status}</span></td>
+        <td><span class="badge bg-${statusColor[c.status]||'secondary'}">${statusMap[c.status]||c.status}</span>
+          ${c.review_status && c.review_status !== 'draft' ? `<br>${admReviewBadge(c.review_status)}` : ''}</td>
         <td><span class="badge bg-${visaBg} text-xs">${visaLabel}</span></td>
         <td>${ipaInvoiceHtml}</td>
         <td class="d-flex gap-1">
@@ -7260,7 +7373,13 @@ async function renderIntakeCases(params = {}) {
         ${isStudentAdminView && arrivedCount > 0 ? `<div class="text-primary small mt-1"><i class="bi bi-bell-fill me-1"></i>${arrivedCount} 名学生已到校，待跟进 Orientation</div>` : ''}
       </div>
       <div class="page-header-actions">
-        ${hasRole('principal','intake_staff') ? `<button class="btn btn-primary btn-sm" onclick="showCreateIntakeModal()"><i class="bi bi-plus-lg me-1"></i>新建案例</button>` : ''}
+        ${hasRole('principal','intake_staff','counselor') ? `
+          <button class="btn btn-outline-primary btn-sm me-2" onclick="navigate('intake-cases')">
+            <i class="bi bi-person-lines-fill me-1"></i>入学案例</button>
+          <button class="btn btn-outline-success btn-sm me-2" onclick="renderAdmFormWizard()">
+            <i class="bi bi-plus-circle me-1"></i>新建申请表</button>
+          <button class="btn btn-primary btn-sm" onclick="showCreateIntakeModal()">
+            <i class="bi bi-plus-lg me-1"></i>新建案例</button>` : ''}
       </div>
     </div>
     ${!isStudentAdminView ? `<div class="mb-2"><div class="input-group input-group-sm" style="max-width:300px"><span class="input-group-text"><i class="bi bi-search"></i></span><input type="text" class="form-control" id="intakeSearchInput" placeholder="搜索学生/课程…" oninput="window._intakeCaseRenderTable&&window._intakeCaseRenderTable()"></div></div>` : ''}
@@ -7489,7 +7608,17 @@ async function apiFd(method, url, formData) {
 
 // ─── File Exchange Center helpers ────────────────────────────────────────────
 // Alias: refreshes the current case detail page
-async function loadCaseDetail(_caseId) { return renderIntakeCaseDetail(); }
+async function loadCaseDetail(_caseId) {
+  // 记住当前活跃的 Tab（刷新后恢复）
+  const activeTab = document.querySelector('#fcTabs .nav-link.active')?.getAttribute('href');
+  if (activeTab) window._fcActiveTab = activeTab;
+  await renderIntakeCaseDetail();
+  // 恢复 Tab
+  if (window._fcActiveTab) {
+    const tab = document.querySelector(`#fcTabs .nav-link[href="${window._fcActiveTab}"]`);
+    if (tab) { new bootstrap.Tab(tab).show(); }
+  }
+}
 
 function copyToClipboard(text, successMsg = '已复制') {
   navigator.clipboard.writeText(text).then(() => showSuccess(successMsg)).catch(() => {
@@ -7501,108 +7630,175 @@ function copyToClipboard(text, successMsg = '已复制') {
   });
 }
 
-function openFxNewModal(caseId) {
+function fxAddUploadItem() {
+  const container = document.getElementById('fxUploadItems');
+  const idx = container.querySelectorAll('.fxItem').length + 1;
+  const row = document.createElement('div');
+  row.className = 'd-flex gap-2 mb-2 align-items-center fxItem';
+  row.innerHTML = `<span class="text-muted" style="width:20px;text-align:center">${idx}</span>`
+    + '<input class="form-control form-control-sm flex-grow-1 fxItemName" placeholder="文件名称">'
+    + '<div class="form-check mb-0 d-flex align-items-center gap-1"><input type="checkbox" class="form-check-input fxItemReq" checked><span class="small">必须</span></div>'
+    + '<button class="btn btn-sm btn-outline-danger py-0 px-1" title="删除"><i class="bi bi-x-lg"></i></button>';
+  row.querySelector('button').onclick = () => { row.remove(); fxRenumberItems(); };
+  container.appendChild(row);
+}
+function fxRenumberItems() {
+  document.querySelectorAll('#fxUploadItems .fxItem').forEach((row, i) => {
+    const num = row.querySelector('span');
+    if (num) num.textContent = i + 1;
+  });
+}
+
+function openFxNewModal(caseId, mode) {
   const caseData = window._currentCaseDetail;
   const prefillEmail = caseData ? (caseData.student_email || '') : '';
   const prefillName  = caseData ? (caseData.student_name  || '') : '';
+  const isRequest = mode === 'request';
 
-  const html = `
-<div class="row g-2 mb-2">
-  <div class="col-12">
-    <label class="form-label fw-semibold mb-1">文件标题 <span class="text-danger">*</span></label>
-    <input id="fxTitle" class="form-control form-control-sm" placeholder="例如：录取通知书、签证材料清单…">
-  </div>
+  // ── 发送文件弹窗 ──
+  const sendHtml = `
+<div class="mb-3">
+  <label class="form-label fw-semibold">文件标题 <span class="text-danger">*</span></label>
+  <input id="fxTitle" class="form-control" placeholder="例如：录取通知书、签证材料清单">
 </div>
-<div class="row g-2 mb-2">
-  <div class="col-12">
-    <label class="form-label fw-semibold mb-1">说明 / 备注</label>
-    <textarea id="fxDesc" class="form-control form-control-sm" rows="2" placeholder="可选，对学生的说明"></textarea>
-  </div>
+<div class="mb-3">
+  <label class="form-label fw-semibold">上传文件 <span class="text-danger">*</span></label>
+  <input id="fxFile" type="file" class="form-control">
 </div>
-<div class="row g-2 mb-2">
-  <div class="col-12">
-    <label class="form-label fw-semibold mb-1">附件 <span class="text-danger">*</span></label>
-    <input id="fxFile" type="file" class="form-control form-control-sm">
-  </div>
+<div class="mb-3">
+  <label class="form-label fw-semibold">备注 <span class="text-muted fw-normal small">(可选)</span></label>
+  <textarea id="fxDesc" class="form-control" rows="2" placeholder="给学生的说明"></textarea>
 </div>
-<div class="row g-2 mb-2">
+<div class="row g-2 mb-3">
   <div class="col-6">
-    <label class="form-label fw-semibold mb-1">相关阶段</label>
-    <select id="fxStage" class="form-select form-select-sm">
-      <option value="">（不指定）</option>
-      <option value="registered">注册</option>
-      <option value="collecting_docs">材料收集</option>
-      <option value="contract_signed">合同签署</option>
-      <option value="visa_in_progress">签证办理</option>
-      <option value="ipa_received">IPA已收</option>
-      <option value="paid">已付款</option>
-      <option value="arrived">已到校</option>
-      <option value="oriented">已入学</option>
-    </select>
+    <label class="form-label fw-semibold">学生邮箱</label>
+    <input id="fxStudentEmail" class="form-control" value="${escapeHtml(prefillEmail)}" placeholder="留空则不发邮件">
   </div>
   <div class="col-6">
-    <label class="form-label fw-semibold mb-1">类别</label>
-    <input id="fxCategory" class="form-control form-control-sm" placeholder="合同、签证、IPA…">
+    <label class="form-label fw-semibold">学生姓名</label>
+    <input id="fxStudentName" class="form-control" value="${escapeHtml(prefillName)}">
   </div>
 </div>
-<div class="row g-2 mb-2">
-  <div class="col-6">
-    <label class="form-label fw-semibold mb-1">学生邮箱</label>
-    <input id="fxStudentEmail" class="form-control form-control-sm" value="${escapeHtml(prefillEmail)}" placeholder="留空则不发邮件">
-  </div>
-  <div class="col-6">
-    <label class="form-label fw-semibold mb-1">学生姓名</label>
-    <input id="fxStudentName" class="form-control form-control-sm" value="${escapeHtml(prefillName)}" placeholder="用于邮件称呼">
-  </div>
+<div class="form-check mb-2">
+  <input id="fxRequestReply" type="checkbox" class="form-check-input">
+  <label class="form-check-label" for="fxRequestReply">需要学生签字/回传</label>
 </div>
-<div class="mb-2 form-check">
-  <input id="fxRequestReply" type="checkbox" class="form-check-input" onchange="document.getElementById('fxReplyWrap').classList.toggle('d-none',!this.checked)">
-  <label class="form-check-label small" for="fxRequestReply">要求学生回传文件</label>
-</div>
-<div id="fxReplyWrap" class="border rounded p-2 mb-2 d-none bg-light">
+<div id="fxReplyWrap" class="d-none border rounded p-2 mb-3 bg-light">
   <div class="row g-2">
-    <div class="col-8">
-      <label class="form-label fw-semibold mb-1 small">回传说明</label>
-      <input id="fxReplyInstruction" class="form-control form-control-sm" placeholder="请上传签名版合同…">
-    </div>
-    <div class="col-4">
-      <label class="form-label fw-semibold mb-1 small">截止日期</label>
-      <input id="fxDeadline" type="date" class="form-control form-control-sm">
-    </div>
+    <div class="col-8"><label class="form-label small fw-semibold">回传说明</label><input id="fxReplyInstruction" class="form-control form-control-sm" placeholder="请签字后拍照上传"></div>
+    <div class="col-4"><label class="form-label small fw-semibold">截止日期</label><input id="fxDeadline" type="date" class="form-control form-control-sm"></div>
   </div>
 </div>
 <div class="form-check">
-  <input id="fxSendNow" type="checkbox" class="form-check-input">
-  <label class="form-check-label small" for="fxSendNow">保存后立即发送给学生（不勾选则保存为草稿）</label>
+  <input id="fxSendNow" type="checkbox" class="form-check-input" checked>
+  <label class="form-check-label" for="fxSendNow">立即发送给学生</label>
 </div>`;
 
-  showModal('新建文件交换记录', html, async () => {
+  // ── 请求上传弹窗（完全不同的布局）──
+  const requestHtml = `
+<div class="alert alert-info py-2 mb-3 small">
+  <i class="bi bi-info-circle me-1"></i>创建上传请求后，系统将生成链接发给学生。学生打开链接即可按清单逐项上传文件。
+</div>
+<div class="mb-3">
+  <label class="form-label fw-semibold">请求标题 <span class="text-danger">*</span></label>
+  <input id="fxTitle" class="form-control" placeholder="例如：补交入学材料、签证材料补充">
+</div>
+<div class="mb-3">
+  <label class="form-label fw-semibold">需要学生上传的文件 <span class="text-danger">*</span></label>
+  <div id="fxUploadItems" class="mb-2">
+    <div class="d-flex gap-2 mb-2 align-items-center fxItem">
+      <span class="text-muted" style="width:20px;text-align:center">1</span>
+      <input class="form-control form-control-sm flex-grow-1 fxItemName" placeholder="文件名称，如：体检报告">
+      <div class="form-check mb-0 d-flex align-items-center gap-1"><input type="checkbox" class="form-check-input fxItemReq" checked><span class="small">必须</span></div>
+      <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="this.parentElement.remove();fxRenumberItems()" title="删除"><i class="bi bi-x-lg"></i></button>
+    </div>
+  </div>
+  <button class="btn btn-sm btn-outline-primary" onclick="fxAddUploadItem()"><i class="bi bi-plus-lg me-1"></i>添加文件项</button>
+</div>
+<div class="row g-2 mb-3">
+  <div class="col-6">
+    <label class="form-label fw-semibold">截止日期</label>
+    <input id="fxDeadline" type="date" class="form-control">
+  </div>
+  <div class="col-6">
+    <label class="form-label fw-semibold">补充说明 <span class="text-muted fw-normal small">(可选)</span></label>
+    <input id="fxReplyInstruction" class="form-control" placeholder="如：请提供近3个月内的文件">
+  </div>
+</div>
+<div class="row g-2 mb-3">
+  <div class="col-6">
+    <label class="form-label fw-semibold">学生邮箱</label>
+    <input id="fxStudentEmail" class="form-control" value="${escapeHtml(prefillEmail)}" placeholder="留空则不发邮件">
+  </div>
+  <div class="col-6">
+    <label class="form-label fw-semibold">学生姓名</label>
+    <input id="fxStudentName" class="form-control" value="${escapeHtml(prefillName)}">
+  </div>
+</div>
+<div class="form-check">
+  <input id="fxSendNow" type="checkbox" class="form-check-input" checked>
+  <label class="form-check-label" for="fxSendNow">创建后立即发送链接给学生</label>
+</div>`;
+
+  const html = isRequest ? requestHtml : sendHtml;
+
+  const modalTitle = isRequest ? '📤 请求学生上传文件' : '📨 发送文件给学生';
+  showModal(modalTitle, html, async () => {
     const titleVal = document.getElementById('fxTitle').value.trim();
-    const fileInput = document.getElementById('fxFile');
-    if (!titleVal) { showError('请填写文件标题'); return false; }
-    if (!fileInput.files.length) { showError('请选择附件'); return false; }
+    if (!titleVal) { showError('请填写标题'); return false; }
 
-    const fd = new FormData();
-    fd.append('title', titleVal);
-    fd.append('description', document.getElementById('fxDesc').value.trim());
-    fd.append('related_stage', document.getElementById('fxStage').value);
-    fd.append('category', document.getElementById('fxCategory').value.trim());
-    fd.append('request_reply', document.getElementById('fxRequestReply').checked ? '1' : '0');
-    fd.append('reply_instruction', document.getElementById('fxReplyInstruction')?.value?.trim() || '');
-    fd.append('deadline_at', document.getElementById('fxDeadline')?.value || '');
-    fd.append('student_email', document.getElementById('fxStudentEmail').value.trim());
-    fd.append('student_name', document.getElementById('fxStudentName').value.trim());
-    fd.append('file', fileInput.files[0]);
+    if (isRequest) {
+      // 请求上传模式：校验至少有一个文件项
+      const items = [];
+      document.querySelectorAll('#fxUploadItems .fxItem').forEach(row => {
+        const name = row.querySelector('.fxItemName')?.value?.trim();
+        if (name) items.push({ name, required: row.querySelector('.fxItemReq')?.checked ? 1 : 0 });
+      });
+      if (!items.length) { showError('请至少添加一个需要学生上传的文件项'); return false; }
+      const fd = new FormData();
+      fd.append('title', titleVal);
+      fd.append('request_reply', '1');
+      fd.append('reply_instruction', document.getElementById('fxReplyInstruction')?.value?.trim() || '');
+      fd.append('deadline_at', document.getElementById('fxDeadline')?.value || '');
+      fd.append('upload_items', JSON.stringify(items));
+      fd.append('student_email', document.getElementById('fxStudentEmail').value.trim());
+      fd.append('student_name', document.getElementById('fxStudentName').value.trim());
+      try {
+        const rec = await apiFd('POST', `/api/intake-cases/${caseId}/file-exchange`, fd);
+        if (document.getElementById('fxSendNow').checked) await api('PUT', `/api/file-exchange/${rec.id}/send`);
+        showSuccess('上传请求已创建' + (document.getElementById('fxSendNow').checked ? '，链接已发送' : ''));
+        loadCaseDetail(caseId);
+      } catch(e) { showError(e.message); return false; }
+    } else {
+      // 发送文件模式：校验必须有附件
+      const fileInput = document.getElementById('fxFile');
+      if (!fileInput.files.length) { showError('请选择要发送的文件'); return false; }
+      const fd = new FormData();
+      fd.append('title', titleVal);
+      fd.append('description', document.getElementById('fxDesc')?.value?.trim() || '');
+      fd.append('request_reply', document.getElementById('fxRequestReply')?.checked ? '1' : '0');
+      fd.append('reply_instruction', document.getElementById('fxReplyInstruction')?.value?.trim() || '');
+      fd.append('deadline_at', document.getElementById('fxDeadline')?.value || '');
+      fd.append('student_email', document.getElementById('fxStudentEmail').value.trim());
+      fd.append('student_name', document.getElementById('fxStudentName').value.trim());
+      fd.append('file', fileInput.files[0]);
 
-    try {
-      const rec = await apiFd('POST', `/api/intake-cases/${caseId}/file-exchange`, fd);
-      if (document.getElementById('fxSendNow').checked) {
-        await api('PUT', `/api/file-exchange/${rec.id}/send`);
-      }
-      showSuccess('文件记录已创建');
-      loadCaseDetail(caseId); // 不 await — modal 立即关闭，页面后台刷新
-    } catch(e) { showError(e.message); return false; }
-  }, '保存', 'lg');
+      try {
+        const rec = await apiFd('POST', `/api/intake-cases/${caseId}/file-exchange`, fd);
+        if (document.getElementById('fxSendNow').checked) await api('PUT', `/api/file-exchange/${rec.id}/send`);
+        showSuccess('文件已创建' + (document.getElementById('fxSendNow').checked ? '并发送' : ''));
+        loadCaseDetail(caseId);
+      } catch(e) { showError(e.message); return false; }
+    }
+  }, isRequest ? '创建上传请求' : '保存', 'lg');
+
+  // 发送模式：绑定"要求回传"toggle
+  if (!isRequest) {
+    setTimeout(() => {
+      const cb = document.getElementById('fxRequestReply');
+      if (cb) cb.onchange = () => document.getElementById('fxReplyWrap')?.classList.toggle('d-none', !cb.checked);
+    }, 100);
+  }
 }
 
 async function fxSendRecord(recordId, caseId) {
@@ -7793,11 +7989,308 @@ async function showCaseDetail(caseId) {
 // ══════════════════════════════════════════════════════
 //  CASE DETAIL CARD SYSTEM — helpers
 // ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+// 文件中心 4 个 Tab 渲染函数
+// ══════════════════════════════════════════════════════════
+
+function _renderAgentTab(c) {
+  const mr = c.matRequest;
+  const admDocs = c.admDocs || [];
+  const allDocsOk = admDocs.length >= 3 && admDocs.every(d => d.status === 'done');
+  const docLabels = {SAF:'Student Application Form',FORM16:'Form 16 (Student Pass)',V36:'V36 (Additional Info)'};
+
+  if (!mr) {
+    return `
+      <div class="text-center py-4">
+        <i class="bi bi-person-badge text-muted" style="font-size:2.5rem"></i>
+        <p class="text-muted mt-2 mb-3">尚未发起代理材料收集</p>
+        ${hasRole('principal','intake_staff','counselor') ? `
+          <button class="btn btn-primary" onclick="showCreateMatRequestForCase('${c.id}')">
+            <i class="bi bi-send me-1"></i>发起材料收集
+          </button>` : ''}
+      </div>
+      ${allDocsOk ? `<div class="border rounded p-2 mt-3 text-center" style="background:#f8fdf8"><span class="text-success small"><i class="bi bi-check-circle-fill me-1"></i>3 份文件已生成</span> <a href="#" class="small ms-2" onclick="event.preventDefault();document.querySelector('[href=\\'#fcAll\\']').click()">前往下载 →</a></div>` : ''}`;
+  }
+
+  const items = mr.items || [];
+  const approved = items.filter(i => i.status === 'APPROVED').length;
+  const uploaded = items.filter(i => i.status === 'UPLOADED').length;
+  const total = items.length;
+  const pct = total > 0 ? Math.round(approved / total * 100) : 0;
+  const uif = mr.uif;
+  const uifStatus = uif?.status || 'DRAFT';
+  const tokenInfo = mr.token;
+  const agentLink = tokenInfo ? (location.origin + '/agent.html?token=' + tokenInfo.token) : null;
+
+  // 计算文件和表单的独立状态
+  const filesAllApproved = items.length > 0 && items.filter(i=>i.is_required).every(i=>i.status==='APPROVED');
+  const filesHaveIssue = items.some(i=>i.status==='REJECTED');
+  const uifStatusLabel = {SUBMITTED:'待审核',APPROVED:'已通过',RETURNED:'已打回',MERGED:'已处理',DRAFT:'草稿中'}[uifStatus] || '未提交';
+  const uifStatusColor = {SUBMITTED:'warning',APPROVED:'success',RETURNED:'danger',MERGED:'success',DRAFT:'secondary'}[uifStatus] || 'secondary';
+  const fileStatusLabel = filesAllApproved ? '全部通过' : filesHaveIssue ? '有退回' : uploaded > 0 ? `${uploaded} 待审核` : approved > 0 ? `${approved}/${total} 已审核` : '待上传';
+  const fileStatusColor = filesAllApproved ? 'success' : filesHaveIssue ? 'danger' : uploaded > 0 ? 'warning' : 'secondary';
+  // 综合状态
+  const bothApproved = filesAllApproved && (uifStatus === 'APPROVED' || uifStatus === 'MERGED');
+  const hasOutdatedPdf = admDocs.some(d => d.is_outdated);
+
+  return `
+    <!-- 综合状态概览 -->
+    <div class="border rounded p-3 mb-3" style="background:${bothApproved ? '#f0fdf4' : mr.status==='REVISION_NEEDED' ? '#fef2f2' : '#f8fafc'}">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="fw-bold" style="font-size:.95rem"><i class="bi bi-clipboard2-check me-1"></i>审核总览</span>
+        <div class="d-flex gap-2">
+          <span class="badge bg-${fileStatusColor}" style="font-size:.75rem"><i class="bi bi-folder me-1"></i>文件: ${fileStatusLabel}</span>
+          <span class="badge bg-${uifStatusColor}" style="font-size:.75rem"><i class="bi bi-file-text me-1"></i>表单: ${uifStatusLabel}</span>
+        </div>
+      </div>
+      ${bothApproved ? `<div class="small text-success"><i class="bi bi-check-circle-fill me-1"></i>文件和表单均已审核通过${allDocsOk && !hasOutdatedPdf ? '，PDF 已生成' : '，可以生成正式 PDF'}</div>` : ''}
+      ${mr.status==='REVISION_NEEDED' ? `<div class="small text-danger"><i class="bi bi-exclamation-triangle me-1"></i>已打回修改，等待代理重新提交</div>` : ''}
+      ${mr.return_reason && mr.status==='REVISION_NEEDED' ? `<div class="small text-danger mt-1" style="background:#fff;border:1px solid #fca5a5;border-radius:6px;padding:6px 10px"><strong>退回原因：</strong>${escapeHtml(mr.return_reason)}</div>` : ''}
+      ${hasOutdatedPdf ? `<div class="small text-warning mt-1"><i class="bi bi-exclamation-triangle me-1"></i>已有 PDF 已过期（数据已变更），需重新生成</div>` : ''}
+      ${['SUBMITTED','APPROVED','MERGED'].includes(mr.status) ? `
+      <div class="mt-2">
+        <button class="btn btn-sm btn-outline-danger" onclick="returnUif('${mr.id}')"><i class="bi bi-arrow-return-left me-1"></i>退回修改</button>
+      </div>` : ''}
+    </div>
+
+    <!-- ① 文件审核 -->
+    <div class="border rounded p-3 mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="mb-0" style="font-size:.9rem"><i class="bi bi-folder-check text-primary me-1"></i>上传文件审核</h6>
+        <span class="badge bg-${fileStatusColor}" style="font-size:.75rem">${fileStatusLabel}</span>
+      </div>
+      <div class="d-flex justify-content-between small text-muted mb-1">
+        <span>已通过 ${approved} / ${total} 项</span>
+        ${uploaded>0?`<span class="text-warning fw-semibold">${uploaded} 待审核</span>`:''}
+      </div>
+      <div class="progress mb-2" style="height:5px"><div class="progress-bar bg-success" style="width:${pct}%"></div></div>
+      ${items.map(item => `
+        <div class="d-flex justify-content-between align-items-center py-2 border-bottom" style="font-size:.85rem">
+          <div class="d-flex align-items-center gap-1">
+            <i class="bi ${item.status==='APPROVED'?'bi-check-circle-fill text-success':item.status==='REJECTED'?'bi-x-circle-fill text-danger':item.status==='UPLOADED'?'bi-clock text-warning':'bi-circle text-secondary'}" style="font-size:.9rem"></i>
+            <span>${escapeHtml(item.name)}</span>
+            ${item.is_required?'<span class="text-danger" style="font-size:.65rem">必须</span>':''}
+            ${item.reject_reason ? `<span class="text-danger ms-1" style="font-size:.75rem">(${escapeHtml(item.reject_reason)})</span>` : ''}
+          </div>
+          <div class="d-flex align-items-center gap-1 flex-shrink-0">
+            ${item.file_id ? `<a href="/api/mat-request-items/${item.id}/download" class="btn btn-sm btn-outline-secondary py-0 px-1" download title="下载"><i class="bi bi-download"></i></a>` : ''}
+            ${item.file_id && !['APPROVED'].includes(item.status) ? `
+              <button class="btn btn-sm btn-outline-success py-0 px-1" onclick="reviewMatItem('${item.id}','approve')" title="通过"><i class="bi bi-check-lg"></i></button>
+              <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="reviewMatItem('${item.id}','reject')" title="退回"><i class="bi bi-x-lg"></i></button>` : ''}
+          </div>
+        </div>`).join('')}
+    </div>
+
+    <!-- ② 表单内容审核 -->
+    <div class="border rounded p-3 mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="mb-0" style="font-size:.9rem"><i class="bi bi-file-text text-info me-1"></i>表单内容审核 ${mr.current_version ? `<span class="text-muted fw-normal small">v${mr.current_version}</span>` : ''}</h6>
+        <span class="badge bg-${uifStatusColor}" style="font-size:.75rem">${uifStatusLabel}</span>
+      </div>
+      ${uifStatus==='SUBMITTED' ? `
+        <div class="small text-muted mb-2">代理已提交表单，请审核内容是否正确。</div>
+        <div class="d-flex gap-2 flex-wrap">
+          <button class="btn btn-sm btn-primary" onclick="viewUifDetail('${mr.id}')"><i class="bi bi-eye me-1"></i>查看表单内容</button>
+          <button class="btn btn-sm btn-success" onclick="approveUif('${mr.id}')"><i class="bi bi-check-circle me-1"></i>表单审核通过</button>
+        </div>` : ''}
+      ${uifStatus==='APPROVED' ? `
+        <div class="small text-success mb-2"><i class="bi bi-check-circle-fill me-1"></i>表单内容已审核通过</div>
+        <button class="btn btn-sm btn-outline-primary" onclick="viewUifDetail('${mr.id}')"><i class="bi bi-eye me-1"></i>查看表单内容</button>` : ''}
+      ${uifStatus==='RETURNED' ? `
+        <div class="small text-danger"><i class="bi bi-clock me-1"></i>已打回，等待代理修改后重新提交</div>
+        <button class="btn btn-sm btn-outline-primary mt-1" onclick="viewUifDetail('${mr.id}')"><i class="bi bi-eye me-1"></i>查看表单内容</button>` : ''}
+      ${uifStatus==='MERGED' ? `
+        <div class="small text-success mb-2"><i class="bi bi-check-circle-fill me-1"></i>表单内容已处理</div>
+        <button class="btn btn-sm btn-outline-primary" onclick="viewUifDetail('${mr.id}')"><i class="bi bi-eye me-1"></i>查看表单内容</button>` : ''}
+      ${!uifStatus || uifStatus==='DRAFT' ? `<div class="small text-muted">代理正在填写中，尚未提交</div>` : ''}
+      ${mr.current_version > 1 ? `<div class="mt-2"><button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="showVersionHistory('${mr.id}')"><i class="bi bi-clock-history me-1"></i>版本历史 (${mr.current_version})</button></div>` : ''}
+    </div>
+
+    <!-- ③ 生成 PDF -->
+    <div class="border rounded p-3 mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="mb-0" style="font-size:.9rem"><i class="bi bi-file-earmark-pdf text-danger me-1"></i>申请文件 (PDF)</h6>
+        ${allDocsOk && !hasOutdatedPdf ? `<span class="badge bg-success" style="font-size:.75rem">已生成</span>` :
+          allDocsOk && hasOutdatedPdf ? `<span class="badge bg-warning" style="font-size:.75rem">需更新</span>` :
+          `<span class="badge bg-secondary" style="font-size:.75rem">未生成</span>`}
+      </div>
+      ${allDocsOk && !hasOutdatedPdf ? `
+        <div class="small text-success mb-2"><i class="bi bi-check-circle-fill me-1"></i>3 份文件已就绪</div>
+        <div class="d-flex gap-2">
+          <a href="#" class="btn btn-sm btn-outline-primary" onclick="event.preventDefault();document.querySelector('[href=\\'#fcAll\\']').click()"><i class="bi bi-eye me-1"></i>查看文件</a>
+          <button class="btn btn-sm btn-outline-secondary" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-arrow-clockwise me-1"></i>重新生成</button>
+        </div>` :
+        allDocsOk && hasOutdatedPdf ? `
+        <div class="small text-warning mb-2"><i class="bi bi-exclamation-triangle me-1"></i>数据已变更，PDF 需要重新生成</div>
+        <button class="btn btn-sm btn-warning" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-arrow-clockwise me-1"></i>重新生成 PDF</button>` :
+        (uifStatus==='APPROVED' || uifStatus==='MERGED') ? `
+        <div class="small text-muted mb-2">表单已通过审核，可以生成正式 PDF</div>
+        <button class="btn btn-sm btn-primary" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-file-earmark-pdf me-1"></i>生成 3 份申请文件</button>` :
+        uifStatus==='SUBMITTED' ? `
+        <div class="small text-muted mb-2">表单待审核。审核通过后即可生成 PDF。</div>
+        <button class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-file-earmark-pdf me-1"></i>需先审核通过</button>
+        <button class="btn btn-sm btn-outline-primary ms-1" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-file-earmark-pdf me-1"></i>跳过审核直接生成</button>` :
+        `<div class="small text-muted">等待表单提交并通过审核后生成</div>`}
+    </div>
+
+    <!-- Agent 链接 -->
+    ${agentLink ? `
+      <div class="p-2 rounded d-flex justify-content-between align-items-center" style="background:#f0f4ff;border:1px solid #dbeafe;border-radius:8px">
+        <span class="small text-muted"><i class="bi bi-link-45deg me-1"></i>Agent 链接</span>
+        <button class="btn btn-sm btn-outline-primary py-0 px-2" onclick="navigator.clipboard.writeText('${agentLink}');showToast('链接已复制')"><i class="bi bi-clipboard me-1"></i>复制</button>
+      </div>` : ''}
+  `;
+}
+
+function _renderStudentTab(c) {
+  const fxRecords = c.fileExchange || [];
+  const fxSent = fxRecords.filter(r => r.direction === 'admin_to_student');
+
+  const _fxBadge = r => {
+    const isOD = r.deadline_at && new Date(r.deadline_at) < new Date() && !['replied','closed'].includes(r.status);
+    const s = isOD ? 'overdue' : r.status;
+    const map = {draft:'草稿',sent:'已发送',viewed:'已查看',awaiting_upload:'待回传',overdue:'已逾期',replied:'已回传',closed:'已完成'};
+    const color = {draft:'secondary',sent:'primary',viewed:'info',awaiting_upload:'warning',overdue:'danger',replied:'success',closed:'dark'};
+    return `<span class="badge bg-${color[s]||'secondary'}" style="font-size:.72rem">${map[s]||s}</span>`;
+  };
+
+  return `
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <span class="text-muted small">与学生/家长的文件协作</span>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-primary" onclick="openFxNewModal('${c.id}','send')"><i class="bi bi-send me-1"></i>发送文件</button>
+        <button class="btn btn-sm btn-outline-primary" onclick="openFxNewModal('${c.id}','request')"><i class="bi bi-cloud-arrow-up me-1"></i>请求上传</button>
+      </div>
+    </div>
+    ${fxSent.length === 0 ? `
+      <div class="text-center py-4 text-muted">
+        <i class="bi bi-inbox" style="font-size:2rem"></i>
+        <p class="mt-2 mb-0">暂无文件收发记录</p>
+        <small>点击"发送文件"向学生发送文件或请求上传</small>
+      </div>` : fxSent.map(r => {
+      const replies = r.replies || [];
+      const isDone = ['replied','closed'].includes(r.status);
+      return `
+        <div class="border rounded p-3 mb-2">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              ${_fxBadge(r)}
+              <span class="fw-semibold ms-1" style="font-size:.88rem">${escapeHtml(r.title)}</span>
+              ${r.request_reply?'<span class="badge bg-warning text-dark ms-1" style="font-size:.65rem">需回传</span>':''}
+            </div>
+            <div class="dropdown">
+              <button class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="dropdown" data-bs-strategy="fixed"><i class="bi bi-three-dots"></i></button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                ${!r.sent_at && r.status==='draft' ? `<li><a class="dropdown-item small text-success" href="#" onclick="fxSendRecord('${r.id}','${c.id}');return false"><i class="bi bi-send me-2"></i>发送</a></li>` : ''}
+                ${r.sent_at && !isDone ? `<li><a class="dropdown-item small" href="#" onclick="fxSendRecord('${r.id}','${c.id}');return false"><i class="bi bi-send me-2"></i>重新发送</a></li>` : ''}
+                ${r.sent_at && !isDone ? `<li><a class="dropdown-item small" href="#" onclick="fxRemindRecord('${r.id}','${c.id}');return false"><i class="bi bi-bell me-2"></i>催办</a></li>` : ''}
+                ${r.file_path ? `<li><a class="dropdown-item small" href="/api/file-exchange/${r.id}/download" download><i class="bi bi-download me-2"></i>下载</a></li>` : ''}
+                ${replies.length ? `<li><a class="dropdown-item small" href="/api/file-exchange/${r.id}/reply-download" download><i class="bi bi-file-earmark-arrow-down me-2"></i>下载回传</a></li>` : ''}
+                ${!isDone ? `<li><a class="dropdown-item small" href="#" onclick="fxCloseRecord('${r.id}','${c.id}');return false"><i class="bi bi-check2-circle me-2"></i>完成</a></li>` : ''}
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item small text-danger" href="#" onclick="fxDeleteRecord('${r.id}','${c.id}');return false"><i class="bi bi-trash3 me-2"></i>删除</a></li>
+              </ul>
+            </div>
+          </div>
+          <div class="small text-muted mt-1">
+            ${r.created_by_name||''} · ${r.created_at ? new Date(r.created_at).toLocaleDateString('zh-CN') : ''}
+            ${r.sent_at ? ` · 已发送 ${new Date(r.sent_at).toLocaleDateString('zh-CN')}` : ''}
+            ${r.viewed_at ? ' · <span class="text-success">已查看</span>' : r.sent_at ? ' · 未查看' : ''}
+            ${r.deadline_at ? ` · 截止 ${r.deadline_at}` : ''}
+          </div>
+          ${replies.length ? `<div class="small text-success mt-1"><i class="bi bi-check-circle me-1"></i>学生已回传 ${replies.length} 个文件</div>` : ''}
+        </div>`;
+    }).join('')}
+  `;
+}
+
+function _renderSystemTab(c) {
+  const admDocs = c.admDocs || [];
+  const caseFiles = c.caseFiles || [];
+  const docLabels = {SAF:'Student Application Form',FORM16:'Form 16 (Student Pass)',V36:'V36 (Additional Info)'};
+
+  return `
+    ${admDocs.length > 0 ? `
+      <h6 class="mb-2" style="font-size:.9rem"><i class="bi bi-file-earmark-pdf text-danger me-1"></i>申请文件（系统生成）</h6>
+      ${admDocs.filter(d=>d.status==='done').map(d => `
+        <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+          <span style="font-size:.85rem"><i class="bi bi-file-earmark-pdf text-danger me-2"></i>${docLabels[d.doc_type]||d.doc_type}</span>
+          <a href="/api/adm-docs/${d.id}/download" class="btn btn-sm btn-success py-0 px-2" download><i class="bi bi-download me-1"></i>${Math.round((d.file_size||0)/1024)}KB</a>
+        </div>`).join('')}
+      <hr class="my-3">` : ''}
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h6 class="mb-0" style="font-size:.9rem"><i class="bi bi-folder text-secondary me-1"></i>内部案例文件</h6>
+    </div>
+    ${caseFiles.length > 0 ? caseFiles.map(cf => `
+      <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+        <span style="font-size:.85rem"><i class="bi bi-file-earmark me-2 text-muted"></i>${escapeHtml(cf.label||cf.file_name||'文件')}</span>
+        <span class="text-muted small">${cf.created_at ? new Date(cf.created_at).toLocaleDateString('zh-CN') : ''}</span>
+      </div>`).join('') : '<div class="text-muted small py-2">暂无内部文件</div>'}
+  `;
+}
+
+function _renderAllFilesTab(c) {
+  const allFiles = [];
+  const docLabels = {SAF:'Student Application Form',FORM16:'Form 16 (Student Pass)',V36:'V36 (Additional Info)'};
+
+  // 申请文件
+  (c.admDocs||[]).forEach(d => { if(d.status==='done') allFiles.push({cat:'申请文件',icon:'bi-file-earmark-pdf',color:'#dc3545',name:docLabels[d.doc_type]||d.doc_type,size:d.file_size,date:d.generated_at,url:'/api/adm-docs/'+d.id+'/download'}); });
+  // 代理上传
+  (c.matRequest?.items||[]).forEach(i => { if(i.file_id) allFiles.push({cat:'代理上传',icon:'bi-folder-check',color:'#0d6efd',name:i.name+(i.file_name?' ('+i.file_name+')':''),size:i.file_size,date:i.uploaded_at,url:'/api/mat-request-items/'+i.id+'/download',badge:i.status==='APPROVED'?'已通过':i.status==='REJECTED'?'已退回':'待审核',badgeColor:i.status==='APPROVED'?'success':i.status==='REJECTED'?'danger':'warning'}); });
+  // 文件收发
+  (c.fileExchange||[]).forEach(fe => { if(fe.file_path) allFiles.push({cat:'发给学生',icon:'bi-send',color:'#6f42c1',name:fe.title||fe.original_name||'文件',size:fe.file_size,date:fe.created_at,url:'/api/file-exchange/'+fe.id+'/download'}); (fe.replies||[]).forEach(r => { if(r.file_path) allFiles.push({cat:'学生回传',icon:'bi-arrow-left',color:'#198754',name:r.original_name||'回传文件',size:r.file_size,date:r.created_at,url:'/api/file-exchange/'+r.id+'/reply-download'}); }); });
+  // 案例文件
+  (c.caseFiles||[]).forEach(cf => allFiles.push({cat:'内部文件',icon:'bi-file-earmark',color:'#fd7e14',name:cf.label||cf.file_name||'文件',size:cf.file_size,date:cf.created_at}));
+
+  allFiles.sort((a,b) => (b.date||'').localeCompare(a.date||''));
+
+  if(allFiles.length === 0) return `<div class="text-center py-4 text-muted"><i class="bi bi-archive" style="font-size:2rem"></i><p class="mt-2">暂无文件</p></div>`;
+
+  return `
+    <div class="small text-muted mb-3">共 ${allFiles.length} 个文件</div>
+    ${allFiles.map(f => `
+      <div class="d-flex justify-content-between align-items-center py-2 border-bottom" style="font-size:.83rem">
+        <div class="d-flex align-items-center gap-2 min-width-0 flex-grow-1">
+          <i class="bi ${f.icon}" style="color:${f.color}"></i>
+          <span class="text-truncate">${escapeHtml(f.name)}</span>
+          <span class="badge bg-light text-dark border" style="font-size:.65rem">${f.cat}</span>
+          ${f.badge?`<span class="badge bg-${f.badgeColor}" style="font-size:.6rem">${f.badge}</span>`:''}
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-shrink-0">
+          <span class="text-muted" style="font-size:.72rem">${f.size?Math.round(f.size/1024)+'KB':''}</span>
+          ${f.url?`<a href="${f.url}" class="btn btn-sm btn-outline-primary py-0 px-1" download><i class="bi bi-download"></i></a>`:''}
+        </div>
+      </div>`).join('')}
+  `;
+}
+
+function _renderDocSection(admDocs, docLabels, requestId, allDocsOk) {
+  if (admDocs.length === 0) return '';
+  return `
+    <div class="border rounded p-3" style="background:#f8fdf8;border-color:#c3e6c3 !important">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="mb-0" style="font-size:.9rem;color:#1b7f4b"><i class="bi bi-file-earmark-check me-1"></i>申请文件 (${admDocs.length} 份)</h6>
+        ${allDocsOk?'<span class="badge bg-success">全部就绪</span>':''}
+      </div>
+      ${admDocs.map(d => `
+        <div class="d-flex justify-content-between align-items-center py-2 ${d !== admDocs[admDocs.length-1]?'border-bottom':''}">
+          <div>
+            <i class="bi bi-file-earmark-pdf text-danger me-2"></i>
+            <span style="font-size:.88rem;font-weight:500">${docLabels[d.doc_type]||d.doc_type}</span>
+            <span class="text-muted ms-1" style="font-size:.75rem">${Math.round((d.file_size||0)/1024)} KB</span>
+          </div>
+          <a href="/api/adm-docs/${d.id}/download" class="btn btn-sm btn-success py-1 px-3" download>
+            <i class="bi bi-download me-1"></i>下载
+          </a>
+        </div>`).join('')}
+    </div>`;
+}
+
+// 旧卡片系统已废弃（改为左栏摘要+右栏Tab），但保留定义避免引用报错
 const _CASE_CARD_META = {
   visa:        { label:'签证状态',   icon:'bi-passport',        defaultCol:'left',  defaultOrder:1, unlockHint:'合同已签后解锁' },
   tasks:       { label:'任务清单',   icon:'bi-check2-square',   defaultCol:'left',  defaultOrder:2, unlockHint:null },
-  materials:   { label:'材料清单',   icon:'bi-folder',          defaultCol:'left',  defaultOrder:3, unlockHint:'收集材料阶段后解锁' },
-  file_center: { label:'文件收发中心', icon:'bi-arrow-left-right', defaultCol:'right', defaultOrder:0, unlockHint:null },
   arrival:     { label:'到校信息',   icon:'bi-airplane',        defaultCol:'left',  defaultOrder:5, unlockHint:'已获IPA后解锁' },
   survey:      { label:'满意度调查', icon:'bi-clipboard-check', defaultCol:'right', defaultOrder:5, unlockHint:'学生入学后解锁' },
 };
@@ -7980,6 +8473,18 @@ async function renderIntakeCaseDetail() {
   document.body.style.removeProperty('overflow');
   document.body.style.removeProperty('padding-right');
   const main = document.getElementById('main-content');
+  // 兼容直接传参和 State 两种方式
+  if (!State.currentCaseId) {
+    // 尝试从 URL hash 恢复
+    try {
+      const h = window.location.hash.slice(1);
+      const qi = h.indexOf('?');
+      if (qi > 0) {
+        const sp = new URLSearchParams(h.substring(qi + 1));
+        if (sp.get('caseId')) State.currentCaseId = sp.get('caseId');
+      }
+    } catch(e) {}
+  }
   if (!State.currentCaseId) { main.innerHTML = '<div class="alert alert-warning">未选择案例</div>'; return; }
   main.innerHTML = '<div class="text-center p-5"><div class="spinner-border"></div></div>';
   let c;
@@ -8013,6 +8518,8 @@ async function renderIntakeCaseDetail() {
   const _isIntakeStaff  = hasRole('intake_staff');
   const _handedOff      = c.phase_handed_off || _si >= 7; // oriented 及以后视为已交接
   const _eligible = {
+    all_files:   !_isStudentAdmin,  // 文件总览：始终显示
+    mat_adm:     !_isStudentAdmin,  // 材料收集与申请文件
     // 学管老师（student_admin）只负责到校后：隐藏签证、财务、文件中心
     visa:        (_si >= 3 || (c.visa && c.visa.status !== 'not_started')) && !_isStudentAdmin,
     tasks:       true,
@@ -8041,6 +8548,203 @@ async function renderIntakeCaseDetail() {
     const isCollapsed = _collapsed.has(cardId);
     let body = '', headerExtra = '';
 
+    if (cardId === 'mat_adm') {
+      const mr = c.matRequest;
+      const admDocs = c.admDocs || [];
+      const allDocsOk = admDocs.length >= 3 && admDocs.every(d => d.status === 'done');
+      const docLabels = {SAF:'Student Application Form',FORM16:'Form 16 (Student Pass)',V36:'V36 (Additional Info)'};
+
+      if (!mr) {
+        // ── 无材料收集请求 ──
+        body = `
+          <div class="text-center py-4">
+            <i class="bi bi-folder-plus text-muted" style="font-size:2.5rem"></i>
+            <p class="text-muted mt-2 mb-3">尚未发起材料收集请求</p>
+            ${hasRole('principal','intake_staff','counselor') ? `
+              <button class="btn btn-primary" onclick="showCreateMatRequestForCase('${c.id}')">
+                <i class="bi bi-send me-1"></i>发起材料收集
+              </button>
+              <div class="small text-muted mt-2">创建后将生成 Agent 填写链接</div>` : ''}
+          </div>
+          ${admDocs.length > 0 ? _renderDocSection(admDocs, docLabels, mr?.id, allDocsOk) : ''}`;
+      } else {
+        // ── 已有材料收集请求 — 3 区块设计 ──
+        const items = mr.items || [];
+        const approved = items.filter(i => i.status === 'APPROVED').length;
+        const uploaded = items.filter(i => i.status === 'UPLOADED').length;
+        const total = items.length;
+        const pct = total > 0 ? Math.round(approved / total * 100) : 0;
+        const uif = mr.uif;
+        const uifStatus = uif?.status || 'DRAFT';
+        const tokenInfo = mr.token;
+        const agentLink = tokenInfo ? (location.origin + '/agent.html?token=' + tokenInfo.token) : null;
+
+        // ── 区块 1: 材料收集状态 ──
+        const sec1 = `
+          <div class="border rounded p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h6 class="mb-0" style="font-size:.9rem"><i class="bi bi-folder-check text-primary me-1"></i>材料收集</h6>
+              <span class="badge bg-${mr.status==='COMPLETED'?'success':mr.status==='SUBMITTED'?'info':'secondary'}">${mr.status}</span>
+            </div>
+            <div class="d-flex justify-content-between small text-muted mb-1">
+              <span>已审核 ${approved} / ${total} 项</span>
+              ${uploaded>0?`<span class="text-primary">${uploaded} 待审核</span>`:''}
+            </div>
+            <div class="progress mb-3" style="height:6px"><div class="progress-bar bg-success" style="width:${pct}%"></div></div>
+            ${items.map(item => `
+              <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                <div>
+                  <span style="font-size:.85rem">${escapeHtml(item.name)}</span>
+                  ${item.is_required?'<span class="text-danger ms-1" style="font-size:.7rem">必须</span>':''}
+                  ${item.reject_reason?`<div class="text-danger small mt-1">退回：${escapeHtml(item.reject_reason)}</div>`:''}
+                </div>
+                <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                  <span class="badge bg-${item.status==='APPROVED'?'success':item.status==='UPLOADED'?'primary':item.status==='REJECTED'?'danger':'secondary'}" style="font-size:.72rem">${item.status==='APPROVED'?'✓ 已通过':item.status==='UPLOADED'?'待审核':item.status==='REJECTED'?'已退回':'待上传'}</span>
+                  ${item.file_id ? `<a href="/api/mat-request-items/${item.id}/download" class="btn btn-sm btn-outline-secondary py-0 px-1" download title="下载"><i class="bi bi-download"></i></a>` : ''}
+                  ${item.file_id && !['APPROVED'].includes(item.status) ? `
+                    <button class="btn btn-sm btn-outline-success py-0 px-1" onclick="reviewMatItem('${item.id}','approve')" title="通过"><i class="bi bi-check-lg"></i></button>
+                    <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="reviewMatItem('${item.id}','reject')" title="退回"><i class="bi bi-x-lg"></i></button>` : ''}
+                </div>
+              </div>`).join('')}
+            ${agentLink ? `
+              <div class="mt-3 p-2 rounded" style="background:#f0f4ff">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="small text-muted"><i class="bi bi-link-45deg me-1"></i>Agent 填写链接</span>
+                  <button class="btn btn-sm btn-outline-primary py-0 px-2" onclick="navigator.clipboard.writeText('${agentLink}');showToast('链接已复制到剪贴板')">
+                    <i class="bi bi-clipboard me-1"></i>复制链接
+                  </button>
+                </div>
+              </div>` : ''}
+          </div>`;
+
+        // ── 区块 2: 学生信息表 (UIF) ──
+        const uifBadgeColor = uifStatus==='SUBMITTED'?'warning':uifStatus==='MERGED'?'success':uifStatus==='DRAFT'?'secondary':'secondary';
+        const uifBadgeText = uifStatus==='SUBMITTED'?'已提交，待处理':uifStatus==='MERGED'?'已处理':uifStatus==='DRAFT'?'草稿中':'未提交';
+        const sec2 = `
+          <div class="border rounded p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <h6 class="mb-0" style="font-size:.9rem"><i class="bi bi-person-lines-fill text-info me-1"></i>学生信息表 (UIF)</h6>
+              <span class="badge bg-${uifBadgeColor}">${uifBadgeText}</span>
+            </div>
+            ${uifStatus==='SUBMITTED'||uifStatus==='MERGED' ? `
+              <div class="mt-2">
+                <button class="btn btn-sm ${allDocsOk?'btn-outline-primary':'btn-primary'}" onclick="generateDocsFromUif('${mr.id}')">
+                  <i class="bi bi-${allDocsOk?'arrow-clockwise':'file-earmark-pdf'} me-1"></i>${allDocsOk?'重新生成申请文件':'生成 3 份申请文件 (SAF / Form16 / V36)'}
+                </button>
+              </div>` : `
+              <div class="mt-2 small text-muted">等待代理通过链接提交学生信息后，可在此生成申请文件。</div>`}
+          </div>`;
+
+        // ── 区块 3: 申请文件 ──
+        const sec3 = _renderDocSection(admDocs, docLabels, mr.id, allDocsOk);
+
+        body = sec1 + sec2 + sec3;
+      }
+    } else if (cardId === 'all_files') {
+      // ── 文件总览：汇聚所有文件来源 ──
+      const allFilesList = [];
+
+      // 1. 申请文件 (SAF/Form16/V36)
+      const admDocs = c.admDocs || [];
+      const docLabels = {SAF:'Student Application Form',FORM16:'Form 16 (Student Pass)',V36:'V36 (Additional Info)'};
+      admDocs.forEach(d => {
+        if(d.status==='done') allFilesList.push({
+          cat:'申请文件', catIcon:'bi-file-earmark-pdf', catColor:'#dc3545',
+          name: docLabels[d.doc_type]||d.doc_type,
+          size: d.file_size, date: d.generated_at,
+          url: '/api/adm-docs/'+d.id+'/download'
+        });
+      });
+
+      // 2. 材料收集上传的文件
+      const matItems = c.matRequest?.items || [];
+      matItems.forEach(item => {
+        if(item.file_id) allFilesList.push({
+          cat:'代理上传材料', catIcon:'bi-folder-check', catColor:'#0d6efd',
+          name: item.name + (item.file_name?' ('+item.file_name+')':''),
+          size: item.file_size, date: item.uploaded_at,
+          url: '/api/mat-request-items/'+item.id+'/download',
+          badge: item.status==='APPROVED'?'已通过':item.status==='REJECTED'?'已退回':'待审核',
+          badgeColor: item.status==='APPROVED'?'success':item.status==='REJECTED'?'danger':'warning'
+        });
+      });
+
+      // 3. 文件收发中心的文件
+      (c.fileExchange||[]).forEach(fe => {
+        if(fe.file_id) allFilesList.push({
+          cat:'文件收发', catIcon:'bi-arrow-left-right', catColor:'#6f42c1',
+          name: fe.title||fe.file_name||'文件',
+          size: fe.file_size, date: fe.created_at,
+          url: '/api/file-exchange/'+fe.id+'/download',
+          badge: fe.status, badgeColor: fe.status==='replied'?'success':fe.status==='closed'?'secondary':'info'
+        });
+        // 回复文件
+        (fe.replies||[]).forEach(r => {
+          if(r.file_id) allFilesList.push({
+            cat:'学生回传', catIcon:'bi-arrow-left', catColor:'#198754',
+            name: r.file_name||'回复文件',
+            size: r.file_size, date: r.created_at,
+            url: '/api/file-exchange/'+r.id+'/reply-download'
+          });
+        });
+      });
+
+      // 4. 案例文件
+      (c.caseFiles||[]).forEach(cf => {
+        allFilesList.push({
+          cat:'案例文件', catIcon:'bi-file-earmark', catColor:'#fd7e14',
+          name: cf.label||cf.file_name||'文件',
+          size: cf.file_size, date: cf.created_at,
+          url: '/api/intake-cases/'+c.id+'/docs'
+        });
+      });
+
+      // 按日期排序（最新在前）
+      allFilesList.sort((a,b) => (b.date||'').localeCompare(a.date||''));
+
+      const totalCount = allFilesList.length;
+      const totalSize = allFilesList.reduce((sum,f) => sum + (f.size||0), 0);
+
+      if(totalCount === 0) {
+        body = `<div class="text-center py-4 text-muted">
+          <i class="bi bi-archive" style="font-size:2rem"></i>
+          <p class="mt-2 mb-0">暂无文件</p>
+          <small>材料上传、申请文件生成、文件收发后将自动汇总至此</small>
+        </div>`;
+      } else {
+        // 按分类分组显示
+        const cats = {};
+        allFilesList.forEach(f => { if(!cats[f.cat]) cats[f.cat]=[]; cats[f.cat].push(f); });
+
+        body = `
+          <div class="d-flex justify-content-between align-items-center mb-3 px-1">
+            <span class="small text-muted">共 ${totalCount} 个文件，${(totalSize/1024/1024).toFixed(1)} MB</span>
+          </div>
+          ${Object.entries(cats).map(([cat, files]) => `
+            <div class="mb-3">
+              <div class="d-flex align-items-center gap-1 mb-2">
+                <i class="bi ${files[0].catIcon}" style="color:${files[0].catColor}"></i>
+                <span class="fw-semibold" style="font-size:.85rem">${cat}</span>
+                <span class="badge bg-secondary" style="font-size:.65rem">${files.length}</span>
+              </div>
+              ${files.map(f => `
+                <div class="d-flex justify-content-between align-items-center py-2 px-2 border-bottom" style="font-size:.83rem">
+                  <div class="d-flex align-items-center gap-2 flex-grow-1 min-width-0">
+                    <i class="bi bi-file-earmark text-muted"></i>
+                    <span class="text-truncate">${escapeHtml(f.name)}</span>
+                    ${f.badge?`<span class="badge bg-${f.badgeColor||'secondary'}" style="font-size:.65rem">${f.badge}</span>`:''}
+                  </div>
+                  <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                    <span class="text-muted" style="font-size:.72rem">${f.size ? Math.round(f.size/1024)+'KB' : ''}</span>
+                    <a href="${f.url}" class="btn btn-sm btn-outline-primary py-0 px-2" download title="下载">
+                      <i class="bi bi-download"></i>
+                    </a>
+                  </div>
+                </div>`).join('')}
+            </div>`).join('')}
+        `;
+      }
+    }
     if (cardId === 'visa') {
       headerExtra = `<span class="badge bg-info ms-1" style="font-size:0.7rem">${visaStatusMap[c.visa?.status]||'-'}</span>`;
       body = c.visa ? `<div class="card-body">
@@ -8131,9 +8835,14 @@ async function renderIntakeCaseDetail() {
         ].filter(Boolean).slice(0, 3).join('');
         const _dropId = `fxdrop-${r.id}`;
         const _overflowItems = [
+          (!r.sent_at && r.status==='draft') ? `<li><a class="dropdown-item small text-success fw-semibold" href="#" onclick="fxSendRecord('${r.id}','${c.id}');return false"><i class="bi bi-send me-2"></i>发送给学生</a></li>` : '',
+          (r.sent_at && !_isDone) ? `<li><a class="dropdown-item small" href="#" onclick="fxSendRecord('${r.id}','${c.id}');return false"><i class="bi bi-send me-2"></i>重新发送</a></li>` : '',
           `<li><a class="dropdown-item small" href="#" onclick="fxEditRecord('${r.id}','${c.id}');return false"><i class="bi bi-pencil me-2"></i>编辑</a></li>`,
           (r.sent_at && !_isDone) ? `<li><a class="dropdown-item small" href="#" onclick="fxRemindRecord('${r.id}','${c.id}');return false"><i class="bi bi-bell me-2"></i>催办</a></li>` : '',
           viewUrl ? `<li><a class="dropdown-item small" href="#" onclick="copyToClipboard('${viewUrl}','链接已复制');return false"><i class="bi bi-link-45deg me-2"></i>复制链接</a></li>` : '',
+          r.file_path ? `<li><a class="dropdown-item small" href="/api/file-exchange/${r.id}/download" download><i class="bi bi-download me-2"></i>下载文件</a></li>` : '',
+          replies.length ? `<li><a class="dropdown-item small" href="/api/file-exchange/${r.id}/reply-download" download><i class="bi bi-file-earmark-arrow-down me-2"></i>下载回传件</a></li>` : '',
+          (!_isDone) ? `<li><a class="dropdown-item small" href="#" onclick="fxCloseRecord('${r.id}','${c.id}');return false"><i class="bi bi-check2-circle me-2"></i>标记完成</a></li>` : '',
           '<li><hr class="dropdown-divider"></li>',
           `<li><a class="dropdown-item small text-danger" href="#" onclick="fxDeleteRecord('${r.id}','${c.id}');return false"><i class="bi bi-trash3 me-2"></i>删除</a></li>`,
         ].filter(Boolean).join('');
@@ -8158,7 +8867,7 @@ async function renderIntakeCaseDetail() {
             <div class="fx-actions">
               ${_primaryBtns}
               <div class="dropdown">
-                <button class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="dropdown" aria-expanded="false" title="更多操作"><i class="bi bi-three-dots"></i></button>
+                <button class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="dropdown" data-bs-strategy="fixed" aria-expanded="false" title="更多操作"><i class="bi bi-three-dots"></i></button>
                 <ul class="dropdown-menu dropdown-menu-end" id="${_dropId}">${_overflowItems}</ul>
               </div>
             </div>
@@ -8249,9 +8958,9 @@ async function renderIntakeCaseDetail() {
     return _buildCaseCardHtml(cardId, body, headerExtra, c.id, isRight, isCollapsed, c.status === 'closed');
   };
 
-  const _buildCol = colId => (_layout[colId]||[]).map(id => _buildCard(id, colId==='right')).join('');
-  const _leftColHtml = _buildCol('left');
-  const _rightColHtml = _buildCol('right');
+  // 旧卡片渲染已停用（新布局使用 Tab 系统）
+  const _leftColHtml = '';
+  const _rightColHtml = '';
   const _hiddenEligible = [...(_layout.left||[]),...(_layout.right||[])].filter(id => _eligible[id] && _hidden.has(id));
   // Locked cards: eligible=false (not yet reached stage)
   const _lockedCards = Object.keys(_CASE_CARD_META).filter(id => !_eligible[id]);
@@ -8397,10 +9106,122 @@ async function renderIntakeCaseDetail() {
       </div>
     </div>
 
-    <!-- 卡片主网格 -->
-    <div class="case-grid">
-      <div class="case-col" id="case-col-left" data-col="left">${_leftColHtml}</div>
-      <div class="case-col" id="case-col-right" data-col="right">${_rightColHtml}</div>
+    <!-- 新布局：左栏摘要 + 右栏文件中心 -->
+    <div class="d-flex gap-3 align-items-start" style="min-height:60vh">
+      <!-- 左栏：案例摘要面板 -->
+      <div style="width:320px;flex-shrink:0" id="caseSidePanel">
+        <div class="card" style="position:sticky;top:70px;max-height:calc(100vh - 90px);overflow-y:auto">
+          <!-- 签证 -->
+          ${_eligible.visa ? `
+          <div class="card-body py-2 px-3 border-bottom">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="fw-semibold small"><i class="bi bi-passport me-1 text-warning"></i>签证</span>
+              <div class="d-flex align-items-center gap-1">
+                <span class="badge bg-${c.visa?.status==='approved'?'success':c.visa?.status==='rejected'?'danger':'info'}" style="font-size:.7rem">${visaStatusMap[c.visa?.status]||'未开始'}</span>
+                ${hasRole('principal','intake_staff') ? `<button class="btn btn-outline-secondary py-0 px-1" style="font-size:.7rem" onclick="openVisaEditPanel('${c.id}')"><i class="bi bi-pencil"></i></button>` : ''}
+              </div>
+            </div>
+            ${c.visa?.submission_date ? `<div class="small text-muted">提交: ${c.visa.submission_date}</div>` : ''}
+            ${c.visa?.ipa_issue_date ? `<div class="small text-success">IPA: ${c.visa.ipa_issue_date}</div>` : ''}
+            ${c.visa?.solar_app_no ? `<div class="small text-muted">SOLAR: ${c.visa.solar_app_no}</div>` : ''}
+          </div>` : ''}
+          <!-- 待办任务 -->
+          <div class="card-body py-2 px-3 border-bottom">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="fw-semibold small"><i class="bi bi-check2-square me-1 text-primary"></i>待办</span>
+              <div class="d-flex align-items-center gap-1">
+                <span class="badge bg-primary" style="font-size:.7rem">${(c.tasks||[]).filter(t=>t.status!=='done').length}</span>
+                <button class="btn btn-outline-primary py-0 px-1" style="font-size:.7rem" onclick="document.getElementById('quickTaskInput').classList.toggle('d-none')"><i class="bi bi-plus-lg"></i></button>
+              </div>
+            </div>
+            <!-- 快速添加任务 -->
+            <div id="quickTaskInput" class="d-none mb-2">
+              <div class="input-group input-group-sm">
+                <input type="text" class="form-control" id="sideTaskTitle" placeholder="新任务标题...">
+                <button class="btn btn-primary" onclick="addQuickTask('${c.id}')"><i class="bi bi-check"></i></button>
+              </div>
+            </div>
+            ${(c.tasks||[]).slice(0,8).map(t => `
+              <div class="d-flex align-items-center gap-1 py-1">
+                <input type="checkbox" class="form-check-input" style="min-width:14px" ${t.status==='done'?'checked':''} onchange="toggleTaskComplete('${t.id}','${c.id}')">
+                <span class="small text-truncate flex-grow-1 ${t.status==='done'?'text-decoration-line-through text-muted':''}" style="max-width:180px">${escapeHtml(t.title)}</span>
+                <span class="text-muted flex-shrink-0" style="font-size:.68rem">${t.due_date?.slice(5)||''}</span>
+              </div>`).join('')}
+            ${(c.tasks||[]).length > 8 ? `<div class="small text-muted mt-1">还有 ${(c.tasks||[]).length-8} 项</div>` : ''}
+            ${(c.tasks||[]).length === 0 ? `<div class="small text-muted">暂无待办</div>` : ''}
+          </div>
+          <!-- 到校 -->
+          ${_eligible.arrival ? `
+          <div class="card-body py-2 px-3 border-bottom">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="fw-semibold small"><i class="bi bi-airplane me-1 text-info"></i>到校</span>
+              ${hasRole('principal','intake_staff') ? `<button class="btn btn-outline-secondary py-0 px-1" style="font-size:.7rem" onclick="openArrivalEditPanel('${c.id}')"><i class="bi bi-pencil"></i></button>` : ''}
+            </div>
+            ${c.arrival?.actual_arrival
+              ? `<div class="small text-success">✓ 已到校: ${c.arrival.actual_arrival}</div>
+                 ${c.arrival?.flight_no?`<div class="small text-muted">航班: ${c.arrival.flight_no}</div>`:''}
+                 ${c.arrival?.accommodation?`<div class="small text-muted">住宿: ${escapeHtml(c.arrival.accommodation)}</div>`:''}`
+              : c.arrival?.expected_arrival
+                ? `<div class="small text-muted">预计: ${c.arrival.expected_arrival}</div>`
+                : `<div class="small text-muted">暂无到校信息</div>`}
+          </div>` : ''}
+          <!-- 满意度调查（仅 student_admin） -->
+          ${_eligible.survey ? `
+          <div class="card-body py-2 px-3 border-bottom">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="fw-semibold small"><i class="bi bi-clipboard-check me-1 text-success"></i>满意度调查</span>
+            </div>
+            ${c.survey
+              ? `<div class="small text-success">✓ 已完成 (${c.survey.overall_score||'-'}/5)</div>`
+              : `<button class="btn btn-sm btn-outline-success w-100 py-0" onclick="sendSurvey('${c.id}')"><i class="bi bi-send me-1"></i>发送调查</button>`}
+          </div>` : ''}
+          <!-- 案例信息 -->
+          <div class="card-body py-2 px-3">
+            <div class="fw-semibold small mb-1"><i class="bi bi-info-circle me-1 text-secondary"></i>信息</div>
+            <div class="small text-muted">负责人: ${escapeHtml(c.owner_name||'未分配')}</div>
+            <div class="small text-muted">创建: ${c.created_at?.slice(0,10)||''}</div>
+            ${c.referral_type ? `<div class="small text-muted">来源: ${c.referral_type==='agent'?'代理':'内部'} ${c.agent_name?'('+escapeHtml(c.agent_name)+')':''}</div>` : ''}
+            ${c.notes ? `<div class="small text-muted mt-1">备注: ${escapeHtml(c.notes).substring(0,60)}${c.notes.length>60?'...':''}</div>` : ''}
+          </div>
+        </div>
+      </div>
+
+      <!-- 右栏：文件中心 (Tab) -->
+      <div class="flex-grow-1" style="min-width:0">
+        <div class="card">
+          <div class="card-header p-0" style="background:none;border-bottom:none">
+            <ul class="nav nav-tabs" id="fcTabs" role="tablist" style="border-bottom:2px solid #e5e7eb">
+              <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#fcAgent" role="tab"><i class="bi bi-person-badge me-1"></i>代理协作</a></li>
+              ${hasRole('principal','intake_staff') ? `<li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#fcStudent" role="tab"><i class="bi bi-person me-1"></i>学生协作</a></li>` : ''}
+              <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#fcAll" role="tab"><i class="bi bi-archive me-1"></i>全部文件</a></li>
+            </ul>
+          </div>
+          <div class="card-body tab-content p-3">
+
+            <!-- Tab 1: 代理协作 -->
+            <div class="tab-pane fade show active" id="fcAgent" role="tabpanel">
+              ${_renderAgentTab(c)}
+            </div>
+
+            <!-- Tab 2: 学生协作 -->
+            <div class="tab-pane fade" id="fcStudent" role="tabpanel">
+              ${_renderStudentTab(c)}
+            </div>
+
+            <!-- Tab 3: 全部文件 -->
+            <div class="tab-pane fade" id="fcAll" role="tabpanel">
+              ${_renderAllFilesTab(c)}
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 保留旧卡片网格（隐藏，供旧代码引用不报错） -->
+    <div class="case-grid d-none">
+      <div class="case-col" id="case-col-left" data-col="left"></div>
+      <div class="case-col" id="case-col-right" data-col="right"></div>
     </div>
   `;
 
@@ -8898,6 +9719,8 @@ async function renderFinanceWorkbench() {
       </div>
     </div>
   `;
+  const _finModal = document.getElementById('finPayModal');
+  if (_finModal) { _finModal.dataset.renderedModal = '1'; document.body.appendChild(_finModal); }
 }
 
 function showAddPaymentModalFinance(invoiceId, invoiceNo) {
@@ -8905,7 +9728,7 @@ function showAddPaymentModalFinance(invoiceId, invoiceNo) {
   const fa = document.getElementById('finPayAmount'); if (fa) fa.value = '';
   const fr = document.getElementById('finPayRef'); if (fr) fr.value = '';
   const fd = document.getElementById('finPayDate'); if (fd) fd.value = new Date().toISOString().slice(0,10);
-  const m = new bootstrap.Modal(document.getElementById('finPayModal'));
+  const m = bootstrap.Modal.getOrCreateInstance(document.getElementById('finPayModal'));
   document.getElementById('finPaySubmit').onclick = async () => {
     if (!acquireSubmit('finPayment')) return;
     const paid_amount = parseFloat(document.getElementById('finPayAmount')?.value);
@@ -9217,6 +10040,8 @@ async function renderAgentsManagement() {
       </div>
     </div>
   `;
+  const _agentModal = document.getElementById('createAgentModal');
+  if (_agentModal) { _agentModal.dataset.renderedModal = '1'; document.body.appendChild(_agentModal); }
 }
 
 function showCreateAgentModal() {
@@ -9224,7 +10049,7 @@ function showCreateAgentModal() {
   ['agentName','agentEmail','agentPhone'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const at = document.getElementById('agentType'); if (at) at.value = 'agency';
   const ar = document.getElementById('agentRuleId'); if (ar) ar.value = '';
-  const m = new bootstrap.Modal(document.getElementById('createAgentModal'));
+  const m = bootstrap.Modal.getOrCreateInstance(document.getElementById('createAgentModal'));
   m.show();
 }
 
@@ -9295,6 +10120,2478 @@ async function toggleAgentStudents(agentId, btn) {
       </table>`;
   } catch(e) {
     panel.innerHTML = `<div class="text-danger small">加载失败: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  中介协作 — 材料收集
+// ════════════════════════════════════════════════════════
+
+const MAT_STATUS_MAP = {
+  PENDING:          ['secondary', '待响应'],
+  IN_PROGRESS:      ['primary',   '进行中'],
+  SUBMITTED:        ['warning',   '待审核'],
+  REVISION_NEEDED:  ['danger',    '需修改'],
+  APPROVED:         ['success',   '已审核'],
+  COMPLETED:        ['success',   '已完成'],
+  CANCELLED:        ['dark',      '已取消'],
+};
+
+function matStatusBadge(s) {
+  const [cls, label] = MAT_STATUS_MAP[s] || ['secondary', s];
+  return `<span class="badge bg-${cls}">${label}</span>`;
+}
+
+function matProgress(approved, total) {
+  const pct = total > 0 ? Math.round(approved / total * 100) : 0;
+  return `<div class="d-flex align-items-center gap-2">
+    <div class="progress flex-grow-1" style="height:6px;min-width:60px">
+      <div class="progress-bar bg-success" style="width:${pct}%"></div>
+    </div>
+    <small class="text-muted">${approved}/${total}</small>
+  </div>`;
+}
+
+// ── 材料收集请求列表 ──────────────────────────────────
+async function renderMatRequests() {
+  const main = document.getElementById('main-content');
+  main.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-primary"></div></div>';
+  let requests = [];
+  try {
+    requests = await GET('/api/mat-requests');
+  } catch(e) {
+    main.innerHTML = `<div class="alert alert-danger m-4">加载失败: ${escapeHtml(e.message)}</div>`;
+    return;
+  }
+
+  // Group by status for kanban counts
+  const counts = {};
+  for (const r of requests) counts[r.status] = (counts[r.status] || 0) + 1;
+
+  main.innerHTML = `
+    <div class="page-header mb-4">
+      <h4><i class="bi bi-folder-check me-2"></i>材料收集请求</h4>
+      <div class="page-header-actions gap-2 d-flex">
+        <select class="form-select form-select-sm" id="matStatusFilter" style="width:auto">
+          <option value="">全部状态</option>
+          ${Object.entries(MAT_STATUS_MAP).map(([k,[,l]]) => `<option value="${k}">${l}</option>`).join('')}
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="openCreateMatRequestModal()">
+          <i class="bi bi-plus-lg me-1"></i>新建请求
+        </button>
+      </div>
+    </div>
+
+    <!-- 状态汇总 -->
+    <div class="row g-3 mb-4">
+      ${[['PENDING','待响应','secondary'],['IN_PROGRESS','进行中','primary'],['SUBMITTED','待审核','warning'],['COMPLETED','已完成','success']].map(([s,l,c]) => `
+        <div class="col-6 col-md-3">
+          <div class="card text-center py-3 border-${c}" style="cursor:pointer" onclick="document.getElementById('matStatusFilter').value='${s}';filterMatRequests()">
+            <div class="fs-4 fw-bold text-${c}">${counts[s] || 0}</div>
+            <div class="small text-muted">${l}</div>
+          </div>
+        </div>`).join('')}
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle" id="matRequestsTable">
+        <thead class="table-light">
+          <tr>
+            <th>案件名称</th><th>中介公司</th><th>联系人</th>
+            <th>截止日期</th><th>状态</th><th>进度</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${requests.length ? requests.map(r => {
+            const overdue = r.is_overdue && !['COMPLETED','CANCELLED','APPROVED'].includes(r.status);
+            return `<tr class="${overdue ? 'table-danger' : ''}">
+              <td>
+                <div class="fw-semibold">${escapeHtml(r.title)}</div>
+                ${r.student_name ? `<div class="small text-muted">学生：${escapeHtml(r.student_name)}</div>` : ''}
+              </td>
+              <td class="small">${escapeHtml(r.company_name)}</td>
+              <td class="small">${escapeHtml(r.contact_name)}</td>
+              <td class="small ${overdue ? 'text-danger fw-bold' : ''}">
+                ${r.deadline}${overdue ? ' <i class="bi bi-exclamation-circle"></i>' : ''}
+              </td>
+              <td>${matStatusBadge(r.status)}</td>
+              <td style="min-width:120px">${matProgress(r.item_approved || 0, r.item_total || 0)}</td>
+              <td>
+                <button class="btn btn-xs btn-sm btn-outline-primary py-0 px-2 me-1"
+                  onclick="navigate('mat-request-detail',{requestId:'${r.id}'})">详情</button>
+                ${!['COMPLETED','CANCELLED'].includes(r.status) ? `
+                  <button class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2"
+                    onclick="matManualRemind('${r.id}')">催件</button>` : ''}
+              </td>
+            </tr>`;
+          }).join('') : '<tr><td colspan="7" class="text-center text-muted py-4">暂无材料收集请求</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 新建请求模态框 -->
+    <div class="modal fade" id="createMatRequestModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-folder-plus me-2"></i>新建材料收集请求</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label fw-semibold">案件标题 *</label>
+                <input type="text" class="form-control" id="mrTitle" placeholder="如：张伟 2025秋 材料收集">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">中介公司 *
+                  <a href="#" class="ms-2 small" onclick="event.preventDefault();navigate('mat-companies')" title="去添加公司">
+                    <i class="bi bi-plus-circle"></i> 新增公司
+                  </a>
+                </label>
+                <select class="form-select" id="mrCompany" onchange="loadMatContacts(this.value)">
+                  <option value="">-- 选择公司 --</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">联系人 *</label>
+                <select class="form-select" id="mrContact">
+                  <option value="">-- 先选公司 --</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">截止日期 *</label>
+                <input type="date" class="form-control" id="mrDeadline">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">关联学生（可选）</label>
+                <select class="form-select" id="mrStudent">
+                  <option value="">-- 不关联 --</option>
+                </select>
+              </div>
+              <div class="col-12">
+                <label class="form-label">备注</label>
+                <textarea class="form-control" id="mrNotes" rows="2"></textarea>
+              </div>
+              <div class="col-12">
+                <label class="form-label fw-semibold">材料清单 *</label>
+                <div id="mrItemsList">
+                  ${['护照首页','在读证明','成绩单'].map((n,i) => `
+                    <div class="d-flex gap-2 mb-2 align-items-center mr-item-row">
+                      <input type="text" class="form-control form-control-sm mr-item-name" value="${n}" placeholder="材料名称">
+                      <input type="text" class="form-control form-control-sm mr-item-desc" placeholder="说明（可选）">
+                      <div class="form-check mb-0 text-nowrap">
+                        <input class="form-check-input mr-item-required" type="checkbox" checked id="req${i}">
+                        <label class="form-check-label small" for="req${i}">必填</label>
+                      </div>
+                      <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="this.closest('.mr-item-row').remove()">
+                        <i class="bi bi-trash3"></i>
+                      </button>
+                    </div>`).join('')}
+                </div>
+                <button class="btn btn-sm btn-outline-primary mt-1" onclick="addMatItemRow()">
+                  <i class="bi bi-plus-lg me-1"></i>添加材料项
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+            <button class="btn btn-primary" onclick="submitCreateMatRequest()">
+              <i class="bi bi-send me-1"></i>创建并发送邀请邮件
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Filter handler
+  document.getElementById('matStatusFilter').addEventListener('change', filterMatRequests);
+  // Load companies into modal
+  _loadMatCompaniesIntoSelect();
+  // Load students into modal
+  _loadStudentsIntoMatSelect();
+  // Move modal to <body> so Bootstrap can manage it properly
+  // (modals inside #main-content break when Bootstrap tries to show/hide them)
+  const _mrModalEl = document.getElementById('createMatRequestModal');
+  if (_mrModalEl) { _mrModalEl.dataset.renderedModal = '1'; document.body.appendChild(_mrModalEl); }
+}
+
+function filterMatRequests() {
+  const val = document.getElementById('matStatusFilter')?.value;
+  document.querySelectorAll('#matRequestsTable tbody tr').forEach(row => {
+    if (!val) { row.style.display = ''; return; }
+    const badge = row.querySelector('.badge');
+    const statusText = badge ? badge.textContent : '';
+    const [,label] = MAT_STATUS_MAP[val] || [];
+    row.style.display = (statusText === label) ? '' : 'none';
+  });
+}
+
+async function _loadMatCompaniesIntoSelect() {
+  try {
+    const companies = await GET('/api/mat-companies');
+    const sel = document.getElementById('mrCompany');
+    if (!sel) return;
+    companies.forEach(c => {
+      const o = document.createElement('option');
+      o.value = c.id; o.textContent = c.name;
+      sel.appendChild(o);
+    });
+  } catch(e) { /* ignore */ }
+}
+
+async function _loadStudentsIntoMatSelect() {
+  try {
+    const students = await GET('/api/students');
+    const sel = document.getElementById('mrStudent');
+    if (!sel) return;
+    students.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s.id; o.textContent = `${s.name} (${s.grade_level || '—'})`;
+      sel.appendChild(o);
+    });
+  } catch(e) { /* ignore */ }
+}
+
+async function loadMatContacts(companyId) {
+  const sel = document.getElementById('mrContact');
+  if (!sel) return;
+  if (!companyId) { sel.innerHTML = '<option value="">-- 先选公司 --</option>'; return; }
+  try {
+    const contacts = await GET(`/api/mat-companies/${companyId}/contacts`);
+    sel.innerHTML = '<option value="">-- 选择联系人 --</option>' +
+      contacts.map(c => `<option value="${c.id}">${escapeHtml(c.name)} (${escapeHtml(c.email)})</option>`).join('');
+  } catch(e) { sel.innerHTML = '<option value="">加载失败</option>'; }
+}
+
+function addMatItemRow() {
+  const list = document.getElementById('mrItemsList');
+  const idx = list.querySelectorAll('.mr-item-row').length;
+  const div = document.createElement('div');
+  div.className = 'd-flex gap-2 mb-2 align-items-center mr-item-row';
+  div.innerHTML = `
+    <input type="text" class="form-control form-control-sm mr-item-name" placeholder="材料名称">
+    <input type="text" class="form-control form-control-sm mr-item-desc" placeholder="说明（可选）">
+    <div class="form-check mb-0 text-nowrap">
+      <input class="form-check-input mr-item-required" type="checkbox" checked id="req${idx}">
+      <label class="form-check-label small" for="req${idx}">必填</label>
+    </div>
+    <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="this.closest('.mr-item-row').remove()">
+      <i class="bi bi-trash3"></i>
+    </button>`;
+  list.appendChild(div);
+}
+
+async function openCreateMatRequestModal() {
+  const el = document.getElementById('createMatRequestModal');
+  if (!el) return;
+  // Set default deadline 14 days from now
+  const d = new Date(); d.setDate(d.getDate() + 14);
+  const dl = document.getElementById('mrDeadline');
+  if (dl) dl.value = d.toISOString().split('T')[0];
+  bootstrap.Modal.getOrCreateInstance(el).show();
+}
+
+async function submitCreateMatRequest() {
+  const title = document.getElementById('mrTitle')?.value?.trim();
+  const company_id = document.getElementById('mrCompany')?.value;
+  const contact_id = document.getElementById('mrContact')?.value;
+  const deadline = document.getElementById('mrDeadline')?.value;
+  const student_id = document.getElementById('mrStudent')?.value || null;
+  const notes = document.getElementById('mrNotes')?.value?.trim() || null;
+
+  if (!title || !company_id || !contact_id || !deadline) {
+    showError('请填写所有必填字段（标题、公司、联系人、截止日期）'); return;
+  }
+
+  const itemRows = document.querySelectorAll('.mr-item-row');
+  const items = [];
+  itemRows.forEach(row => {
+    const name = row.querySelector('.mr-item-name')?.value?.trim();
+    const desc = row.querySelector('.mr-item-desc')?.value?.trim();
+    const req = row.querySelector('.mr-item-required')?.checked !== false;
+    if (name) items.push({ name, description: desc || null, is_required: req });
+  });
+  if (items.length === 0) { showError('请至少添加一个材料项目'); return; }
+
+  try {
+    await POST('/api/mat-requests', { title, company_id, contact_id, deadline, student_id, notes, items });
+    bootstrap.Modal.getInstance(document.getElementById('createMatRequestModal'))?.hide();
+    showSuccess('材料收集请求已创建，邀请邮件已发送');
+    renderMatRequests();
+  } catch(e) { showError('创建失败: ' + e.message); }
+}
+
+async function matManualRemind(requestId) {
+  if (!confirm('确定发送催件邮件？')) return;
+  try {
+    await POST(`/api/mat-requests/${requestId}/remind`, {});
+    showSuccess('催件邮件已发送');
+  } catch(e) { showError('发送失败: ' + e.message); }
+}
+
+// ── 材料收集请求详情 ──────────────────────────────────
+async function renderMatRequestDetail({ requestId } = {}) {
+  const id = requestId || State.currentMatRequestId;
+  if (!id) { navigate('mat-requests'); return; }
+  State.currentMatRequestId = id;
+
+  const main = document.getElementById('main-content');
+  main.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-primary"></div></div>';
+  let r;
+  try { r = await GET(`/api/mat-requests/${id}`); }
+  catch(e) { main.innerHTML = `<div class="alert alert-danger m-4">加载失败: ${escapeHtml(e.message)}</div>`; return; }
+
+  const overdue = r.is_overdue && !['COMPLETED','CANCELLED','APPROVED'].includes(r.status);
+  const uifData = r.uif ? JSON.parse(r.uif.data || '{}') : {};
+
+  main.innerHTML = `
+    <div class="page-header mb-4">
+      <div>
+        <button class="btn btn-sm btn-outline-secondary me-2" onclick="navigate('mat-requests')">
+          <i class="bi bi-arrow-left"></i>
+        </button>
+        <span class="fw-bold fs-5">${escapeHtml(r.title)}</span>
+        <span class="ms-2">${matStatusBadge(r.status)}</span>
+        ${overdue ? '<span class="badge bg-danger ms-1">逾期</span>' : ''}
+      </div>
+      <div class="page-header-actions gap-2 d-flex">
+        ${!['COMPLETED','CANCELLED'].includes(r.status) ? `
+          <button class="btn btn-sm btn-outline-warning" onclick="matManualRemind('${r.id}')">
+            <i class="bi bi-bell me-1"></i>发催件邮件
+          </button>
+          <button class="btn btn-sm btn-outline-danger" onclick="matCancelRequest('${r.id}')">
+            <i class="bi bi-x-circle me-1"></i>取消请求
+          </button>` : ''}
+      </div>
+    </div>
+
+    <!-- 基本信息 -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-4">
+        <div class="card p-3">
+          <div class="small text-muted mb-1">中介公司</div>
+          <div class="fw-semibold">${escapeHtml(r.company_name)}</div>
+          <div class="small mt-1">${escapeHtml(r.contact_name)} · <a href="mailto:${escapeHtml(r.contact_email)}">${escapeHtml(r.contact_email)}</a></div>
+          ${r.contact_phone ? `<div class="small text-muted">${escapeHtml(r.contact_phone)}</div>` : ''}
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card p-3">
+          <div class="small text-muted mb-1">截止日期</div>
+          <div class="fw-semibold ${overdue ? 'text-danger' : ''}">${r.deadline}</div>
+          ${r.student_name ? `<div class="small mt-1 text-muted">学生：${escapeHtml(r.student_name)}</div>` : ''}
+          ${r.notes ? `<div class="small mt-1">${escapeHtml(r.notes)}</div>` : ''}
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card p-3">
+          <div class="small text-muted mb-1">材料进度</div>
+          <div class="fw-semibold">${r.items.filter(i=>i.status==='APPROVED').length} / ${r.items.length} 项已审核</div>
+          <div class="mt-2">${matProgress(r.items.filter(i=>i.status==='APPROVED').length, r.items.length)}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-3" id="matDetailTabs">
+      <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#matItemsTab">材料清单</a></li>
+      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#matUifTab">
+        学生信息表 (UIF) ${r.uif?.status === 'SUBMITTED' ? '<span class="badge bg-warning ms-1">待审核</span>' : ''}
+      </a></li>
+      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#matReminderTab">催件日志</a></li>
+    </ul>
+    <div class="tab-content">
+
+      <!-- 材料清单 Tab -->
+      <div class="tab-pane fade show active" id="matItemsTab">
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead class="table-light">
+              <tr><th>材料名称</th><th>说明</th><th>状态</th><th>文件</th><th>审核</th></tr>
+            </thead>
+            <tbody id="matItemsBody">
+              ${r.items.map(item => `
+                <tr id="item-row-${item.id}">
+                  <td>
+                    <span class="fw-semibold">${escapeHtml(item.name)}</span>
+                    ${item.is_required ? '<span class="badge bg-danger ms-1" style="font-size:10px">必填</span>' : ''}
+                  </td>
+                  <td class="small text-muted">${item.description ? escapeHtml(item.description) : '—'}</td>
+                  <td>${matItemStatusBadge(item.status)}
+                    ${item.reject_reason ? `<div class="small text-danger mt-1">退回：${escapeHtml(item.reject_reason)}</div>` : ''}
+                  </td>
+                  <td>
+                    ${item.file_id ? `
+                      <a href="/api/mat-request-items/${item.id}/download" class="btn btn-xs btn-sm btn-outline-primary py-0 px-2" download>
+                        <i class="bi bi-download me-1"></i>${escapeHtml(item.file_name || '下载')}
+                      </a>
+                      <div class="small text-muted">${item.uploaded_at ? fmtDatetime(item.uploaded_at) : ''}</div>
+                    ` : '<span class="text-muted small">未上传</span>'}
+                  </td>
+                  <td>
+                    ${item.file_id && !['APPROVED','CANCELLED'].includes(item.status) ? `
+                      <button class="btn btn-xs btn-sm btn-success py-0 px-2 me-1"
+                        onclick="reviewMatItem('${item.id}','approve')">通过</button>
+                      <button class="btn btn-xs btn-sm btn-danger py-0 px-2"
+                        onclick="reviewMatItem('${item.id}','reject')">退回</button>
+                    ` : item.status === 'APPROVED' ? `<span class="text-success small"><i class="bi bi-check-circle me-1"></i>已通过</span>` : '—'}
+                  </td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- UIF Tab -->
+      <div class="tab-pane fade" id="matUifTab">
+        ${r.uif && r.uif.status !== 'DRAFT' ? `
+          <div class="card p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div>
+                <span class="fw-semibold">UIF 状态：</span>
+                <span class="badge bg-${r.uif.status==='SUBMITTED'?'warning':r.uif.status==='MERGED'?'success':'secondary'}">${r.uif.status}</span>
+              </div>
+              ${r.uif.status === 'SUBMITTED' ? `
+                <div class="d-flex gap-2">
+                  <button class="btn btn-sm btn-primary" onclick="generateDocsFromUif('${r.id}')">
+                    <i class="bi bi-file-earmark-pdf me-1"></i>生成申请文件 (SAF/F16/V36)
+                  </button>
+                  ${r.student_id ? `<button class="btn btn-sm btn-success" onclick="showUifMergePanel('${r.id}')">
+                    <i class="bi bi-arrow-right-square me-1"></i>合并到学生档案
+                  </button>` : ''}
+                </div>` : r.uif.status === 'MERGED' ? `
+                <div class="d-flex align-items-center gap-2">
+                  <span class="text-success small"><i class="bi bi-check-circle me-1"></i>已生成</span>
+                  <button class="btn btn-sm btn-outline-primary" onclick="generateDocsFromUif('${r.id}')">
+                    <i class="bi bi-arrow-clockwise me-1"></i>重新生成
+                  </button>
+                </div>` : ''}
+            </div>
+            <div id="uifDataDisplay">${renderUifDataDisplay(uifData)}</div>
+          </div>
+        ` : `<div class="alert alert-info">中介尚未提交学生信息表。</div>`}
+      </div>
+
+      <!-- 催件日志 Tab -->
+      <div class="tab-pane fade" id="matReminderTab">
+        ${r.reminders.length ? `
+          <table class="table table-sm">
+            <thead class="table-light"><tr><th>类型</th><th>发送至</th><th>时间</th><th>状态</th></tr></thead>
+            <tbody>
+              ${r.reminders.map(log => `<tr>
+                <td><span class="badge bg-secondary">${log.type}</span></td>
+                <td class="small">${escapeHtml(log.sent_to || '—')}</td>
+                <td class="small text-muted">${fmtDatetime(log.sent_at)}</td>
+                <td><span class="badge bg-${log.status==='sent'?'success':'danger'}">${log.status}</span></td>
+              </tr>`).join('')}
+            </tbody>
+          </table>` : '<div class="text-muted p-3">暂无催件记录</div>'}
+      </div>
+    </div>
+  `;
+}
+
+function matItemStatusBadge(s) {
+  const map = {
+    PENDING:   ['secondary', '待上传'],
+    UPLOADED:  ['info',      '已上传'],
+    REVIEWING: ['warning',   '审核中'],
+    APPROVED:  ['success',   '已通过'],
+    REJECTED:  ['danger',    '已退回'],
+  };
+  const [cls, label] = map[s] || ['secondary', s];
+  return `<span class="badge bg-${cls}">${label}</span>`;
+}
+
+function renderUifDataDisplay(data) {
+  if (!data || Object.keys(data).length === 0) return '<div class="text-muted">暂无数据</div>';
+  const sections = [
+    ['基本信息', ['cn_name','en_name','gender','dob','nationality','passport_no','passport_expiry']],
+    ['联系信息', ['phone','email','wechat','emergency_name','emergency_rel','emergency_phone']],
+    ['教育背景', ['school','grade','grad_date','grades_notes']],
+    ['语言成绩', ['ielts','toefl','other_lang']],
+    ['申请意向', ['target_countries','target_major','intake_season','budget','scholarship']],
+    ['附加信息', ['activities','ps_draft','agent_notes']],
+  ];
+  const labels = {
+    cn_name:'中文姓名',en_name:'英文姓名',gender:'性别',dob:'出生日期',
+    nationality:'国籍',passport_no:'护照号',passport_expiry:'护照有效期',
+    phone:'手机',email:'邮箱',wechat:'微信',emergency_name:'紧急联系人',
+    emergency_rel:'关系',emergency_phone:'紧急联系电话',
+    school:'就读学校',grade:'年级',grad_date:'预计毕业',grades_notes:'成绩情况',
+    ielts:'雅思',toefl:'托福',other_lang:'其他语言',
+    target_countries:'目标国家',target_major:'目标专业',intake_season:'申请轮次',
+    budget:'预算',scholarship:'奖学金需求',activities:'课外活动',ps_draft:'个人陈述草稿',agent_notes:'中介备注',
+  };
+  return sections.map(([title, fields]) => {
+    const rows = fields.filter(f => data[f]).map(f =>
+      `<tr><td class="small text-muted" style="width:140px">${labels[f]||f}</td>
+       <td class="small">${escapeHtml(String(data[f]))}</td></tr>`).join('');
+    if (!rows) return '';
+    return `<div class="mb-3"><div class="fw-semibold small text-primary mb-1">${title}</div>
+      <table class="table table-sm table-bordered mb-0">${rows}</table></div>`;
+  }).join('');
+}
+
+async function reviewMatItem(itemId, action) {
+  let reason = null;
+  if (action === 'reject') {
+    reason = prompt('请填写退回原因：');
+    if (!reason) return;
+  }
+  try {
+    await PUT(`/api/mat-request-items/${itemId}/review`, { action, reason });
+    showSuccess(action === 'approve' ? '已通过' : '已退回，通知邮件已发送');
+    // 刷新：优先刷新 intake case detail（如果当前在 case 页面），否则刷新 MAT 页面
+    if (State.currentPage === 'intake-case-detail' && State.currentCaseId) {
+      renderIntakeCaseDetail(State.currentCaseId);
+    } else if (State.currentMatRequestId) {
+      renderMatRequestDetail({ requestId: State.currentMatRequestId });
+    }
+  } catch(e) { showError('操作失败: ' + e.message); }
+}
+
+async function matCancelRequest(id) {
+  if (!confirm('确定取消该材料收集请求？此操作将作废所有 Magic Link。')) return;
+  try {
+    await DEL(`/api/mat-requests/${id}`);
+    showSuccess('已取消');
+    navigate('mat-requests');
+  } catch(e) { showError('操作失败: ' + e.message); }
+}
+
+// ── 从 intake case 创建材料收集请求 ──
+async function showCreateMatRequestForCase(caseId) {
+  // 获取中介公司列表
+  let companies = [];
+  try { companies = await GET('/api/mat-companies'); } catch(e) {}
+  if (companies.length === 0) {
+    showError('请先在系统中添加中介公司信息');
+    return;
+  }
+
+  const companyOpts = companies.map(co => `<option value="${co.id}">${escapeHtml(co.name)}</option>`).join('');
+
+  const html = `
+    <div class="mb-3">
+      <label class="form-label fw-semibold">选择中介公司 <span class="text-danger">*</span></label>
+      <select id="matCaseCompany" class="form-select" onchange="loadContactsForMatCase(this.value)">
+        <option value="">请选择...</option>${companyOpts}
+      </select>
+    </div>
+    <div class="mb-3">
+      <label class="form-label fw-semibold">联系人 <span class="text-danger">*</span></label>
+      <select id="matCaseContact" class="form-select"><option value="">请先选择公司</option></select>
+    </div>
+    <div class="mb-3">
+      <label class="form-label fw-semibold">截止日期</label>
+      <input type="date" id="matCaseDeadline" class="form-control" value="${new Date(Date.now()+14*86400000).toISOString().slice(0,10)}">
+    </div>
+    <div class="mb-3">
+      <label class="form-label fw-semibold">备注</label>
+      <textarea id="matCaseNotes" class="form-control" rows="2" placeholder="可选"></textarea>
+    </div>
+  `;
+
+  // 用 Bootstrap modal 或简单 confirm
+  const container = document.createElement('div');
+  container.innerHTML = `
+    <div class="modal fade" id="matCaseModal" tabindex="-1">
+      <div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header"><h6 class="modal-title">发起材料收集</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">${html}</div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="button" class="btn btn-primary" id="matCaseSubmitBtn">
+            <i class="bi bi-send me-1"></i>创建并发送链接
+          </button>
+        </div>
+      </div></div>
+    </div>`;
+  document.body.appendChild(container);
+  const modal = new bootstrap.Modal(container.querySelector('.modal'));
+  modal.show();
+
+  // 加载联系人
+  window.loadContactsForMatCase = async function(companyId) {
+    const sel = document.getElementById('matCaseContact');
+    if (!companyId) { sel.innerHTML = '<option value="">请先选择公司</option>'; return; }
+    try {
+      const contacts = await GET(`/api/mat-companies/${companyId}/contacts`);
+      sel.innerHTML = '<option value="">请选择联系人...</option>' + contacts.map(co => `<option value="${co.id}">${escapeHtml(co.name)} (${escapeHtml(co.email||'')})</option>`).join('');
+    } catch(e) { sel.innerHTML = '<option value="">加载失败</option>'; }
+  };
+
+  container.querySelector('#matCaseSubmitBtn').onclick = async function() {
+    const company_id = document.getElementById('matCaseCompany').value;
+    const contact_id = document.getElementById('matCaseContact').value;
+    const deadline = document.getElementById('matCaseDeadline').value;
+    const notes = document.getElementById('matCaseNotes').value;
+    if (!company_id || !contact_id) { showToast('请选择公司和联系人', 'warning'); return; }
+
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>创建中...';
+    try {
+      const res = await POST(`/api/intake-cases/${caseId}/mat-request`, { company_id, contact_id, deadline, notes });
+      modal.hide();
+      showToast('材料收集请求已创建，Magic Link 已生成', 'success');
+      // 刷新当前 case 页面
+      setTimeout(() => renderIntakeCaseDetail(caseId), 500);
+    } catch(e) {
+      showToast(e.message, 'danger');
+      this.disabled = false;
+      this.innerHTML = '<i class="bi bi-send me-1"></i>创建并发送链接';
+    }
+  };
+
+  container.querySelector('.modal').addEventListener('hidden.bs.modal', () => container.remove());
+}
+
+// ── 查看 UIF 表单内容 ──
+async function viewUifDetail(requestId) {
+  try {
+    // 从当前已加载的 case 数据获取 UIF，或重新请求 case detail
+    const caseData = await api('GET', `/api/intake-cases/${State.currentCaseId}`);
+    const uif = caseData.matRequest?.uif;
+    if (!uif || !uif.data) { showError('UIF 数据不存在'); return; }
+    const d = typeof uif.data === 'string' ? JSON.parse(uif.data) : (uif.data || {});
+
+    // 字段分组和中文标签
+    const groups = [
+      { title: '课程信息', icon: 'bi-mortarboard', fields: [
+        ['course_name','申请课程'],['course_code','课程代码'],['intake_year','入学年份'],['intake_month','入学月份'],
+        ['study_mode','学习模式'],['campus','校区'],['school_name','学校名称']
+      ]},
+      { title: '准证类型', icon: 'bi-card-heading', fields: [
+        ['sg_pass_type','新加坡准证类型'],['requires_student_pass','需要学生准证'],['was_ever_sg_citizen_or_pr','曾是SC/PR'],
+        ['sg_nric_fin','NRIC/FIN'],['sg_pass_expiry','准证到期']
+      ]},
+      { title: '个人信息', icon: 'bi-person', fields: [
+        ['surname','姓氏'],['given_name','名字'],['chinese_name','中文名'],['alias','别名'],
+        ['gender','性别'],['dob','出生日期'],['birth_certificate_no','出生证号'],
+        ['nationality','国籍'],['birth_country','出生国'],['birth_city','出生城市'],
+        ['race','种族'],['religion','宗教'],['occupation','职业'],['marital_status','婚姻状况']
+      ]},
+      { title: '联系方式', icon: 'bi-telephone', fields: [
+        ['email','邮箱'],['phone_mobile','手机号'],['phone_home','家庭电话'],
+        ['sg_address','新加坡地址'],['sg_tel_no','新加坡电话'],
+        ['address_line1','家乡地址1'],['address_line2','家乡地址2'],
+        ['city','城市'],['state_province','省/州'],['postal_code','邮编'],['country_of_residence','居住国'],
+        ['hometown_address','家乡完整地址']
+      ]},
+      { title: '护照信息', icon: 'bi-passport', fields: [
+        ['passport_type','证件类型'],['passport_no','护照号码'],['passport_issue_country','签发国'],
+        ['passport_issue_place','签发地'],['passport_issue_date','签发日期'],['passport_expiry','有效期'],
+        ['foreign_identification_no','外国识别号'],['malaysian_id_no','马来西亚IC号']
+      ]},
+      { title: '语言能力', icon: 'bi-translate', fields: [
+        ['native_language','母语'],['english_proficiency','英语水平'],['highest_lang_proficiency','最高语言水平'],
+        ['ielts_score','雅思'],['toefl_score','托福'],['other_lang_test','其他语言考试'],['other_lang_score','其他分数'],
+        ['need_english_placement_test','需要英语分级测试']
+      ]},
+      { title: '财务信息', icon: 'bi-cash-stack', fields: [
+        ['financial_source','资金来源'],['applicant_monthly_income','申请人月收入'],['applicant_current_saving','申请人存款'],
+        ['father_monthly_income','父亲月收入'],['father_current_saving','父亲存款'],
+        ['mother_monthly_income','母亲月收入'],['mother_current_saving','母亲存款'],
+        ['spouse_monthly_income','配偶月收入'],['spouse_current_saving','配偶存款'],
+        ['sponsor_name','赞助人'],['sponsor_relation','赞助关系'],
+        ['other_financial_support','其他经济支持'],['other_financial_details','详情'],['other_financial_amount','金额'],
+        ['bank_statement_available','有银行证明']
+      ]},
+      { title: '个人声明', icon: 'bi-shield-check', fields: [
+        ['antecedent_q1','曾被拒绝入境/遣返'],['antecedent_q2','曾被法院定罪'],
+        ['antecedent_q3','曾被禁止入境新加坡'],['antecedent_q4','曾用不同护照/姓名入境'],
+        ['antecedent_remarks','声明备注']
+      ]},
+      { title: '监护人信息', icon: 'bi-person-check', fields: [
+        ['guardian_surname','监护人姓'],['guardian_given_name','监护人名'],['guardian_relation','关系'],
+        ['guardian_nationality','国籍'],['guardian_phone','电话'],['guardian_email','邮箱'],
+        ['guardian_address','地址'],['guardian_passport_no','护照/证件号'],['guardian_occupation','职业']
+      ]},
+      { title: '同意与签名', icon: 'bi-pen', fields: [
+        ['pdpa_consent','PDPA同意'],['pdpa_marketing','营销同意'],['pdpa_photo_video','拍摄同意'],
+        ['f16_declaration_agreed','Form16声明'],['v36_declaration_agreed','V36声明'],['sig_date','签名日期']
+      ]}
+    ];
+
+    // 格式化值
+    function fmtVal(k, v) {
+      if (v === null || v === undefined || v === '') return '<span class="text-muted">—</span>';
+      if (k.startsWith('_')) return '<span class="text-muted">[数据]</span>';
+      if (typeof v === 'string' && v.startsWith('data:image')) return '<img src="'+v+'" style="max-width:80px;max-height:80px;border-radius:4px">';
+      if (['1','true'].includes(String(v))) return '<i class="bi bi-check-circle-fill text-success"></i> 是';
+      if (['0','false'].includes(String(v)) && (k.includes('consent') || k.includes('agreed') || k.includes('antecedent') || k.includes('requires') || k.includes('was_ever') || k.includes('need_') || k.includes('other_financial') || k.includes('bank_statement') || k.includes('prior_sg') || k.includes('no_education') || k.includes('no_employment'))) return '<i class="bi bi-x-circle text-danger"></i> 否';
+      return escapeHtml(String(v));
+    }
+
+    // 数组数据
+    const family = d._family || [];
+    const education = d._education || [];
+    const employment = d._employment || [];
+    const residence = d._residence || [];
+
+    let html = '<div style="max-height:70vh;overflow-y:auto;padding-right:8px">';
+
+    // 分组渲染
+    for (const g of groups) {
+      const rows = g.fields.filter(([k]) => d[k] !== undefined && d[k] !== '').map(([k, label]) =>
+        `<tr><td class="text-muted small" style="width:35%;vertical-align:top;padding:4px 8px">${label}</td><td class="small" style="padding:4px 8px">${fmtVal(k, d[k])}</td></tr>`
+      );
+      if (!rows.length) continue;
+      html += `<div class="mb-3"><div class="fw-semibold small mb-1" style="color:var(--primary)"><i class="${g.icon} me-1"></i>${g.title}</div>
+        <table class="table table-sm table-bordered mb-0" style="font-size:.85rem"><tbody>${rows.join('')}</tbody></table></div>`;
+    }
+
+    // 家庭成员
+    if (family.length) {
+      html += '<div class="mb-3"><div class="fw-semibold small mb-1" style="color:var(--primary)"><i class="bi bi-people me-1"></i>家庭成员 ('+family.length+'人)</div>';
+      html += '<table class="table table-sm table-bordered mb-0" style="font-size:.8rem"><thead><tr><th>关系</th><th>姓名</th><th>出生日期</th><th>国籍</th><th>SG身份</th><th>职业</th></tr></thead><tbody>';
+      for (const m of family) {
+        html += `<tr><td>${escapeHtml(m.member_type||'')}</td><td>${escapeHtml((m.surname||'')+' '+(m.given_name||''))}</td><td>${escapeHtml(m.dob||'')}</td><td>${escapeHtml(m.nationality||'')}</td><td>${escapeHtml(m.sg_status||'')}</td><td>${escapeHtml(m.occupation||'')}</td></tr>`;
+      }
+      html += '</tbody></table></div>';
+    }
+
+    // 教育经历
+    if (education.length) {
+      html += '<div class="mb-3"><div class="fw-semibold small mb-1" style="color:var(--primary)"><i class="bi bi-book me-1"></i>教育经历 ('+education.length+'条)</div>';
+      html += '<table class="table table-sm table-bordered mb-0" style="font-size:.8rem"><thead><tr><th>学校</th><th>国家</th><th>时间</th><th>学历</th></tr></thead><tbody>';
+      for (const e of education) {
+        html += `<tr><td>${escapeHtml(e.institution_name||'')}</td><td>${escapeHtml(e.country||'')}</td><td>${escapeHtml((e.date_from||'')+' ~ '+(e.date_to||''))}</td><td>${escapeHtml(e.qualification||'')}</td></tr>`;
+      }
+      html += '</tbody></table></div>';
+    }
+
+    // 工作经历
+    if (employment.length) {
+      html += '<div class="mb-3"><div class="fw-semibold small mb-1" style="color:var(--primary)"><i class="bi bi-briefcase me-1"></i>工作经历 ('+employment.length+'条)</div>';
+      html += '<table class="table table-sm table-bordered mb-0" style="font-size:.8rem"><thead><tr><th>公司</th><th>国家</th><th>时间</th><th>职位</th><th>职责</th></tr></thead><tbody>';
+      for (const e of employment) {
+        html += `<tr><td>${escapeHtml(e.employer||'')}</td><td>${escapeHtml(e.country||'')}</td><td>${escapeHtml((e.date_from||'')+' ~ '+(e.date_to||''))}</td><td>${escapeHtml(e.position||'')}</td><td>${escapeHtml(e.nature_of_duties||'')}</td></tr>`;
+      }
+      html += '</tbody></table></div>';
+    }
+
+    // 居住史
+    if (residence.length) {
+      html += '<div class="mb-3"><div class="fw-semibold small mb-1" style="color:var(--primary)"><i class="bi bi-geo-alt me-1"></i>居住史 ('+residence.length+'条)</div>';
+      html += '<table class="table table-sm table-bordered mb-0" style="font-size:.8rem"><thead><tr><th>国家</th><th>地址</th><th>从</th><th>到</th></tr></thead><tbody>';
+      for (const r of residence) {
+        html += `<tr><td>${escapeHtml(r.country||'')}</td><td>${escapeHtml(r.address||'')}</td><td>${escapeHtml(r.date_from||'')}</td><td>${escapeHtml(r.date_to||'present')}</td></tr>`;
+      }
+      html += '</tbody></table></div>';
+    }
+
+    // 证件照
+    if (d._id_photo_data) {
+      html += '<div class="mb-3"><div class="fw-semibold small mb-1" style="color:var(--primary)"><i class="bi bi-camera me-1"></i>证件照</div>';
+      html += '<img src="'+d._id_photo_data+'" style="max-width:120px;max-height:160px;border-radius:6px;border:1px solid #ddd">';
+      html += '</div>';
+    }
+
+    html += '</div>';
+
+    // 弹窗展示
+    const modalId = 'uifDetailModal';
+    let modal = document.getElementById(modalId);
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = modalId;
+      modal.className = 'modal fade';
+      modal.setAttribute('tabindex','-1');
+      modal.innerHTML = `<div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title"><i class="bi bi-file-text me-2"></i>代理提交表单内容</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body" id="uifDetailBody"></div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button></div>
+      </div></div>`;
+      document.body.appendChild(modal);
+    }
+    document.getElementById('uifDetailBody').innerHTML = html;
+    bootstrap.Modal.getOrCreateInstance(modal).show();
+  } catch(e) {
+    showError('获取表单数据失败: ' + e.message);
+  }
+}
+
+// ── 退回弹窗中追加文件项 ──
+function addReturnItem() {
+  const html = '<div class="d-flex gap-2 mb-2 align-items-center ret-add-row">' +
+    '<input class="form-control form-control-sm" placeholder="文件名称（如：体检报告）" data-role="ret-item-name">' +
+    '<div class="form-check flex-shrink-0"><input class="form-check-input" type="checkbox" data-role="ret-item-required"><label class="form-check-label small">必须</label></div>' +
+    '<button class="btn btn-sm btn-outline-danger py-0 px-1 flex-shrink-0" onclick="this.closest(\'.ret-add-row\').remove()" title="删除"><i class="bi bi-x"></i></button>' +
+    '</div>';
+  document.getElementById('retAddItemsList').insertAdjacentHTML('beforeend', html);
+}
+
+// ── UIF 审核通过 ──
+async function approveUif(requestId) {
+  if (!confirm('确认审核通过？通过后可生成正式申请文件。')) return;
+  try {
+    await api('POST', `/api/mat-requests/${requestId}/approve`);
+    showSuccess('已审核通过');
+    loadCaseDetail();
+  } catch(e) { showError(e.message); }
+}
+
+// ── UIF 打回修改（支持三类问题）──
+async function returnUif(requestId) {
+  // 获取已上传文件列表
+  const caseData = await api('GET', `/api/intake-cases/${State.currentCaseId}`);
+  const uploadedItems = (caseData.matRequest?.items || []).filter(i => i.file_id);
+  const fileCheckboxes = uploadedItems.length ? uploadedItems.map(item =>
+    `<div class="form-check mb-1">
+      <input class="form-check-input" type="checkbox" id="retFile-${item.id}" value="${item.id}" onchange="document.getElementById('retFN-${item.id}').classList.toggle('d-none',!this.checked)">
+      <label class="form-check-label small" for="retFile-${item.id}">${escapeHtml(item.name)}${item.is_required?' *':''}</label>
+      <input class="form-control form-control-sm mt-1 d-none" id="retFN-${item.id}" placeholder="问题说明">
+    </div>`
+  ).join('') : '';
+
+  const html = `
+    <div class="mb-3">
+      <label class="form-label fw-semibold">退回原因 <span class="text-danger">*</span></label>
+      <textarea id="returnReason" class="form-control" rows="3" placeholder="请说明需要修改的内容，代理会看到这段话。&#10;例如：护照号与扫描件不一致，请核对后修改；成绩单需要补传最新学期的。"></textarea>
+    </div>
+
+    ${fileCheckboxes ? `<div class="border rounded p-3 mb-3">
+      <div class="fw-semibold small mb-2"><i class="bi bi-file-earmark-x me-1 text-warning"></i>退回文件 <span class="text-muted fw-normal">(可选，勾选需退回的)</span></div>
+      ${fileCheckboxes}
+    </div>` : ''}
+
+    <div class="border rounded p-3 mb-3">
+      <div class="fw-semibold small mb-2"><i class="bi bi-plus-circle me-1 text-primary"></i>追加文件项 <span class="text-muted fw-normal">(可选)</span></div>
+      <div class="small text-muted mb-2">如果需要代理额外上传新文件，在此添加</div>
+      <div id="retAddItemsList"></div>
+      <button class="btn btn-sm btn-outline-secondary" onclick="addReturnItem()"><i class="bi bi-plus me-1"></i>添加文件项</button>
+    </div>
+
+    <div class="rounded p-2 text-center" style="background:#f8f9fa">
+      <small class="text-muted"><i class="bi bi-envelope me-1"></i>确认后将向代理发送通知邮件</small>
+    </div>`;
+
+  showModal('退回修改', html, async () => {
+    const reason = document.getElementById('returnReason').value.trim();
+    if (!reason) { showError('请填写退回原因'); return false; }
+
+    // 收集退回文件
+    const fileRejects = [];
+    document.querySelectorAll('[id^="retFile-"]:checked').forEach(cb => {
+      const noteEl = document.getElementById('retFN-' + cb.value);
+      fileRejects.push({ item_id: cb.value, reason: noteEl?.value?.trim() || '需要重新上传' });
+    });
+
+    // 收集追加文件项
+    const addItems = [];
+    document.querySelectorAll('.ret-add-row').forEach(row => {
+      const name = row.querySelector('[data-role="ret-item-name"]')?.value?.trim();
+      const required = row.querySelector('[data-role="ret-item-required"]')?.checked;
+      if (name) addItems.push({ name, is_required: !!required });
+    });
+
+    try {
+      await api('POST', `/api/mat-requests/${requestId}/return`, {
+        reason,
+        file_rejects: fileRejects.length ? fileRejects : null,
+        add_items: addItems.length ? addItems : null
+      });
+      showSuccess('已退回修改，代理将收到汇总通知邮件');
+      loadCaseDetail();
+    } catch(e) { showError(e.message); return false; }
+  }, '确认退回');
+}
+
+// ── 版本历史查看 ──
+async function showVersionHistory(requestId) {
+  try {
+    const data = await api('GET', `/api/mat-requests/${requestId}/versions`);
+    const versions = data.uifVersions || data || [];
+    const itemVersions = data.itemVersions || [];
+    const html = `
+      <div style="max-height:500px;overflow-y:auto">
+        <h6 class="fw-bold mb-3">表单版本</h6>
+        ${versions.map(v => `
+          <div class="border rounded p-3 mb-2 ${v.is_current?'border-primary':''}">
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="fw-semibold">v${v.version_no} ${v.is_current?'<span class="badge bg-primary ms-1">当前</span>':''}</span>
+              <span class="badge bg-${v.status==='APPROVED'?'success':v.status==='RETURNED'?'danger':v.status==='SUBMITTED'?'warning':'secondary'}">${v.status}</span>
+            </div>
+            <div class="small text-muted mt-1">提交: ${v.submitted_at||'-'} ${v.reviewed_at ? '| 审核: '+v.reviewed_at : ''}</div>
+            ${v.return_reason ? `<div class="small text-danger mt-1"><i class="bi bi-exclamation-circle me-1"></i>${escapeHtml(v.return_reason)}</div>` : ''}
+          </div>`).join('') || '<p class="text-muted">暂无版本记录</p>'}
+        ${itemVersions.length ? `
+          <h6 class="fw-bold mt-4 mb-3">文件版本</h6>
+          ${itemVersions.map(iv => `
+            <div class="d-flex justify-content-between align-items-center py-1 border-bottom small">
+              <span>${escapeHtml(iv.item_name||'')} v${iv.version_no}</span>
+              <span class="badge bg-${iv.status==='APPROVED'?'success':iv.status==='REJECTED'?'danger':'secondary'}" style="font-size:.7rem">${iv.status}</span>
+              <span class="text-muted">${iv.uploaded_at||''}</span>
+            </div>`).join('')}` : ''}
+      </div>`;
+    showModal('版本历史', html, null, null, 'lg');
+  } catch(e) { showError(e.message); }
+}
+
+async function generateDocsFromUif(requestId) {
+  if (!confirm('将根据代理提交的信息生成 Student Application Form、Form 16、V36 三份申请文件。确认继续？')) return;
+  const btn = event?.target?.closest('button');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>生成中...'; }
+  try {
+    const res = await fetch(`/api/mat-requests/${requestId}/generate-documents`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '生成失败');
+    showToast('正在生成申请文件，请稍候...', 'info');
+    // Poll for completion (check every 2s, max 30s)
+    const profileId = data.profileId;
+    if (profileId) {
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const chk = await fetch(`/api/adm-profiles/${profileId}`).then(r => r.json());
+          // 只检查 is_latest=1 的文档
+          const docs = (chk.documents || []).filter(d => d.is_latest === 1 || d.is_latest === true);
+          const allDone = docs.length >= 3 && docs.every(d => d.status === 'done');
+          const anyFail = docs.some(d => d.status === 'error');
+          if (allDone || anyFail || attempts >= 15) {
+            clearInterval(poll);
+            if (allDone) {
+              showToast('三份申请文件已生成完成！', 'success');
+            } else if (anyFail) {
+              showToast('部分文件生成失败，请查看详情', 'warning');
+            } else {
+              showToast('生成超时，请手动刷新查看', 'warning');
+            }
+            // 刷新当前页面
+            if (State.currentPage === 'intake-case-detail' && State.currentCaseId) {
+              renderIntakeCaseDetail(State.currentCaseId);
+            } else {
+              renderMatRequestDetail({ requestId: State.currentMatRequestId || requestId });
+            }
+          }
+        } catch(e) { /* polling error, continue */ }
+      }, 2000);
+    } else {
+      setTimeout(() => {
+        if (State.currentPage === 'intake-case-detail' && State.currentCaseId) {
+          renderIntakeCaseDetail(State.currentCaseId);
+        } else {
+          renderMatRequestDetail({ requestId: State.currentMatRequestId || requestId });
+        }
+      }, 3000);
+    }
+  } catch(e) {
+    showToast(e.message, 'danger');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-file-earmark-pdf me-1"></i>生成申请文件 (SAF/F16/V36)'; }
+  }
+}
+
+async function showUifMergePanel(requestId) {
+  let data = {};
+  try {
+    const uif = await GET(`/api/mat-uif/${requestId}`);
+    data = JSON.parse(uif.data || '{}');
+  } catch(e) { showError('加载 UIF 数据失败'); return; }
+
+  const labels = {
+    cn_name:'中文姓名', en_name:'英文姓名', gender:'性别', dob:'出生日期',
+    nationality:'国籍', passport_no:'护照号码', passport_expiry:'护照有效期',
+    phone:'手机号码', email:'电子邮箱', wechat:'微信号', emergency_name:'紧急联系人',
+    emergency_rel:'关系', emergency_phone:'紧急联系电话',
+    school:'就读学校', grade:'年级', grad_date:'预计毕业日期', grades_notes:'成绩情况',
+    ielts:'雅思成绩', toefl:'托福成绩', other_lang:'其他语言成绩',
+    target_countries:'目标国家', target_major:'目标专业', intake_season:'申请轮次',
+    budget:'留学预算', scholarship:'奖学金需求', activities:'课外活动',
+    ps_draft:'个人陈述草稿', agent_notes:'中介备注',
+  };
+  // Fields that map directly to a student table column
+  // en_name excluded: students.name stores Chinese name; English name goes to notes
+  const directMap = { dob: 'date_of_birth', grade: 'grade_level' };
+
+  const sections = [
+    ['基本信息', ['cn_name','en_name','gender','dob','nationality','passport_no','passport_expiry']],
+    ['联系信息', ['phone','email','wechat','emergency_name','emergency_rel','emergency_phone']],
+    ['教育背景', ['school','grade','grad_date','grades_notes']],
+    ['语言成绩', ['ielts','toefl','other_lang']],
+    ['申请意向', ['target_countries','target_major','intake_season','budget','scholarship']],
+    ['附加信息', ['activities','ps_draft','agent_notes']],
+  ];
+
+  const sectionsHtml = sections.map(([title, fields]) => {
+    const rows = fields.filter(f => data[f]).map(f => {
+      const col = directMap[f];
+      return `<div class="d-flex align-items-start gap-2 py-2 border-bottom">
+        <input type="checkbox" class="form-check-input mt-1 uif-merge-check flex-shrink-0"
+          id="uif_${f}" name="${f}" value="${escapeHtml(String(data[f]))}" checked>
+        <label class="form-check-label w-100" for="uif_${f}">
+          <div class="d-flex gap-1 align-items-center">
+            <span class="text-muted small">${labels[f] || f}</span>
+            ${col ? `<span class="badge bg-primary" style="font-size:10px">→ 更新 ${col}</span>`
+                  : `<span class="badge bg-secondary" style="font-size:10px">→ 追加备注</span>`}
+          </div>
+          <div class="fw-semibold small text-break">${escapeHtml(String(data[f]))}</div>
+        </label>
+      </div>`;
+    }).join('');
+    if (!rows) return '';
+    return `<div class="mb-3">
+      <div class="fw-semibold text-primary small mb-1 border-bottom pb-1">${title}</div>
+      ${rows}
+    </div>`;
+  }).join('');
+
+  if (!sectionsHtml.trim()) {
+    showModal('合并 UIF', '<div class="alert alert-info">UIF 中没有已填写的数据。</div>');
+    return;
+  }
+
+  showModal('合并 UIF 到学生档案', `
+    <div class="alert alert-info py-2 small mb-3">
+      <i class="bi bi-info-circle me-1"></i>
+      勾选要合并的字段。<span class="badge bg-primary">→ 更新字段</span> 直接写入档案对应列，
+      <span class="badge bg-secondary">→ 追加备注</span> 追加到学生备注。
+      <label class="ms-3">
+        <input type="checkbox" id="uifCheckAll" checked onchange="document.querySelectorAll('.uif-merge-check').forEach(c=>c.checked=this.checked)">
+        全选/取消
+      </label>
+    </div>
+    <div style="max-height:420px;overflow-y:auto">${sectionsHtml}</div>
+  `, async () => {
+    const fields = {};
+    document.querySelectorAll('.uif-merge-check:checked').forEach(el => {
+      fields[el.name] = el.value;
+    });
+    if (Object.keys(fields).length === 0) { showError('请至少勾选一个字段'); return false; }
+    const lockKey = `uif-merge-${requestId}`;
+    if (!acquireSubmit(lockKey)) return false;
+    try {
+      const { applied } = await POST(`/api/mat-uif/${requestId}/merge`, { fields });
+      showSuccess(`已成功合并 ${applied.length} 个字段到学生档案`);
+      renderMatRequestDetail({ requestId: State.currentMatRequestId });
+    } finally {
+      releaseSubmit(lockKey);
+    }
+  }, '合并到档案', 'lg');
+}
+
+// ── 中介公司管理 ──────────────────────────────────────
+async function renderMatCompanies() {
+  const main = document.getElementById('main-content');
+  main.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-primary"></div></div>';
+  let companies = [];
+  try { companies = await GET('/api/mat-companies'); }
+  catch(e) { main.innerHTML = `<div class="alert alert-danger m-4">加载失败: ${escapeHtml(e.message)}</div>`; return; }
+
+  main.innerHTML = `
+    <div class="page-header mb-4">
+      <h4><i class="bi bi-building me-2"></i>中介公司管理</h4>
+      <div class="page-header-actions">
+        <button class="btn btn-primary btn-sm" onclick="openAddMatCompanyModal()">
+          <i class="bi bi-plus-lg me-1"></i>新增公司
+        </button>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-light">
+          <tr><th>公司名称</th><th>城市</th><th>国家</th><th>合同日期</th><th>联系人数</th><th>活跃请求</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+          ${companies.length ? companies.map(c => `<tr>
+            <td class="fw-semibold">${escapeHtml(c.name)}</td>
+            <td class="small">${escapeHtml(c.city || '—')}</td>
+            <td class="small">${escapeHtml(c.country || '—')}</td>
+            <td class="small">${c.agreement_date || '—'}</td>
+            <td class="text-center">${c.contact_count || 0}</td>
+            <td class="text-center">${c.active_requests || 0}</td>
+            <td>
+              <button class="btn btn-xs btn-sm btn-outline-primary py-0 px-2 me-1"
+                onclick="showMatCompanyDetail('${c.id}','${escapeHtml(c.name)}')">
+                <i class="bi bi-person-lines-fill me-1"></i>联系人
+              </button>
+            </td>
+          </tr>`).join('') : '<tr><td colspan="7" class="text-center text-muted py-4">暂无中介公司</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 公司联系人弹窗 -->
+    <div class="modal fade" id="matCompanyDetailModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="matCompanyDetailTitle">联系人管理</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body" id="matCompanyDetailBody">加载中...</div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 新增公司弹窗 -->
+    <div class="modal fade" id="addMatCompanyModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">新增中介公司</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3"><label class="form-label fw-semibold">公司名称 *</label>
+              <input type="text" class="form-control" id="mcName"></div>
+            <div class="row g-2 mb-3">
+              <div class="col"><label class="form-label">城市</label>
+                <input type="text" class="form-control" id="mcCity"></div>
+              <div class="col"><label class="form-label">国家</label>
+                <input type="text" class="form-control" id="mcCountry"></div>
+            </div>
+            <div class="mb-3"><label class="form-label">合同签署日期</label>
+              <input type="date" class="form-control" id="mcAgreementDate"></div>
+            <div class="mb-3"><label class="form-label">备注</label>
+              <textarea class="form-control" id="mcNotes" rows="2"></textarea></div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+            <button class="btn btn-primary" onclick="submitAddMatCompany()">创建</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  // Move modals to <body> so Bootstrap can manage them properly
+  ['matCompanyDetailModal', 'addMatCompanyModal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.dataset.renderedModal = '1'; document.body.appendChild(el); }
+  });
+}
+
+function openAddMatCompanyModal() {
+  ['mcName','mcCity','mcCountry','mcNotes'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+  const el = document.getElementById('addMatCompanyModal');
+  if (el) bootstrap.Modal.getOrCreateInstance(el).show();
+}
+
+async function submitAddMatCompany() {
+  const name = document.getElementById('mcName')?.value?.trim();
+  if (!name) { showError('公司名称必填'); return; }
+  try {
+    await POST('/api/mat-companies', {
+      name,
+      city: document.getElementById('mcCity')?.value?.trim() || null,
+      country: document.getElementById('mcCountry')?.value?.trim() || null,
+      agreement_date: document.getElementById('mcAgreementDate')?.value || null,
+      notes: document.getElementById('mcNotes')?.value?.trim() || null,
+    });
+    bootstrap.Modal.getInstance(document.getElementById('addMatCompanyModal'))?.hide();
+    showSuccess('公司已添加');
+    renderMatCompanies();
+  } catch(e) { showError('添加失败: ' + e.message); }
+}
+
+async function showMatCompanyDetail(companyId, companyName) {
+  const el = document.getElementById('matCompanyDetailModal');
+  if (!el) return;
+  document.getElementById('matCompanyDetailTitle').textContent = `${companyName} — 联系人`;
+  document.getElementById('matCompanyDetailBody').innerHTML = '<div class="text-center py-3"><div class="spinner-border"></div></div>';
+  const modal = bootstrap.Modal.getOrCreateInstance(el);
+  modal.show();
+  try {
+    const contacts = await GET(`/api/mat-companies/${companyId}/contacts`);
+    document.getElementById('matCompanyDetailBody').innerHTML = `
+      <div class="mb-3 text-end">
+        <button class="btn btn-sm btn-primary" onclick="openAddMatContactForm('${companyId}')">
+          <i class="bi bi-person-plus me-1"></i>新增联系人
+        </button>
+      </div>
+      <div id="addContactFormArea"></div>
+      <table class="table table-sm align-middle">
+        <thead class="table-light"><tr><th>姓名</th><th>邮箱</th><th>手机</th><th>微信</th><th>角色</th></tr></thead>
+        <tbody>
+          ${contacts.length ? contacts.map(c => `<tr>
+            <td class="fw-semibold">${escapeHtml(c.name)}</td>
+            <td class="small"><a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a></td>
+            <td class="small">${escapeHtml(c.phone || '—')}</td>
+            <td class="small">${escapeHtml(c.wechat || '—')}</td>
+            <td>${c.is_admin ? '<span class="badge bg-primary">管理员</span>' : '<span class="badge bg-secondary">跟单员</span>'}</td>
+          </tr>`).join('') : '<tr><td colspan="5" class="text-center text-muted">暂无联系人</td></tr>'}
+        </tbody>
+      </table>`;
+    window._matCurrentCompanyId = companyId;
+  } catch(e) {
+    document.getElementById('matCompanyDetailBody').innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function openAddMatContactForm(companyId) {
+  const area = document.getElementById('addContactFormArea');
+  if (!area) return;
+  area.innerHTML = `
+    <div class="card p-3 mb-3 bg-light">
+      <div class="row g-2">
+        <div class="col-md-4"><label class="form-label small fw-semibold">姓名 *</label>
+          <input type="text" class="form-control form-control-sm" id="newContactName"></div>
+        <div class="col-md-4"><label class="form-label small fw-semibold">邮箱 *</label>
+          <input type="email" class="form-control form-control-sm" id="newContactEmail"></div>
+        <div class="col-md-4"><label class="form-label small">手机</label>
+          <input type="text" class="form-control form-control-sm" id="newContactPhone"></div>
+        <div class="col-md-4"><label class="form-label small">微信</label>
+          <input type="text" class="form-control form-control-sm" id="newContactWechat"></div>
+        <div class="col-md-4 d-flex align-items-end">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="newContactIsAdmin">
+            <label class="form-check-label small" for="newContactIsAdmin">公司管理员</label>
+          </div>
+        </div>
+        <div class="col-12 d-flex gap-2">
+          <button class="btn btn-sm btn-primary" onclick="submitAddMatContact('${companyId}')">保存</button>
+          <button class="btn btn-sm btn-secondary" onclick="document.getElementById('addContactFormArea').innerHTML=''">取消</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function submitAddMatContact(companyId) {
+  const name = document.getElementById('newContactName')?.value?.trim();
+  const email = document.getElementById('newContactEmail')?.value?.trim();
+  if (!name || !email) { showError('姓名和邮箱必填'); return; }
+  try {
+    await POST(`/api/mat-companies/${companyId}/contacts`, {
+      name, email,
+      phone: document.getElementById('newContactPhone')?.value?.trim() || null,
+      wechat: document.getElementById('newContactWechat')?.value?.trim() || null,
+      is_admin: document.getElementById('newContactIsAdmin')?.checked ? 1 : 0,
+    });
+    showSuccess('联系人已添加');
+    const company = await GET('/api/mat-companies');
+    const c = company.find(x => x.id === companyId);
+    await showMatCompanyDetail(companyId, c?.name || '');
+  } catch(e) { showError('添加失败: ' + e.message); }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  ADM MODULE — Admission Form Wizard + Document Management
+// ══════════════════════════════════════════════════════════════════════════
+
+// ─── State for the step wizard ─────────────────────────────────────────────
+const AdmState = {
+  profileId: null,
+  draft: {},      // mirror of adm_profiles fields
+  step: 1,
+  totalSteps: 11,
+  // sub-arrays (loaded from API)
+  family: [],
+  residence: [],
+  education: [],
+  employment: [],
+  guardian: null,
+  parentPrAdditional: [],
+  spousePrAdditional: null,
+  signatures: {},  // { applicant: {file_id, sig_date}, guardian: {...} }
+};
+
+// ─── Review status badge ────────────────────────────────────────────────────
+function admReviewBadge(status) {
+  const map = {
+    draft: ['secondary', '草稿'],
+    submitted: ['info', '已提交'],
+    generating_documents: ['warning', '生成文件中'],
+    generation_failed: ['danger', '生成失败'],
+    pending_review: ['primary', '待审核'],
+    pending_additional_docs: ['warning', '待补件'],
+    approved: ['success', '审核通过'],
+    case_created: ['success', '已创建案例'],
+  };
+  const [color, label] = map[status] || ['secondary', status];
+  return `<span class="badge bg-${color}">${label}</span>`;
+}
+
+// ─── List page ─────────────────────────────────────────────────────────────
+async function renderAdmProfiles() {
+  const main = document.getElementById('main-content');
+  main.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-primary"></div></div>';
+
+  let profiles = [];
+  try { profiles = await GET('/api/adm-profiles'); }
+  catch(e) { main.innerHTML = `<div class="alert alert-danger m-4">加载失败: ${escapeHtml(e.message)}</div>`; return; }
+
+  const canCreate = ['principal','counselor','intake_staff'].includes(State.user?.role);
+
+  main.innerHTML = `
+    <div class="page-header mb-4 d-flex justify-content-between align-items-center">
+      <h4><i class="bi bi-file-earmark-person me-2"></i>招生申请表</h4>
+      ${canCreate ? `<button class="btn btn-primary" onclick="renderAdmFormWizard()">
+        <i class="bi bi-plus-circle me-1"></i>新建申请表</button>` : ''}
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>申请人</th><th>课程</th><th>入学年</th><th>来源</th>
+            <th>审核状态</th><th>提交时间</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${profiles.length ? profiles.map(p => `
+            <tr>
+              <td><strong>${escapeHtml(p.surname||'')} ${escapeHtml(p.given_name||'')}</strong>
+                ${p.chinese_name ? `<small class="text-muted ms-1">${escapeHtml(p.chinese_name)}</small>` : ''}</td>
+              <td>${escapeHtml(p.course_name||'—')}</td>
+              <td>${escapeHtml(p.intake_year||'—')}</td>
+              <td><span class="badge bg-${p.source_type==='agent'?'warning':'secondary'}">${p.source_type==='agent'?'中介':'Staff'}</span></td>
+              <td>${admReviewBadge(p.review_status || p.status)}</td>
+              <td><small class="text-muted">${p.submitted_at ? p.submitted_at.slice(0,10) : (p.created_at||'').slice(0,10)}</small></td>
+              <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="renderAdmCaseDetail('${p.id}')">
+                  <i class="bi bi-eye"></i></button>
+                ${canCreate && p.status==='draft' ? `<button class="btn btn-sm btn-outline-secondary ms-1" onclick="renderAdmFormWizard('${p.id}')">
+                  <i class="bi bi-pencil"></i></button>` : ''}
+              </td>
+            </tr>
+          `).join('') : '<tr><td colspan="7" class="text-center text-muted py-4">暂无申请表</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ─── Case detail (view mode) ───────────────────────────────────────────────
+async function renderAdmCaseDetail(profileId) {
+  const main = document.getElementById('main-content');
+  main.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-primary"></div></div>';
+
+  let p;
+  try { p = await GET(`/api/adm-profiles/${profileId}`); }
+  catch(e) { main.innerHTML = `<div class="alert alert-danger m-4">加载失败: ${escapeHtml(e.message)}</div>`; return; }
+
+  const reviewStatus = p.review_status || p.status;
+  const canReview = ['principal','intake_staff'].includes(State.user?.role);
+  const isPending = reviewStatus === 'pending_review';
+  const isFailed  = reviewStatus === 'generation_failed';
+  const isApproved = reviewStatus === 'approved';
+
+  // Latest documents
+  const latestDocs = {};
+  (p.documents || []).forEach(d => { if (d.is_latest) latestDocs[d.doc_type] = d; });
+
+  main.innerHTML = `
+    <div class="page-header mb-3 d-flex justify-content-between align-items-center">
+      <div>
+        <button class="btn btn-sm btn-outline-secondary me-2" onclick="renderAdmProfiles()">
+          <i class="bi bi-arrow-left"></i></button>
+        <strong>${escapeHtml(p.surname||'')} ${escapeHtml(p.given_name||'')}</strong>
+        <small class="text-muted ms-2">${escapeHtml(p.course_name||'')} · ${escapeHtml(p.intake_year||'')}</small>
+      </div>
+      <div class="d-flex gap-2 align-items-center">
+        ${admReviewBadge(reviewStatus)}
+        ${p.status === 'submitted' ? `<button class="btn btn-sm ${isFailed?'btn-warning':'btn-outline-secondary'}" onclick="admRegenerateDocs('${p.id}')">
+          <i class="bi bi-arrow-clockwise me-1"></i>重新生成文件</button>` : ''}
+        ${isPending && canReview ? `
+          <button class="btn btn-sm btn-success" onclick="admReview('${p.id}','approve')">
+            <i class="bi bi-check-circle me-1"></i>审核通过</button>
+          <button class="btn btn-sm btn-outline-warning" onclick="admReview('${p.id}','request_docs')">
+            <i class="bi bi-exclamation-circle me-1"></i>退回补件</button>` : ''}
+        ${isApproved && canReview ? `<button class="btn btn-sm btn-primary" onclick="admCreateCase('${p.id}')">
+          <i class="bi bi-folder-plus me-1"></i>创建入学案例</button>` : ''}
+        ${p.status === 'draft' ? `<button class="btn btn-sm btn-outline-primary" onclick="renderAdmFormWizard('${p.id}')">
+          <i class="bi bi-pencil me-1"></i>继续填写</button>` : ''}
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-3" id="admDetailTabs">
+      <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#admTab-profile">申请信息</a></li>
+      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#admTab-docs">生成文件</a></li>
+    </ul>
+    <div class="tab-content">
+      <div class="tab-pane fade show active" id="admTab-profile">
+        ${_admRenderProfileSummary(p)}
+      </div>
+      <div class="tab-pane fade" id="admTab-docs">
+        ${_admRenderDocuments(latestDocs, p)}
+      </div>
+    </div>
+  `;
+}
+
+function _admRenderProfileSummary(p) {
+  const fieldRow = (label, value) => value
+    ? `<div class="col-md-4 mb-2"><small class="text-muted d-block">${label}</small><span>${escapeHtml(String(value))}</span></div>`
+    : '';
+
+  const tableSection = (title, headers, rows, emptyMsg='暂无数据') => `
+    <div class="mb-3">
+      <div class="fw-semibold text-primary small mb-1">${title}</div>
+      ${rows.length ? `<table class="table table-sm table-bordered mb-0">
+        <thead class="table-light"><tr>${headers.map(h=>`<th class="small">${h}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map(r=>`<tr>${r.map(c=>`<td class="small">${escapeHtml(String(c||''))}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table>` : `<div class="text-muted small">${emptyMsg}</div>`}
+    </div>`;
+
+  return `
+    <div class="card mb-3"><div class="card-header fw-semibold">课程与来源</div><div class="card-body"><div class="row">
+      ${fieldRow('课程', p.course_name)}${fieldRow('课程代码', p.course_code)}${fieldRow('入学年', p.intake_year)}
+      ${fieldRow('入学月', p.intake_month)}${fieldRow('学习模式', p.study_mode)}${fieldRow('校区', p.campus)}
+      ${fieldRow('来源', p.source_type)}
+    </div></div></div>
+
+    <div class="card mb-3"><div class="card-header fw-semibold">申请人基本信息</div><div class="card-body"><div class="row">
+      ${fieldRow('英文姓', p.surname)}${fieldRow('英文名', p.given_name)}${fieldRow('中文姓名', p.chinese_name)}
+      ${fieldRow('性别', p.gender)}${fieldRow('出生日期', p.dob)}${fieldRow('出生国', p.birth_country)}
+      ${fieldRow('国籍', p.nationality)}${fieldRow('婚姻状况', p.marital_status)}
+    </div></div></div>
+
+    <div class="card mb-3"><div class="card-header fw-semibold">护照与新加坡状态</div><div class="card-body"><div class="row">
+      ${fieldRow('护照号', p.passport_no)}${fieldRow('护照到期', p.passport_expiry)}
+      ${fieldRow('SG Pass 类型', p.sg_pass_type)}${fieldRow('NRIC/FIN', p.sg_nric_fin)}
+    </div></div></div>
+
+    <div class="card mb-3"><div class="card-body">
+      ${tableSection('家庭成员', ['关系','姓名','国籍','SG状态','职业'],
+        (p.family||[]).map(m=>[m.member_type,`${m.surname||''} ${m.given_name||''}`.trim(),m.nationality,m.sg_status,m.occupation]))}
+      ${tableSection('教育经历', ['学校','国家','学历','专业','时间段','GPA'],
+        (p.education||[]).map(e=>[e.institution_name,e.country,e.qualification,e.major,`${e.date_from||''}–${e.date_to||''}`,e.gpa]))}
+      ${tableSection('工作经历', ['雇主','国家','职位','时间段'],
+        (p.employment||[]).map(e=>[e.employer,e.country,e.position,`${e.date_from||''}–${e.is_current?'至今':(e.date_to||'')}`]))}
+      ${tableSection('近五年居住史', ['国家','城市','地址','从','到','目的'],
+        (p.residence||[]).map(r=>[r.country,r.city,r.address,r.date_from,r.date_to||'至今',r.purpose]))}
+    </div></div>
+  `;
+}
+
+function _admRenderDocuments(latestDocs, p) {
+  const docDefs = [
+    { type:'SAF',    label:'Student Application Form' },
+    { type:'FORM16', label:'Form 16' },
+    { type:'V36',    label:'V36' },
+  ];
+  const statusIcon = s => ({
+    done:'<i class="bi bi-check-circle-fill text-success"></i>',
+    failed:'<i class="bi bi-x-circle-fill text-danger"></i>',
+    generating:'<i class="bi bi-arrow-clockwise text-warning"></i>',
+    pending:'<i class="bi bi-clock text-muted"></i>',
+  }[s] || '<i class="bi bi-dash text-muted"></i>');
+
+  return `
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div class="text-muted small"><i class="bi bi-info-circle me-1"></i>文件在"正式提交"后自动生成。</div>
+      ${p.status === 'submitted' ? `<button class="btn btn-sm btn-outline-primary" onclick="admRegenerateDocs('${p.id}')">
+        <i class="bi bi-arrow-clockwise me-1"></i>重新生成全部文件</button>` : ''}
+    </div>
+    <div class="row g-3">
+      ${docDefs.map(({ type, label }) => {
+        const doc = latestDocs[type];
+        const hasFile = doc?.status === 'done' && doc?.file_id;
+        return `<div class="col-md-4">
+          <div class="card h-100">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <h6 class="fw-semibold mb-0">${label}</h6>
+                ${doc ? statusIcon(doc.status) : '<span class="text-muted small">未生成</span>'}
+              </div>
+              ${doc ? `<small class="text-muted d-block">版本 v${doc.version_no}</small>
+                <small class="text-muted d-block">${doc.generated_at ? doc.generated_at.slice(0,16) : ''}</small>
+                ${doc.status==='failed' ? `<div class="text-danger small mt-1">${escapeHtml(doc.error_message||'')}</div>` : ''}` : ''}
+            </div>
+            ${hasFile ? `<div class="card-footer">
+              <a class="btn btn-sm btn-outline-primary w-100" href="/api/adm-docs/${doc.id}/download" target="_blank">
+                <i class="bi bi-download me-1"></i>下载</a>
+            </div>` : ''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    ${Object.values(latestDocs).some(d => d.status === 'generating') ? `
+      <div class="text-center mt-3">
+        <div class="spinner-border spinner-border-sm text-warning me-2"></div>
+        <span class="text-muted small">文件生成中，请稍候…</span>
+        <script>setTimeout(()=>renderAdmCaseDetail('${p.id}'), 5000)</script>
+      </div>` : ''}
+  `;
+}
+
+// ── 左栏摘要操作函数 ──
+async function addQuickTask(caseId) {
+  const input = document.getElementById('sideTaskTitle');
+  const title = input?.value?.trim();
+  if (!title) return;
+  try {
+    await api('POST', `/api/intake-cases/${caseId}/tasks`, { title, priority: 'normal', category: '入学' });
+    input.value = '';
+    showToast('任务已添加');
+    renderIntakeCaseDetail();
+  } catch(e) { showToast(e.message, 'danger'); }
+}
+
+async function toggleTaskComplete(taskId, caseId) {
+  try {
+    const res = await api('GET', `/api/tasks/${taskId}`);
+    const t = res.task || res;
+    const newStatus = t.status === 'done' ? 'pending' : 'done';
+    await api('PUT', `/api/tasks/${taskId}`, {
+      title: t.title,
+      description: t.description,
+      category: t.category,
+      due_date: t.due_date,
+      status: newStatus,
+      priority: t.priority,
+      assigned_to: t.assigned_to
+    });
+    loadCaseDetail();
+  } catch(e) { showToast(e.message, 'danger'); }
+}
+
+function openVisaEditPanel(caseId) {
+  // 打开旧的签证编辑卡片作为弹窗——复用旧代码
+  const c = window._currentCaseDetail;
+  if (!c) return;
+  const visa = c.visa || {};
+  showModal('编辑签证信息', `
+    <div class="row g-2">
+      <div class="col-6"><label class="form-label small">签证状态</label>
+        <select id="visaStatus" class="form-select form-select-sm">
+          <option value="not_started" ${visa.status==='not_started'?'selected':''}>未开始</option>
+          <option value="submitted" ${visa.status==='submitted'?'selected':''}>已提交</option>
+          <option value="ipa_received" ${visa.status==='ipa_received'?'selected':''}>已获IPA</option>
+          <option value="approved" ${visa.status==='approved'?'selected':''}>已批准</option>
+          <option value="rejected" ${visa.status==='rejected'?'selected':''}>被拒</option>
+        </select></div>
+      <div class="col-6"><label class="form-label small">SOLAR申请号</label><input class="form-control form-control-sm" id="visaSolar" value="${escapeHtml(visa.solar_app_no||'')}"></div>
+      <div class="col-6"><label class="form-label small">提交日期</label><input type="date" class="form-control form-control-sm" id="visaSubmDate" value="${visa.submission_date||''}"></div>
+      <div class="col-6"><label class="form-label small">IPA签发日期</label><input type="date" class="form-control form-control-sm" id="visaIpaDate" value="${visa.ipa_issue_date||''}"></div>
+    </div>`, async () => {
+    try {
+      await api('PUT', '/api/visa-cases/' + (visa.id || caseId), {
+        status: document.getElementById('visaStatus').value,
+        solar_app_no: document.getElementById('visaSolar').value,
+        submission_date: document.getElementById('visaSubmDate').value,
+        ipa_issue_date: document.getElementById('visaIpaDate').value,
+      });
+      showToast('签证信息已更新');
+      renderIntakeCaseDetail();
+    } catch(e) { showToast(e.message, 'danger'); return false; }
+  });
+}
+
+function openArrivalEditPanel(caseId) {
+  const c = window._currentCaseDetail;
+  const arr = c?.arrival || {};
+  showModal('编辑到校信息', `
+    <div class="row g-2">
+      <div class="col-6"><label class="form-label small">预计到达</label><input type="date" class="form-control form-control-sm" id="arrExp" value="${arr.expected_arrival||''}"></div>
+      <div class="col-6"><label class="form-label small">实际到达</label><input type="date" class="form-control form-control-sm" id="arrAct" value="${arr.actual_arrival||''}"></div>
+      <div class="col-6"><label class="form-label small">航班号</label><input class="form-control form-control-sm" id="arrFlt" value="${escapeHtml(arr.flight_no||'')}"></div>
+      <div class="col-6"><label class="form-label small">住宿安排</label><input class="form-control form-control-sm" id="arrAcc" value="${escapeHtml(arr.accommodation||'')}"></div>
+    </div>`, async () => {
+    try {
+      await api('PUT', '/api/arrival-records/' + (arr.id || caseId), {
+        expected_arrival: document.getElementById('arrExp').value,
+        actual_arrival: document.getElementById('arrAct').value,
+        flight_no: document.getElementById('arrFlt').value,
+        accommodation: document.getElementById('arrAcc').value,
+      });
+      showToast('到校信息已更新');
+      renderIntakeCaseDetail();
+    } catch(e) { showToast(e.message, 'danger'); return false; }
+  });
+}
+
+function openInvoicePanel(caseId) {
+  showModal('创建发票', `
+    <div class="row g-2">
+      <div class="col-6"><label class="form-label small">金额 (SGD)</label><input type="number" class="form-control form-control-sm" id="invAmount" placeholder="15000"></div>
+      <div class="col-6"><label class="form-label small">到期日</label><input type="date" class="form-control form-control-sm" id="invDue"></div>
+      <div class="col-12"><label class="form-label small">备注</label><input class="form-control form-control-sm" id="invNotes" placeholder="学费 Semester 1"></div>
+    </div>`, async () => {
+    const amount = document.getElementById('invAmount').value;
+    if (!amount) { showToast('请输入金额', 'warning'); return false; }
+    try {
+      await api('POST', `/api/intake-cases/${caseId}/invoices`, {
+        amount, due_date: document.getElementById('invDue').value, notes: document.getElementById('invNotes').value
+      });
+      showToast('发票已创建');
+      renderIntakeCaseDetail();
+    } catch(e) { showToast(e.message, 'danger'); return false; }
+  });
+}
+
+async function sendSurvey(caseId) {
+  if (!confirm('发送满意度调查链接给学生？')) return;
+  try {
+    await api('POST', `/api/intake-cases/${caseId}/send-survey-link`);
+    showToast('调查链接已发送');
+    renderIntakeCaseDetail();
+  } catch(e) { showToast(e.message, 'danger'); }
+}
+
+async function admRegenerateDocs(profileId) {
+  if (!confirm('确定要重新生成所有申请文件？')) return;
+  try {
+    await POST(`/api/adm-profiles/${profileId}/regenerate-doc`, {});
+    showSuccess('已触发重新生成，请稍候刷新');
+    setTimeout(() => renderAdmCaseDetail(profileId), 2000);
+  } catch(e) { showError('操作失败: ' + e.message); }
+}
+
+async function admReview(profileId, decision) {
+  const labels = { approve:'审核通过', request_docs:'退回补件' };
+  const note = decision !== 'approve' ? prompt('请填写退回原因（将通知申请方）：') : null;
+  if (decision !== 'approve' && note === null) return; // cancelled
+  try {
+    await PUT(`/api/adm-profiles/${profileId}/review`, { decision, note });
+    showSuccess(`操作成功: ${labels[decision]}`);
+    renderAdmCaseDetail(profileId);
+  } catch(e) { showError('操作失败: ' + e.message); }
+}
+
+async function admCreateCase(profileId) {
+  if (!confirm('确定要基于此申请表创建正式入学案例？')) return;
+  try {
+    const res = await POST(`/api/adm-profiles/${profileId}/create-case`, {});
+    showSuccess('入学案例已创建');
+    navigate('intake-cases', { caseId: res.intake_case_id });
+  } catch(e) { showError('创建失败: ' + e.message); }
+}
+
+// ─── Step Wizard ────────────────────────────────────────────────────────────
+async function renderAdmFormWizard(profileId = null) {
+  const main = document.getElementById('main-content');
+  main.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-primary"></div></div>';
+
+  // Load or create profile
+  if (profileId) {
+    try {
+      const p = await GET(`/api/adm-profiles/${profileId}`);
+      Object.assign(AdmState, {
+        profileId: p.id,
+        draft: { ...p },
+        step: Math.min((p.step_completed || 0) + 1, 11),
+        family: p.family || [],
+        residence: p.residence || [],
+        education: p.education || [],
+        employment: p.employment || [],
+        guardian: p.guardian || null,
+        parentPrAdditional: p.parentPrAdditional || [],
+        spousePrAdditional: p.spousePrAdditional || null,
+        signatures: {},
+      });
+      (p.signatures||[]).forEach(s => { AdmState.signatures[s.sig_type] = s; });
+    } catch(e) { main.innerHTML = `<div class="alert alert-danger m-4">加载失败</div>`; return; }
+  } else {
+    // New profile
+    try {
+      const res = await POST('/api/adm-profiles', { source_type: 'staff' });
+      Object.assign(AdmState, {
+        profileId: res.id, draft: { source_type:'staff' }, step: 1,
+        family:[], residence:[], education:[], employment:[],
+        guardian: null, parentPrAdditional: [], spousePrAdditional: null, signatures:{},
+      });
+    } catch(e) { main.innerHTML = `<div class="alert alert-danger m-4">创建草稿失败</div>`; return; }
+  }
+
+  _admRenderStep();
+}
+
+function _admRenderStep() {
+  const main = document.getElementById('main-content');
+  const { step, totalSteps } = AdmState;
+  const stepTitles = [
+    '','案例来源与课程','申请人基本信息','护照与新加坡状态','联系方式与地址',
+    '家庭成员','近五年居住史','教育背景与语言','工作经历','财务支持',
+    '条件区块','声明、PDPA 与签字'
+  ];
+
+  // Progress bar
+  const pct = Math.round(((step-1) / (totalSteps-1)) * 100);
+
+  main.innerHTML = `
+    <div class="page-header mb-3 d-flex justify-content-between align-items-center">
+      <div>
+        <button class="btn btn-sm btn-outline-secondary me-2" onclick="_admConfirmLeave()">
+          <i class="bi bi-arrow-left"></i></button>
+        <strong>招生申请表</strong>
+        <small class="text-muted ms-2">第 ${step}/${totalSteps} 步 — ${stepTitles[step]}</small>
+      </div>
+      <button class="btn btn-sm btn-outline-secondary" onclick="_admSaveDraft(true)">
+        <i class="bi bi-floppy me-1"></i>保存草稿</button>
+    </div>
+
+    <div class="progress mb-4" style="height:8px">
+      <div class="progress-bar" style="width:${pct}%"></div>
+    </div>
+
+    <!-- Step nav pills -->
+    <div class="d-flex flex-wrap gap-1 mb-4">
+      ${Array.from({length: totalSteps}, (_,i) => i+1).map(s => `
+        <span class="badge ${s===step?'bg-primary':s<step?'bg-success':'bg-light text-dark'}"
+          style="cursor:${s<=AdmState.draft.step_completed+1?'pointer':'default'}"
+          onclick="${s<=AdmState.draft.step_completed+1?`_admGoToStep(${s})`:''}">
+          ${s}</span>
+      `).join('')}
+    </div>
+
+    <div id="adm-step-content">
+      ${_admStepContent(step)}
+    </div>
+
+    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+      ${step > 1
+        ? `<button class="btn btn-outline-secondary" onclick="_admPrevStep()"><i class="bi bi-arrow-left me-1"></i>上一步</button>`
+        : `<div></div>`}
+      ${step < totalSteps
+        ? `<button class="btn btn-primary" onclick="_admNextStep()">下一步<i class="bi bi-arrow-right ms-1"></i></button>`
+        : `<button class="btn btn-success" onclick="_admFinalSubmit()"><i class="bi bi-send me-1"></i>正式提交</button>`}
+    </div>
+  `;
+
+  // Re-init signature canvas if on step 11
+  if (step === 11) { setTimeout(_admInitSignatureCanvases, 100); }
+}
+
+function _admStepContent(step) {
+  const d = AdmState.draft;
+  const tf = (name, label, val, required=false, type='text') =>
+    `<div class="col-md-6 mb-3">
+      <label class="form-label fw-semibold small">${label}${required?'<span class="text-danger ms-1">*</span>':''}</label>
+      <input type="${type}" class="form-control form-control-sm adm-field" name="${name}" value="${escapeHtml(String(val||''))}">
+    </div>`;
+  const sel = (name, label, options, val, required=false) =>
+    `<div class="col-md-6 mb-3">
+      <label class="form-label fw-semibold small">${label}${required?'<span class="text-danger ms-1">*</span>':''}</label>
+      <select class="form-select form-select-sm adm-field" name="${name}">
+        <option value="">— 请选择 —</option>
+        ${options.map(o => typeof o==='string'
+          ? `<option value="${o}" ${val===o?'selected':''}>${o}</option>`
+          : `<option value="${o[0]}" ${val===o[0]?'selected':''}>${o[1]}</option>`
+        ).join('')}
+      </select>
+    </div>`;
+  const chk = (name, label, val) =>
+    `<div class="col-md-6 mb-3 d-flex align-items-center gap-2">
+      <input type="checkbox" class="form-check-input adm-field" name="${name}" id="adm_${name}" ${val?'checked':''}>
+      <label class="form-check-label small" for="adm_${name}">${label}</label>
+    </div>`;
+
+  // ── Steps 1–11 HTML ──
+  switch(step) {
+    case 1: return `<div class="row">
+      ${sel('source_type','案例来源 *',[['staff','Staff 直接创建'],['agent','中介送来']],d.source_type,true)}
+      ${d.source_type==='agent' ? tf('agent_id','中介 ID',d.agent_id) : '<div class="col-md-6"></div>'}
+      ${tf('course_name','课程名称 *',d.course_name,true)}
+      ${tf('course_code','课程代码',d.course_code)}
+      ${tf('intake_year','入学年 *',d.intake_year,true)}
+      ${sel('intake_month','入学月份',['January','February','March','April','May','June','July','August','September','October','November','December'],d.intake_month)}
+      ${sel('study_mode','学习模式',['Full-time','Part-time'],d.study_mode)}
+      ${tf('campus','校区',d.campus)}
+      ${tf('school_name','学校/机构名称',d.school_name)}
+      ${tf('commencement_date','课程开始日期',d.commencement_date,false,'date')}
+      ${tf('period_applied_from','申请期间（开始）',d.period_applied_from,false,'date')}
+      ${tf('period_applied_to','申请期间（结束）',d.period_applied_to,false,'date')}
+      ${chk('requires_student_pass','需要学生准证 (Student Pass)',d.requires_student_pass!==0)}
+    </div>`;
+
+    case 2: return `<div class="row">
+      ${tf('surname','英文姓 (Surname) *',d.surname,true)}
+      ${tf('given_name','英文名 (Given Name) *',d.given_name,true)}
+      ${tf('chinese_name','中文姓名',d.chinese_name)}
+      ${sel('gender','性别 *',['Male','Female','Other'],d.gender,true)}
+      ${tf('dob','出生日期 *',d.dob,true,'date')}
+      ${tf('birth_country','出生国家 *',d.birth_country,true)}
+      ${tf('birth_city','出生城市',d.birth_city)}
+      ${tf('nationality','国籍 *',d.nationality,true)}
+      ${tf('race','种族',d.race)}
+      ${tf('religion','宗教',d.religion)}
+      ${sel('marital_status','婚姻状况 *',['Single','Married','Divorced','Widowed'],d.marital_status,true)}
+      ${tf('occupation','职业',d.occupation)}
+    </div>`;
+
+    case 3: return `<div class="row">
+      ${sel('passport_type','证件类型 *',[['Passport','护照'],['Travel Document','旅行证件'],['IC','身份证']],d.passport_type,true)}
+      ${tf('passport_no','护照/证件号码 *',d.passport_no,true)}
+      ${tf('passport_issue_date','签发日期',d.passport_issue_date,false,'date')}
+      ${tf('passport_expiry','到期日期 *',d.passport_expiry,true,'date')}
+      ${tf('passport_issue_country','签发国家',d.passport_issue_country)}
+      ${tf('alias','别名 / Alias',d.alias)}
+      ${tf('birth_certificate_no','出生证号码',d.birth_certificate_no)}
+      ${tf('birth_province_state','出生省/州 (Province/State)',d.birth_province_state)}
+      ${tf('foreign_identification_no','外国身份证号 (FIN)',d.foreign_identification_no)}
+      ${tf('malaysian_id_no','马来西亚身份证号 (如适用)',d.malaysian_id_no)}
+      <div class="col-12"><hr><h6 class="fw-semibold text-primary">新加坡状态</h6></div>
+      ${sel('sg_pass_type','在新加坡的 Pass 类型 *',[['SC','Singapore Citizen'],['PR','Permanent Resident'],['EP','Employment Pass'],['S Pass','S Pass'],['DP','Dependant Pass'],['Student Pass','Student Pass'],['None','无']],d.sg_pass_type,true)}
+      ${tf('sg_nric_fin','NRIC / FIN 号码',d.sg_nric_fin)}
+      ${tf('sg_pass_expiry','Pass 到期日期',d.sg_pass_expiry,false,'date')}
+      ${chk('was_ever_sg_citizen_or_pr','曾经是新加坡公民或PR',d.was_ever_sg_citizen_or_pr)}
+      ${chk('prior_sg_study','曾在新加坡就读',d.prior_sg_study)}
+      ${d.prior_sg_study ? tf('prior_sg_school','曾就读学校',d.prior_sg_school)+tf('prior_sg_year','就读年份',d.prior_sg_year) : ''}
+    </div>`;
+
+    case 4: return `<div class="row">
+      ${tf('phone_mobile','手机号码 *',d.phone_mobile,true)}
+      ${tf('phone_home','家庭电话',d.phone_home)}
+      ${tf('email','电子邮箱 *',d.email,true,'email')}
+      ${tf('address_line1','地址第一行 *',d.address_line1,true)}
+      ${tf('address_line2','地址第二行',d.address_line2)}
+      ${tf('city','城市 *',d.city,true)}
+      ${tf('state_province','州/省',d.state_province)}
+      ${tf('postal_code','邮政编码',d.postal_code)}
+      ${tf('country_of_residence','居住国家 *',d.country_of_residence,true)}
+      <div class="col-12"><hr><h6 class="fw-semibold text-primary">新加坡住址（如与上方不同）</h6></div>
+      ${tf('sg_address','新加坡地址',d.sg_address)}
+      ${tf('sg_tel_no','新加坡电话',d.sg_tel_no)}
+      <div class="col-12"><hr><h6 class="fw-semibold text-primary">家乡地址</h6></div>
+      ${tf('hometown_address','家乡地址（如与上方不同）',d.hometown_address)}
+    </div>`;
+
+    case 5: return `
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="fw-semibold mb-0">家庭成员</h6>
+        <div class="d-flex gap-2">
+          ${['father','mother','step_father','step_mother','sibling','spouse'].map(t =>
+            `<button class="btn btn-sm btn-outline-primary" onclick="_admAddFamily('${t}')">+ ${t}</button>`
+          ).join('')}
+        </div>
+      </div>
+      <div id="adm-family-list">${_admRenderFamilyList()}</div>`;
+
+    case 6: return `
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="fw-semibold mb-0">近五年居住史（每个超过1年的居住地均需填写）</h6>
+        <button class="btn btn-sm btn-outline-primary" onclick="_admAddRow('residence')">+ 添加</button>
+      </div>
+      <div id="adm-residence-list">${_admRenderArrayList('residence',
+        ['country','city','address','date_from','date_to','purpose'],
+        ['国家','城市','地址','开始年月','结束年月','目的']
+      )}</div>`;
+
+    case 7: return `
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="fw-semibold mb-0">教育经历</h6>
+        <button class="btn btn-sm btn-outline-primary" onclick="_admAddRow('education')">+ 添加</button>
+      </div>
+      <div id="adm-education-list">${_admRenderArrayList('education',
+        ['institution_name','country','state_province','qualification','major','date_from','date_to','gpa','language_of_instruction','educational_cert_no'],
+        ['学校名称','国家','省/州','学历','专业','开始','结束','GPA','教学语言','教育证书号']
+      )}</div>
+      <hr>
+      <h6 class="fw-semibold text-primary mt-3">语言能力</h6>
+      <div class="row">
+        ${tf('native_language','母语',d.native_language)}
+        ${sel('english_proficiency','英语水平证明',[['Native','母语'],['IELTS','雅思'],['TOEFL','托福'],['Others','其他']],d.english_proficiency)}
+        ${tf('ielts_score','雅思成绩',d.ielts_score)}
+        ${tf('toefl_score','托福成绩',d.toefl_score)}
+        ${tf('other_lang_test','其他语言考试',d.other_lang_test)}
+        ${tf('other_lang_score','其他考试成绩',d.other_lang_score)}
+        ${tf('highest_lang_proficiency','最高语言能力等级',d.highest_lang_proficiency)}
+        ${chk('need_english_placement_test','需要英语分级测试',d.need_english_placement_test)}
+      </div>`;
+
+    case 8: return `
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="fw-semibold mb-0">工作经历（如无请留空）</h6>
+        <button class="btn btn-sm btn-outline-primary" onclick="_admAddRow('employment')">+ 添加</button>
+      </div>
+      <div id="adm-employment-list">${_admRenderArrayList('employment',
+        ['employer','country','position','date_from','date_to','reason_left','nature_of_duties'],
+        ['雇主','国家','职位','开始时间','结束时间（留空=至今）','离职原因','工作职责']
+      )}</div>`;
+
+    case 9: return `<div class="row">
+      ${sel('financial_source','财务来源 *',[['Self','个人自费'],['Parents','父母资助'],['Sponsor','赞助商'],['Scholarship','奖学金'],['Loan','贷款']],d.financial_source,true)}
+      ${tf('annual_income','年收入/可支配资金 (SAF)',d.annual_income)}
+      ${tf('sponsor_name','赞助人姓名',d.sponsor_name)}
+      ${tf('sponsor_relation','赞助人关系',d.sponsor_relation)}
+      ${chk('bank_statement_available','已准备银行存款证明',d.bank_statement_available)}
+      <div class="col-12"><hr><h6 class="fw-semibold text-primary">详细财务信息（V36 Part F）</h6></div>
+      ${tf('applicant_monthly_income','申请人月均收入 (过去6个月)',d.applicant_monthly_income)}
+      ${tf('applicant_current_saving','申请人当前存款',d.applicant_current_saving)}
+      ${tf('father_monthly_income','父亲月均收入',d.father_monthly_income)}
+      ${tf('father_current_saving','父亲当前存款',d.father_current_saving)}
+      ${tf('mother_monthly_income','母亲月均收入',d.mother_monthly_income)}
+      ${tf('mother_current_saving','母亲当前存款',d.mother_current_saving)}
+      ${d.marital_status==='Married' ? `
+        ${tf('spouse_monthly_income','配偶月均收入',d.spouse_monthly_income)}
+        ${tf('spouse_current_saving','配偶当前存款',d.spouse_current_saving)}
+      ` : ''}
+      ${chk('other_financial_support','有其他经济来源',d.other_financial_support)}
+      ${d.other_financial_support ? `
+        ${tf('other_financial_details','其他来源详情',d.other_financial_details)}
+        ${tf('other_financial_amount','其他来源金额',d.other_financial_amount)}
+      ` : ''}
+    </div>`;
+
+    case 10: {
+      const dob = d.dob ? new Date(d.dob) : null;
+      const age = dob ? Math.floor((Date.now() - dob) / (365.25*24*3600*1000)) : 99;
+      const isMinor = age < 18;
+      const isMarried = d.marital_status === 'Married';
+      const scPrParents = (AdmState.family||[]).filter(m =>
+        ['father','mother','step_father','step_mother'].includes(m.member_type) &&
+        ['SC','PR'].includes(m.sg_status)
+      );
+      const spouse = (AdmState.family||[]).find(m => m.member_type==='spouse');
+      const scPrSpouse = spouse && ['SC','PR'].includes(spouse?.sg_status);
+      const g = AdmState.guardian || {};
+
+      return `
+        ${isMinor ? `
+          <div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle me-1"></i>
+            申请人未满18岁，<strong>监护人信息为必填</strong></div>
+          <h6 class="fw-semibold text-primary mb-2">监护人信息</h6>
+          <div class="row">
+            ${tf('g_surname','监护人英文姓 *',g.surname,true)} ${tf('g_given_name','监护人英文名 *',g.given_name,true)}
+            ${sel('g_relation','与申请人关系 *',['Father','Mother','Uncle','Aunt','Grandparent','Legal Guardian'],g.relation,true)}
+            ${tf('g_dob','监护人出生日期',g.dob,false,'date')} ${tf('g_nationality','监护人国籍',g.nationality)}
+            ${tf('g_nric_fin','NRIC/FIN',g.nric_fin)} ${tf('g_phone','电话 *',g.phone,true)}
+            ${tf('g_email','电子邮箱',g.email,false,'email')}
+            ${tf('g_address','地址',g.address)} ${tf('g_occupation','职业',g.occupation)}
+            ${tf('g_employer','雇主',g.employer)} ${tf('g_passport_no','监护人护照号',g.passport_no)}
+            ${sel('g_marital_status','监护人婚姻状况',['Single','Married','Divorced','Widowed'],g.marital_status)}
+            ${tf('g_marriage_certificate_no','结婚证号',g.marriage_certificate_no)}
+            ${tf('g_marriage_date','结婚日期',g.marriage_date,false,'date')}
+            ${tf('g_divorce_certificate_no','离婚证号',g.divorce_certificate_no)}
+            ${tf('g_divorce_date','离婚日期',g.divorce_date,false,'date')}
+            ${chk('g_custody_of_applicant','拥有申请人监护权',g.custody_of_applicant)}
+          </div><hr>` : ''}
+
+        ${scPrParents.length > 0 ? `
+          <h6 class="fw-semibold text-primary mb-2">SC/PR 父母附加信息（V36 必填）</h6>
+          ${scPrParents.map(parent => {
+            const ppr = (AdmState.parentPrAdditional||[]).find(x=>x.family_member_id===parent.id) || {};
+            return `
+              <div class="border rounded p-3 mb-3">
+                <div class="fw-semibold mb-2">${parent.member_type} — ${parent.surname||''} ${parent.given_name||''} (${parent.sg_status})</div>
+                <div class="row">
+                  ${tf(`ppr_arrival_${parent.id}`,'首次抵达新加坡日期',ppr.arrival_date,false,'date')}
+                  ${tf(`ppr_pr_cert_${parent.id}`,'PR 证书号',ppr.pr_cert_no)}
+                  ${tf(`ppr_sc_cert_${parent.id}`,'SC 证书号',ppr.sc_cert_no)}
+                  ${tf(`ppr_last_dep_${parent.id}`,'最后出境新加坡日期',ppr.last_departure,false,'date')}
+                  ${tf(`ppr_addr_sg_${parent.id}`,'新加坡地址',ppr.address_sg)}
+                  ${chk(`ppr_is_residing_${parent.id}`,'目前居住在新加坡',ppr.is_residing_sg)}
+                  <div class="col-12"><hr class="my-2"><small class="text-muted fw-semibold">婚姻信息</small></div>
+                  ${sel(`ppr_marital_status_${parent.id}`,'婚姻状况',['Single','Married','Divorced','Widowed'],ppr.marital_status)}
+                  ${tf(`ppr_marriage_cert_no_${parent.id}`,'结婚证号',ppr.marriage_certificate_no)}
+                  ${tf(`ppr_marriage_date_${parent.id}`,'结婚日期',ppr.marriage_date,false,'date')}
+                  ${tf(`ppr_divorce_cert_no_${parent.id}`,'离婚证号',ppr.divorce_certificate_no)}
+                  ${tf(`ppr_divorce_date_${parent.id}`,'离婚日期',ppr.divorce_date,false,'date')}
+                  ${chk(`ppr_custody_${parent.id}`,'拥有申请人监护权',ppr.custody_of_applicant)}
+                  <div class="col-12"><hr class="my-2"><small class="text-muted fw-semibold">学历信息</small></div>
+                  ${tf(`ppr_school_name_${parent.id}`,'学校名称',ppr.school_name)}
+                  ${tf(`ppr_school_country_${parent.id}`,'学校所在国',ppr.school_country)}
+                  ${tf(`ppr_highest_qual_${parent.id}`,'最高学历',ppr.highest_qualification)}
+                  ${tf(`ppr_edu_cert_no_${parent.id}`,'教育证书号',ppr.educational_cert_no)}
+                  <div class="col-12"><hr class="my-2"><small class="text-muted fw-semibold">工作与收入</small></div>
+                  ${tf(`ppr_company_${parent.id}`,'公司/雇主',ppr.company_name)}
+                  ${tf(`ppr_monthly_income_${parent.id}`,'月收入',ppr.monthly_income)}
+                  ${tf(`ppr_annual_income_${parent.id}`,'年收入 (过去1年)',ppr.annual_income)}
+                  ${tf(`ppr_cpf_${parent.id}`,'月均CPF (过去1年)',ppr.avg_monthly_cpf)}
+                </div>
+              </div>`;
+          }).join('')}` : ''}
+
+        ${isMarried && scPrSpouse ? `
+          <h6 class="fw-semibold text-primary mb-2">SC/PR 配偶附加信息（V36 Part H）</h6>
+          <div class="row">
+            ${tf('spr_arrival','配偶首次抵达新加坡日期',(AdmState.spousePrAdditional||{}).arrival_date,false,'date')}
+            ${tf('spr_pr_cert','PR 证书号',(AdmState.spousePrAdditional||{}).pr_cert_no)}
+            ${tf('spr_sc_cert','SC 证书号',(AdmState.spousePrAdditional||{}).sc_cert_no)}
+            ${tf('spr_last_dep','最后出境新加坡日期',(AdmState.spousePrAdditional||{}).last_departure,false,'date')}
+            ${tf('spr_addr_sg','新加坡地址',(AdmState.spousePrAdditional||{}).address_sg)}
+            <div class="col-12"><hr class="my-2"><small class="text-muted fw-semibold">婚姻信息</small></div>
+            ${tf('spr_marriage_cert','结婚证号',(AdmState.spousePrAdditional||{}).marriage_certificate_no)}
+            ${tf('spr_marriage_date','结婚日期',(AdmState.spousePrAdditional||{}).marriage_date,false,'date')}
+            <div class="col-12"><hr class="my-2"><small class="text-muted fw-semibold">学历信息</small></div>
+            ${tf('spr_school_name','学校名称',(AdmState.spousePrAdditional||{}).school_name)}
+            ${tf('spr_school_country','学校所在国',(AdmState.spousePrAdditional||{}).school_country)}
+            ${tf('spr_highest_qual','最高学历',(AdmState.spousePrAdditional||{}).highest_qualification)}
+            ${tf('spr_edu_cert_no','教育证书号',(AdmState.spousePrAdditional||{}).educational_cert_no)}
+            <div class="col-12"><hr class="my-2"><small class="text-muted fw-semibold">工作与收入</small></div>
+            ${tf('spr_company','公司/雇主',(AdmState.spousePrAdditional||{}).company_name)}
+            ${tf('spr_monthly_income','月收入',(AdmState.spousePrAdditional||{}).monthly_income)}
+            ${tf('spr_annual_income','年收入 (过去1年)',(AdmState.spousePrAdditional||{}).annual_income)}
+            ${tf('spr_cpf','月均CPF (过去1年)',(AdmState.spousePrAdditional||{}).avg_monthly_cpf)}
+          </div>` : ''}
+
+        ${!isMinor && scPrParents.length===0 && !(isMarried && scPrSpouse) ?
+          `<div class="alert alert-info small">本步骤无需填写额外信息（申请人已满18岁，且无 SC/PR 亲属/配偶）。</div>` : ''}
+      `;
+    }
+
+    case 11: {
+      const antLabels = [
+        '您是否曾被任何国家拒签、拒绝入境或被要求离境？',
+        '您是否曾被任何国家驱逐出境？',
+        '您是否在任何国家有犯罪记录？',
+        '您目前是否患有任何传染病或传染性疾病？',
+      ];
+      const d = AdmState.draft;
+      return `
+        <h6 class="fw-semibold text-primary mb-3">Antecedent（背景申报）</h6>
+        ${[1,2,3,4].map(i => `
+          <div class="mb-3 p-3 border rounded bg-light">
+            <div class="fw-semibold small mb-2">${i}. ${antLabels[i-1]}</div>
+            <div class="d-flex gap-3">
+              ${['是 (Yes)','否 (No)'].map((lbl, vi) => `
+                <div class="form-check">
+                  <input type="radio" class="form-check-input adm-field" name="antecedent_q${i}"
+                    id="antQ${i}_${vi}" value="${vi===0?1:0}" ${(d[`antecedent_q${i}`]?1:0)===(vi===0?1:0)?'checked':''}>
+                  <label class="form-check-label small" for="antQ${i}_${vi}">${lbl}</label>
+                </div>`).join('')}
+            </div>
+          </div>`).join('')}
+        <div id="antecedent-remarks-container" class="${(d.antecedent_q1||d.antecedent_q2||d.antecedent_q3||d.antecedent_q4)?'':'d-none'}">
+          <label class="form-label fw-semibold small">Antecedent 详情（有任一"是"时必填）<span class="text-danger">*</span></label>
+          <textarea class="form-control form-control-sm adm-field" name="antecedent_remarks" rows="3">${escapeHtml(d.antecedent_remarks||'')}</textarea>
+        </div>
+        <hr>
+        <h6 class="fw-semibold text-primary mb-3">PDPA 同意书</h6>
+        <div class="alert alert-light border small mb-3">
+          本机构将收集、使用及披露您的个人数据，用于处理您的申请、管理您的学习及相关事宜。
+        </div>
+        ${chk('pdpa_consent','我已阅读并同意 PDPA 个人数据保护条款 *',d.pdpa_consent!==0)}
+        ${chk('pdpa_marketing','我同意将我的数据用于营销和宣传目的',d.pdpa_marketing!==0)}
+        ${chk('pdpa_photo_video','我同意将我的照片/视频用于营销和宣传目的',d.pdpa_photo_video!==0)}
+        <hr>
+        <h6 class="fw-semibold text-primary mb-3">签字</h6>
+        <div class="row">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold small">申请人签字 <span class="text-danger">*</span></label>
+            <canvas id="sig-canvas-applicant" width="340" height="120"
+              class="border rounded bg-white d-block" style="touch-action:none"></canvas>
+            <div class="d-flex gap-2 mt-1">
+              <button class="btn btn-sm btn-outline-secondary" onclick="_admClearSig('applicant')">清空重签</button>
+              <button class="btn btn-sm btn-outline-primary" onclick="_admSaveSig('applicant')">保存签字</button>
+            </div>
+            <div class="mt-2">
+              <label class="form-label small">签字日期 *</label>
+              <input type="date" class="form-control form-control-sm" id="sig-date-applicant"
+                value="${AdmState.signatures.applicant?.sig_date || new Date().toISOString().split('T')[0]}">
+            </div>
+            ${AdmState.signatures.applicant?.file_id
+              ? `<div class="text-success small mt-1"><i class="bi bi-check-circle me-1"></i>申请人签字已保存</div>` : ''}
+          </div>
+          ${(() => {
+            const dob = AdmState.draft.dob ? new Date(AdmState.draft.dob) : null;
+            const age = dob ? Math.floor((Date.now()-dob)/(365.25*24*3600*1000)) : 99;
+            if (age < 18) return `
+              <div class="col-md-6">
+                <label class="form-label fw-semibold small">监护人签字 <span class="text-danger">*</span></label>
+                <canvas id="sig-canvas-guardian" width="340" height="120"
+                  class="border rounded bg-white d-block" style="touch-action:none"></canvas>
+                <div class="d-flex gap-2 mt-1">
+                  <button class="btn btn-sm btn-outline-secondary" onclick="_admClearSig('guardian')">清空重签</button>
+                  <button class="btn btn-sm btn-outline-primary" onclick="_admSaveSig('guardian')">保存签字</button>
+                </div>
+                <div class="mt-2">
+                  <label class="form-label small">签字日期</label>
+                  <input type="date" class="form-control form-control-sm" id="sig-date-guardian"
+                    value="${AdmState.signatures.guardian?.sig_date || new Date().toISOString().split('T')[0]}">
+                </div>
+                ${AdmState.signatures.guardian?.file_id
+                  ? `<div class="text-success small mt-1"><i class="bi bi-check-circle me-1"></i>监护人签字已保存</div>` : ''}
+              </div>`;
+            return '';
+          })()}
+        </div>`;
+    }
+
+    default: return '<div class="alert alert-warning">未知步骤</div>';
+  }
+}
+
+// ─── Family list render ────────────────────────────────────────────────────
+function _admRenderFamilyList() {
+  if (AdmState.family.length === 0) return '<div class="text-muted small py-2">暂无家庭成员，请点击上方按钮添加</div>';
+  return AdmState.family.map((m, i) => `
+    <div class="border rounded p-3 mb-2 bg-light">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <strong class="small">${m.member_type || '成员'} ${i+1}</strong>
+        <button class="btn btn-sm btn-outline-danger" onclick="_admDeleteFamily('${m.id||''}',${i})">
+          <i class="bi bi-trash"></i></button>
+      </div>
+      <div class="row g-2">
+        <div class="col-4"><input class="form-control form-control-sm" placeholder="英文姓" value="${escapeHtml(m.surname||'')}"
+          oninput="AdmState.family[${i}].surname=this.value"></div>
+        <div class="col-4"><input class="form-control form-control-sm" placeholder="英文名" value="${escapeHtml(m.given_name||'')}"
+          oninput="AdmState.family[${i}].given_name=this.value"></div>
+        <div class="col-4"><input class="form-control form-control-sm" type="date" placeholder="出生日期" value="${m.dob||''}"
+          oninput="AdmState.family[${i}].dob=this.value"></div>
+        <div class="col-3"><input class="form-control form-control-sm" placeholder="国籍" value="${escapeHtml(m.nationality||'')}"
+          oninput="AdmState.family[${i}].nationality=this.value"></div>
+        <div class="col-3">
+          <select class="form-select form-select-sm" oninput="AdmState.family[${i}].sg_status=this.value">
+            ${['—','SC','PR','EP','S Pass','DP','Student Pass','None'].map(opt =>
+              `<option value="${opt==='—'?'':opt}" ${m.sg_status===opt?'selected':''}>${opt}</option>`).join('')}
+          </select>
+        </div>
+        <div class="col-3"><input class="form-control form-control-sm" placeholder="NRIC/FIN" value="${escapeHtml(m.nric_fin||'')}"
+          oninput="AdmState.family[${i}].nric_fin=this.value"></div>
+        <div class="col-3"><input class="form-control form-control-sm" placeholder="职业" value="${escapeHtml(m.occupation||'')}"
+          oninput="AdmState.family[${i}].occupation=this.value"></div>
+        <div class="col-2">
+          <select class="form-select form-select-sm" oninput="AdmState.family[${i}].sex=this.value">
+            <option value="">性别</option>
+            <option value="Male" ${m.sex==='Male'?'selected':''}>Male</option>
+            <option value="Female" ${m.sex==='Female'?'selected':''}>Female</option>
+          </select>
+        </div>
+        <div class="col-3"><input class="form-control form-control-sm" placeholder="SG手机" value="${escapeHtml(m.sg_mobile||'')}"
+          oninput="AdmState.family[${i}].sg_mobile=this.value"></div>
+        <div class="col-3"><input class="form-control form-control-sm" placeholder="邮箱" value="${escapeHtml(m.email||'')}"
+          oninput="AdmState.family[${i}].email=this.value"></div>
+        <div class="col-4"><input class="form-control form-control-sm" placeholder="护照号" value="${escapeHtml(m.passport_no||'')}"
+          oninput="AdmState.family[${i}].passport_no=this.value"></div>
+        ${m.member_type==='sibling'?`<div class="col-4"><input class="form-control form-control-sm" placeholder="关系(Brother/Sister)" value="${escapeHtml(m.relationship||'')}" oninput="AdmState.family[${i}].relationship=this.value"></div>`:''}
+      </div>
+    </div>`).join('');
+}
+
+async function _admAddFamily(memberType) {
+  try {
+    const res = await POST(`/api/adm-profiles/${AdmState.profileId}/family`, { member_type: memberType, sort_order: AdmState.family.length });
+    AdmState.family.push({ id: res.id, member_type: memberType, sort_order: AdmState.family.length });
+    document.getElementById('adm-family-list').innerHTML = _admRenderFamilyList();
+  } catch(e) { showError('添加失败: ' + e.message); }
+}
+
+async function _admDeleteFamily(id, idx) {
+  if (!id) { AdmState.family.splice(idx,1); document.getElementById('adm-family-list').innerHTML = _admRenderFamilyList(); return; }
+  try {
+    await DEL(`/api/adm-family/${id}`);
+    AdmState.family.splice(idx,1);
+    document.getElementById('adm-family-list').innerHTML = _admRenderFamilyList();
+  } catch(e) { showError('删除失败'); }
+}
+
+function _admRenderArrayList(entity, fields, labels) {
+  const items = AdmState[entity];
+  if (!items.length) return `<div class="text-muted small py-2">暂无记录</div>`;
+  return items.map((row, i) => `
+    <div class="border rounded p-2 mb-2 bg-light">
+      <div class="d-flex justify-content-end mb-1">
+        <button class="btn btn-sm btn-outline-danger" onclick="_admDeleteArrayItem('${entity}','${row.id||''}',${i})">
+          <i class="bi bi-trash"></i></button>
+      </div>
+      <div class="row g-2">
+        ${fields.map((f, fi) => `
+          <div class="col">
+            <label class="form-label form-label-sm mb-0 text-muted" style="font-size:10px">${labels[fi]}</label>
+            <input class="form-control form-control-sm" value="${escapeHtml(String(row[f]||''))}"
+              oninput="AdmState['${entity}'][${i}]['${f}']=this.value">
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+async function _admAddRow(entity) {
+  const tableMap = { residence:'adm_residence_history', education:'adm_education_history', employment:'adm_employment_history' };
+  try {
+    const res = await POST(`/api/adm-profiles/${AdmState.profileId}/${entity}`, { sort_order: AdmState[entity].length });
+    AdmState[entity].push({ id: res.id, sort_order: AdmState[entity].length });
+    const fieldsMap = {
+      residence: ['country','city','address','date_from','date_to','purpose'],
+      education: ['institution_name','country','qualification','major','date_from','date_to','gpa'],
+      employment: ['employer','country','position','date_from','date_to','reason_left'],
+    };
+    const labelsMap = {
+      residence: ['国家','城市','地址','开始年月','结束年月','目的'],
+      education: ['学校名称','国家','学历','专业','开始时间','结束时间','GPA'],
+      employment: ['雇主','国家','职位','开始时间','结束时间','离职原因'],
+    };
+    document.getElementById(`adm-${entity}-list`).innerHTML = _admRenderArrayList(entity, fieldsMap[entity], labelsMap[entity]);
+  } catch(e) { showError('添加失败: ' + e.message); }
+}
+
+async function _admDeleteArrayItem(entity, id, idx) {
+  if (id) {
+    try { await DEL(`/api/adm-${entity}/${id}`); } catch(e) { showError('删除失败'); return; }
+  }
+  AdmState[entity].splice(idx, 1);
+  const fieldsMap = {
+    residence: ['country','city','address','date_from','date_to','purpose'],
+    education: ['institution_name','country','qualification','major','date_from','date_to','gpa'],
+    employment: ['employer','country','position','date_from','date_to','reason_left'],
+  };
+  const labelsMap = {
+    residence: ['国家','城市','地址','开始年月','结束年月','目的'],
+    education: ['学校名称','国家','学历','专业','开始时间','结束时间','GPA'],
+    employment: ['雇主','国家','职位','开始时间','结束时间','离职原因'],
+  };
+  document.getElementById(`adm-${entity}-list`).innerHTML = _admRenderArrayList(entity, fieldsMap[entity], labelsMap[entity]);
+}
+
+// ─── Collect fields from DOM into AdmState.draft ───────────────────────────
+function _admCollectFields() {
+  document.querySelectorAll('.adm-field').forEach(el => {
+    const name = el.name;
+    if (!name) return;
+    if (el.type === 'checkbox') {
+      AdmState.draft[name] = el.checked ? 1 : 0;
+    } else if (el.type === 'radio') {
+      if (el.checked) AdmState.draft[name] = Number(el.value);
+    } else {
+      AdmState.draft[name] = el.value;
+    }
+  });
+
+  // Show/hide antecedent remarks
+  const anyAnt = [1,2,3,4].some(i => AdmState.draft[`antecedent_q${i}`]);
+  const rc = document.getElementById('antecedent-remarks-container');
+  if (rc) rc.classList.toggle('d-none', !anyAnt);
+}
+
+// ─── Save draft (main profile fields only) ────────────────────────────────
+async function _admSaveDraft(showToast = false) {
+  _admCollectFields();
+  const body = { ...AdmState.draft };
+  // Remove sub-arrays/objects (handled separately)
+  ['family','residence','education','employment','guardian','parentPrAdditional','spousePrAdditional','signatures','documents'].forEach(k => delete body[k]);
+
+  try {
+    await PUT(`/api/adm-profiles/${AdmState.profileId}`, body);
+    if (showToast) showSuccess('草稿已保存');
+
+    // Save guardian if on step 10 and is minor
+    await _admSaveStep10Conditional();
+
+  } catch(e) { if (showToast) showError('保存失败: ' + e.message); }
+}
+
+async function _admSaveStep10Conditional() {
+  const dob = AdmState.draft.dob ? new Date(AdmState.draft.dob) : null;
+  const age = dob ? Math.floor((Date.now()-dob)/(365.25*24*3600*1000)) : 99;
+
+  // Save guardian
+  if (age < 18) {
+    const guardianFields = ['surname','given_name','relation','dob','nationality','sg_status','nric_fin','phone','email','address','occupation','employer',
+      'passport_no','marital_status','marriage_certificate_no','marriage_date','divorce_certificate_no','divorce_date'];
+    const gBody = {};
+    guardianFields.forEach(f => {
+      const el = document.querySelector(`[name="g_${f}"]`);
+      if (el) gBody[f] = el.value;
+    });
+    const gCustEl = document.querySelector('[name="g_custody_of_applicant"]');
+    if (gCustEl) gBody.custody_of_applicant = gCustEl.checked ? 1 : 0;
+    if (Object.keys(gBody).length > 0) {
+      try { await PUT(`/api/adm-profiles/${AdmState.profileId}/guardian`, gBody); } catch(e) {}
+    }
+  }
+
+  // Save parent PR additional
+  const scPrParents = (AdmState.family||[]).filter(m =>
+    ['father','mother','step_father','step_mother'].includes(m.member_type) && ['SC','PR'].includes(m.sg_status)
+  );
+  for (const parent of scPrParents) {
+    const body = { family_member_id: parent.id };
+    // 基础字段
+    const baseMap = {
+      'arrival': 'arrival_date', 'pr_cert': 'pr_cert_no', 'sc_cert': 'sc_cert_no',
+      'last_dep': 'last_departure', 'addr_sg': 'address_sg',
+    };
+    Object.entries(baseMap).forEach(([prefix, dbKey]) => {
+      const el = document.querySelector(`[name="ppr_${prefix}_${parent.id}"]`);
+      if (el) body[dbKey] = el.value;
+    });
+    const isResEl = document.querySelector(`[name="ppr_is_residing_${parent.id}"]`);
+    if (isResEl) body.is_residing_sg = isResEl.checked ? 1 : 0;
+    // 审计补全：婚姻/学历/工作 14 个字段
+    const extMap = {
+      'marital_status': 'marital_status', 'marriage_cert_no': 'marriage_certificate_no',
+      'marriage_date': 'marriage_date', 'divorce_cert_no': 'divorce_certificate_no',
+      'divorce_date': 'divorce_date', 'school_name': 'school_name',
+      'school_country': 'school_country', 'highest_qual': 'highest_qualification',
+      'edu_cert_no': 'educational_cert_no', 'company': 'company_name',
+      'monthly_income': 'monthly_income', 'annual_income': 'annual_income', 'cpf': 'avg_monthly_cpf',
+    };
+    Object.entries(extMap).forEach(([prefix, dbKey]) => {
+      const el = document.querySelector(`[name="ppr_${prefix}_${parent.id}"]`);
+      if (el) body[dbKey] = el.value;
+    });
+    const custEl = document.querySelector(`[name="ppr_custody_${parent.id}"]`);
+    if (custEl) body.custody_of_applicant = custEl.checked ? 1 : 0;
+    const existing = (AdmState.parentPrAdditional||[]).find(x=>x.family_member_id===parent.id);
+    try {
+      if (existing) { await PUT(`/api/adm-parent-pr/${existing.id}`, body); }
+      else { const r = await POST(`/api/adm-profiles/${AdmState.profileId}/parent-pr`, body); if (r.id) AdmState.parentPrAdditional.push({...body, id: r.id}); }
+    } catch(e) {}
+  }
+
+  // Save spouse PR additional
+  const spouse = (AdmState.family||[]).find(m => m.member_type==='spouse');
+  const isMarried = AdmState.draft.marital_status === 'Married';
+  if (isMarried && spouse && ['SC','PR'].includes(spouse.sg_status)) {
+    const sprBody = {};
+    const sprMap = {
+      'spr_arrival': 'arrival_date', 'spr_pr_cert': 'pr_cert_no', 'spr_sc_cert': 'sc_cert_no',
+      'spr_last_dep': 'last_departure', 'spr_addr_sg': 'address_sg',
+      'spr_marriage_cert': 'marriage_certificate_no', 'spr_marriage_date': 'marriage_date',
+      'spr_school_name': 'school_name', 'spr_school_country': 'school_country',
+      'spr_highest_qual': 'highest_qualification', 'spr_edu_cert_no': 'educational_cert_no',
+      'spr_company': 'company_name', 'spr_monthly_income': 'monthly_income',
+      'spr_annual_income': 'annual_income', 'spr_cpf': 'avg_monthly_cpf',
+    };
+    Object.entries(sprMap).forEach(([formName, dbKey]) => {
+      const el = document.querySelector(`[name="${formName}"]`);
+      if (el) sprBody[dbKey] = el.value;
+    });
+    if (spouse.id) sprBody.family_member_id = spouse.id;
+    try { await PUT(`/api/adm-profiles/${AdmState.profileId}/spouse-pr`, sprBody); } catch(e) {}
+  }
+}
+
+// ─── Save sub-array rows to API ────────────────────────────────────────────
+async function _admSaveArrayRows(entity) {
+  const tableEntityMap = { family:'family', residence:'residence', education:'education', employment:'employment' };
+  for (const row of AdmState[entity]) {
+    if (!row.id) continue;
+    try { await PUT(`/api/adm-${entity}/${row.id}`, row); } catch(e) {}
+  }
+}
+
+// ─── Navigation ────────────────────────────────────────────────────────────
+async function _admNextStep() {
+  // Validate current step required fields
+  const errors = _admValidateStep(AdmState.step);
+  if (errors.length) { showError(errors.join('\n')); return; }
+
+  await _admSaveDraft();
+  // Save array sub-data for relevant steps
+  const arraySteps = { 5:'family', 6:'residence', 7:'education', 8:'employment' };
+  if (arraySteps[AdmState.step]) {
+    await _admSaveArrayRows(arraySteps[AdmState.step]);
+  }
+
+  AdmState.step++;
+  AdmState.draft.step_completed = Math.max(AdmState.draft.step_completed || 0, AdmState.step - 1);
+  _admRenderStep();
+}
+
+function _admPrevStep() { AdmState.step--; _admRenderStep(); }
+function _admGoToStep(n) { if (n <= (AdmState.draft.step_completed||0)+1) { AdmState.step=n; _admRenderStep(); } }
+function _admConfirmLeave() {
+  if (confirm('离开向导？草稿已自动保存，下次可继续填写。')) renderAdmProfiles();
+}
+
+// ─── Validation ────────────────────────────────────────────────────────────
+function _admValidateStep(step) {
+  _admCollectFields();
+  const d = AdmState.draft;
+  const errs = [];
+  if (step===1) { if (!d.course_name) errs.push('请填写课程名称'); if (!d.intake_year) errs.push('请填写入学年'); }
+  if (step===2) { ['surname','given_name','gender','dob','nationality','marital_status'].forEach(f => { if (!d[f]) errs.push(`请填写 ${f}`); }); }
+  if (step===3) { if (!d.passport_no) errs.push('请填写护照号码'); if (!d.passport_expiry) errs.push('请填写护照到期日期'); if (!d.sg_pass_type) errs.push('请选择新加坡 Pass 类型'); }
+  if (step===4) { if (!d.phone_mobile) errs.push('请填写手机号码'); if (!d.email) errs.push('请填写邮箱'); if (!d.address_line1) errs.push('请填写地址'); }
+  if (step===11) {
+    if (!d.pdpa_consent) errs.push('请同意 PDPA 条款');
+    const dob = d.dob ? new Date(d.dob) : null;
+    const age = dob ? Math.floor((Date.now()-dob)/(365.25*24*3600*1000)) : 99;
+    if (age < 18 && !AdmState.signatures.guardian?.file_id) errs.push('申请人未满18岁，需要监护人签字');
+  }
+  return errs;
+}
+
+// ─── Signature canvas ──────────────────────────────────────────────────────
+const _sigData = {};
+
+function _admInitSignatureCanvases() {
+  ['applicant','guardian'].forEach(type => {
+    const canvas = document.getElementById(`sig-canvas-${type}`);
+    if (!canvas) return;
+    _sigData[type] = { paths: [], drawing: false, ctx: canvas.getContext('2d') };
+    const ctx = _sigData[type].ctx;
+    ctx.strokeStyle = '#1a1a2e';
+    ctx.lineWidth   = 2;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+
+    const getPos = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches ? e.touches[0] : e;
+      return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+    };
+
+    canvas.addEventListener('mousedown',  e => { _sigData[type].drawing = true; const p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); _sigData[type].paths.push([p]); });
+    canvas.addEventListener('mousemove',  e => { if (!_sigData[type].drawing) return; const p=getPos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); _sigData[type].paths[_sigData[type].paths.length-1].push(p); });
+    canvas.addEventListener('mouseup',    () => { _sigData[type].drawing = false; });
+    canvas.addEventListener('mouseleave', () => { _sigData[type].drawing = false; });
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); _sigData[type].drawing=true; const p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); _sigData[type].paths.push([p]); });
+    canvas.addEventListener('touchmove',  e => { e.preventDefault(); if (!_sigData[type].drawing) return; const p=getPos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); _sigData[type].paths[_sigData[type].paths.length-1].push(p); });
+    canvas.addEventListener('touchend',   () => { _sigData[type].drawing = false; });
+  });
+}
+
+function _admClearSig(type) {
+  const canvas = document.getElementById(`sig-canvas-${type}`);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if (_sigData[type]) _sigData[type].paths = [];
+}
+
+async function _admSaveSig(type) {
+  const canvas = document.getElementById(`sig-canvas-${type}`);
+  if (!canvas) return;
+  if (!_sigData[type]?.paths?.length) { showError('请先在画布上签字'); return; }
+
+  const dateEl = document.getElementById(`sig-date-${type}`);
+  const sigDate = dateEl ? dateEl.value : new Date().toISOString().split('T')[0];
+  const strokeJson = JSON.stringify(_sigData[type].paths);
+
+  canvas.toBlob(async (blob) => {
+    const signerName = type === 'applicant'
+      ? `${AdmState.draft.surname||''} ${AdmState.draft.given_name||''}`.trim()
+      : `${AdmState.guardian?.surname||''} ${AdmState.guardian?.given_name||''}`.trim();
+
+    const form = new FormData();
+    form.append('file', blob, `signature_${type}.png`);
+    form.append('sig_type', type);
+    form.append('signer_name', signerName);
+    form.append('sig_date', sigDate);
+    form.append('stroke_json', strokeJson);
+
+    try {
+      const res = await fetch(`/api/adm-profiles/${AdmState.profileId}/signature`, {
+        method: 'POST', body: form,
+      });
+      if (!res.ok) throw new Error('上传失败');
+      const data = await res.json();
+      AdmState.signatures[type] = { file_id: data.file_id, sig_date: sigDate };
+      showSuccess(`${type === 'applicant' ? '申请人' : '监护人'}签字已保存`);
+      // Refresh the step to show saved indicator
+      _admRenderStep();
+    } catch(e) { showError('签字保存失败: ' + e.message); }
+  }, 'image/png');
+}
+
+// ─── Final submit ───────────────────────────────────────────────────────────
+async function _admFinalSubmit() {
+  const errors = _admValidateStep(11);
+  if (errors.length) { showError(errors.join('\n')); return; }
+
+  if (!AdmState.signatures.applicant?.file_id) {
+    showError('请保存申请人签字后再提交');
+    return;
+  }
+
+  if (!confirm('确认正式提交申请表？提交后将自动生成三份正式文件（SAF / Form 16 / V36），无法再修改。')) return;
+
+  const lockKey = `adm-submit-${AdmState.profileId}`;
+  if (!acquireSubmit(lockKey)) return;
+  try {
+    await _admSaveDraft();
+    const res = await POST(`/api/adm-profiles/${AdmState.profileId}/submit`, {
+      submit_mode: 'manual',
+    });
+    showSuccess('提交成功！文件生成中，请稍后在案例页面查看。');
+    navigate('adm-profiles');
+  } catch(e) {
+    showError('提交失败: ' + e.message);
+  } finally {
+    releaseSubmit(lockKey);
   }
 }
 

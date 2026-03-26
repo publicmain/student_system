@@ -1,7 +1,21 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS"
+    "builder": "NIXPACKS",
+    "nixpacksPlan": {
+      "providers": ["node", "python"],
+      "phases": {
+        "setup": {
+          "nixPkgs": ["nodejs_20", "python312", "python312Packages.pip"]
+        },
+        "install": {
+          "cmds": [
+            "npm ci --production",
+            "pip install -r pdf-filler/requirements.txt"
+          ]
+        }
+      }
+    }
   },
   "deploy": {
     "startCommand": "node server.js",

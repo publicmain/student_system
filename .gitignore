@@ -23,3 +23,16 @@ fix_*.js
 seed_*.js
 cookies.txt
 start.bat
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 校准工具生成的网格 PDF
+templates/_grid_*.pdf
+
+# 审计报告（内部文档）
+AUDIT-REPORT.md
+FINAL-AUDIT-REPORT.md
+PRE-LAUNCH-AUDIT-PROMPT.md
+USER-TEST-REPORT.md

@@ -311,7 +311,8 @@ body {
   margin-top: 0.375rem;
 }
 
-.nav-item {
+/* 侧边栏导航项（限定在 #sidebar 内，避免污染 Bootstrap tab 的 .nav-item） */
+#sidebar .nav-item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -324,21 +325,21 @@ body {
   position: relative;
 }
 
-.nav-item:hover {
+#sidebar .nav-item:hover {
   background: var(--sidebar-hover);
   color: #e2e8f0;
   text-decoration: none;
   transform: translateX(2px);
 }
 
-.nav-item.active {
+#sidebar .nav-item.active {
   background: rgba(37, 99, 235, 0.20);
   color: #93c5fd;
   border-left-color: #60a5fa;
   font-weight: 500;
 }
 
-.nav-item.active::before {
+#sidebar .nav-item.active::before {
   content: '';
   position: absolute;
   left: 0;
@@ -351,7 +352,7 @@ body {
 }
 
 /* Active item glow dot */
-.nav-item.active::after {
+#sidebar .nav-item.active::after {
   content: '';
   position: absolute;
   right: 10px;
@@ -697,6 +698,7 @@ body {
 
 /* ═══ Tab 样式 ═══ */
 .nav-tabs {
+  --bs-nav-tabs-link-hover-border-color: transparent;
   border-bottom: 2px solid var(--border);
   gap: 2px;
 }
@@ -709,23 +711,28 @@ body {
   border-bottom: 2px solid transparent;
   padding: 0.5rem 0.875rem;
   margin-bottom: -2px;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-  transition: color var(--ease-fast), border-bottom-color var(--ease-fast),
-              background var(--ease-fast), transform var(--ease-fast);
+  border-radius: 0;
+  background: transparent;
+  transition: color 0.15s, border-bottom-color 0.15s;
 }
 
-.nav-tabs .nav-link:hover {
+.nav-tabs .nav-link:hover,
+.nav-tabs .nav-link:focus {
   color: var(--primary);
-  background: var(--primary-light);
-  transform: translateY(-1px);
+  background: transparent;
+  border-color: transparent;
+  border-bottom-color: rgba(37, 99, 235, 0.3);
+  box-shadow: none;
+  outline: none;
+  isolation: auto;
 }
 
 .nav-tabs .nav-link.active {
   color: var(--primary);
+  border-color: transparent;
   border-bottom-color: var(--primary);
   background: transparent;
   font-weight: 600;
-  text-shadow: 0 0 20px rgba(37,99,235,0.2);
 }
 
 /* ═══ 模态框 ═══ */
@@ -1137,7 +1144,7 @@ body.dark-mode .page-header h4    { color: #f1f5f9; }
 
 body.dark-mode .nav-tabs           { border-color: #334155; }
 body.dark-mode .nav-tabs .nav-link { color: #94a3b8; }
-body.dark-mode .nav-tabs .nav-link:hover { background: rgba(37,99,235,0.12); }
+body.dark-mode .nav-tabs .nav-link:hover { background: transparent !important; border: none !important; border-bottom: 2px solid rgba(37,99,235,0.4) !important; }
 body.dark-mode .nav-tabs .nav-link.active {
   color: #60a5fa;
   background: #1e293b;
@@ -1345,6 +1352,9 @@ body[data-density="loose"]   .nav-item           { padding: 0.8rem 1rem; }
 
 /* ═══ 时间线节点增强 ═══ */
 /* 流程时间线卡片 */
+/* 让 dropdown 菜单不受卡片 overflow 裁剪 */
+.case-card-body .dropdown-menu, .tab-pane .dropdown-menu { position: fixed !important; z-index: 1060; }
+
 .card .d-flex.overflow-auto {
   scrollbar-width: thin;
 }

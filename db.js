@@ -904,10 +904,13 @@ function createSchema() {
     student_name     TEXT,
     reviewed_by      TEXT,
     reviewed_at      TEXT,
+    upload_items     TEXT,
     is_deleted       INTEGER DEFAULT 0,
     created_at       TEXT DEFAULT (datetime('now')),
     updated_at       TEXT DEFAULT (datetime('now'))
   )`);
+  // 兼容旧数据库：补加 upload_items 列
+  try { db.run(`ALTER TABLE file_exchange_records ADD COLUMN upload_items TEXT`); } catch(e) {}
 
   db.run(`CREATE TABLE IF NOT EXISTS file_exchange_logs (
     id          TEXT PRIMARY KEY,
@@ -969,6 +972,115 @@ function createSchema() {
     notes            TEXT
   )`);
 
+  // ── 中介材料收集系统 ──────────────────────────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS mat_companies (
+    id             TEXT PRIMARY KEY,
+    name           TEXT NOT NULL,
+    city           TEXT,
+    country        TEXT,
+    agreement_date TEXT,
+    is_active      INTEGER DEFAULT 1,
+    notes          TEXT,
+    created_by     TEXT,
+    created_at     TEXT DEFAULT (datetime('now')),
+    updated_at     TEXT DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS mat_contacts (
+    id          TEXT PRIMARY KEY,
+    company_id  TEXT NOT NULL REFERENCES mat_companies(id),
+    name        TEXT NOT NULL,
+    email       TEXT NOT NULL,
+    phone       TEXT,
+    wechat      TEXT,
+    is_admin    INTEGER DEFAULT 0,
+    is_active   INTEGER DEFAULT 1,
+    created_at  TEXT DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS mat_requests (
+    id                    TEXT PRIMARY KEY,
+    student_id            TEXT REFERENCES students(id),
+    company_id            TEXT NOT NULL REFERENCES mat_companies(id),
+    contact_id            TEXT NOT NULL REFERENCES mat_contacts(id),
+    counselor_id          TEXT,
+    title                 TEXT NOT NULL,
+    deadline              TEXT NOT NULL,
+    status                TEXT DEFAULT 'PENDING',
+    is_overdue            INTEGER DEFAULT 0,
+    remind_days_before    INTEGER DEFAULT 3,
+    overdue_interval_days INTEGER DEFAULT 2,
+    max_overdue_reminders INTEGER DEFAULT 5,
+    auto_remind_paused    INTEGER DEFAULT 0,
+    notes                 TEXT,
+    created_by            TEXT,
+    created_at            TEXT DEFAULT (datetime('now')),
+    updated_at            TEXT DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS mat_request_items (
+    id            TEXT PRIMARY KEY,
+    request_id    TEXT NOT NULL REFERENCES mat_requests(id),
+    name          TEXT NOT NULL,
+    description   TEXT,
+    is_required   INTEGER DEFAULT 1,
+    sort_order    INTEGER DEFAULT 0,
+    status        TEXT DEFAULT 'PENDING',
+    file_id       TEXT,
+    file_name     TEXT,
+    file_size     INTEGER,
+    reject_reason TEXT,
+    reviewed_by   TEXT,
+    reviewed_at   TEXT,
+    uploaded_at   TEXT
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS mat_magic_tokens (
+    id           TEXT PRIMARY KEY,
+    token        TEXT UNIQUE NOT NULL,
+    request_id   TEXT NOT NULL REFERENCES mat_requests(id),
+    contact_id   TEXT NOT NULL REFERENCES mat_contacts(id),
+    status       TEXT DEFAULT 'ACTIVE',
+    created_at   TEXT DEFAULT (datetime('now')),
+    expires_at   TEXT NOT NULL,
+    last_used_at TEXT,
+    access_ip    TEXT
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS mat_uif_submissions (
+    id           TEXT PRIMARY KEY,
+    request_id   TEXT UNIQUE REFERENCES mat_requests(id),
+    data         TEXT NOT NULL DEFAULT '{}',
+    status       TEXT DEFAULT 'DRAFT',
+    submitted_at TEXT,
+    reviewed_by  TEXT,
+    reviewed_at  TEXT,
+    merged_at    TEXT,
+    merge_diff   TEXT
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS mat_reminder_logs (
+    id         TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL REFERENCES mat_requests(id),
+    type       TEXT NOT NULL,
+    sent_to    TEXT,
+    sent_at    TEXT DEFAULT (datetime('now')),
+    status     TEXT,
+    error_msg  TEXT
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS mat_audit_logs (
+    id         TEXT PRIMARY KEY,
+    request_id TEXT,
+    actor_type TEXT,
+    actor_id   TEXT,
+    actor_name TEXT,
+    action     TEXT,
+    detail     TEXT,
+    ip         TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`);
+
   // Schema migrations
   try { db.run('ALTER TABLE milestone_tasks ADD COLUMN intake_case_id TEXT'); } catch(e) {}
   try { db.run('ALTER TABLE milestone_tasks ADD COLUMN due_time TEXT'); } catch(e) {}
@@ -987,6 +1099,356 @@ function createSchema() {
   try { db.run('ALTER TABLE arrival_records ADD COLUMN orientation_notes TEXT'); } catch(e) {}
   try { db.run('ALTER TABLE case_file_sends ADD COLUMN title TEXT'); } catch(e) {}
   try { db.run('ALTER TABLE case_file_sends ADD COLUMN description TEXT'); } catch(e) {}
+
+  // ── UIF 版本追踪表 ──────────────────────────────────────────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS mat_uif_versions (
+    id           TEXT PRIMARY KEY,
+    request_id   TEXT NOT NULL REFERENCES mat_requests(id),
+    version_no   INTEGER NOT NULL DEFAULT 1,
+    data         TEXT NOT NULL DEFAULT '{}',
+    status       TEXT DEFAULT 'SUBMITTED',
+    submitted_at TEXT,
+    reviewed_by  TEXT,
+    reviewed_at  TEXT,
+    return_reason TEXT,
+    field_notes  TEXT,
+    is_current   INTEGER DEFAULT 1,
+    created_at   TEXT DEFAULT (datetime('now'))
+  )`);
+
+  // ── 文件版本追踪表 ──
+  db.run(`CREATE TABLE IF NOT EXISTS mat_item_versions (
+    id           TEXT PRIMARY KEY,
+    item_id      TEXT NOT NULL REFERENCES mat_request_items(id),
+    request_id   TEXT NOT NULL,
+    version_no   INTEGER NOT NULL DEFAULT 1,
+    file_id      TEXT,
+    file_name    TEXT,
+    file_size    INTEGER,
+    status       TEXT DEFAULT 'UPLOADED',
+    reject_reason TEXT,
+    reviewed_by  TEXT,
+    reviewed_at  TEXT,
+    uploaded_at  TEXT DEFAULT (datetime('now')),
+    is_current   INTEGER DEFAULT 1
+  )`);
+
+  // Schema migrations for versioning
+  try { db.run('ALTER TABLE mat_requests ADD COLUMN intake_case_id TEXT'); } catch(e) {}
+  try { db.run('ALTER TABLE mat_requests ADD COLUMN current_version INTEGER DEFAULT 0'); } catch(e) {}
+  try { db.run('ALTER TABLE mat_requests ADD COLUMN return_reason TEXT'); } catch(e) {}
+  try { db.run('ALTER TABLE mat_requests ADD COLUMN returned_at TEXT'); } catch(e) {}
+  try { db.run('ALTER TABLE mat_requests ADD COLUMN approved_at TEXT'); } catch(e) {}
+  try { db.run('ALTER TABLE mat_uif_submissions ADD COLUMN version_no INTEGER DEFAULT 1'); } catch(e) {}
+  try { db.run('ALTER TABLE mat_uif_submissions ADD COLUMN return_reason TEXT'); } catch(e) {}
+  try { db.run('ALTER TABLE mat_uif_submissions ADD COLUMN field_notes TEXT'); } catch(e) {}
+  try { db.run('ALTER TABLE mat_request_items ADD COLUMN version_no INTEGER DEFAULT 1'); } catch(e) {}
+  try { db.run('ALTER TABLE adm_generated_documents ADD COLUMN source_uif_version INTEGER'); } catch(e) {}
+  try { db.run('ALTER TABLE adm_generated_documents ADD COLUMN is_outdated INTEGER DEFAULT 0'); } catch(e) {}
+
+  // ── ADM MODULE TABLES ──────────────────────────────────────────────────────
+
+  db.run(`CREATE TABLE IF NOT EXISTS adm_profiles (
+    id                    TEXT PRIMARY KEY,
+    intake_case_id        TEXT,
+    created_by            TEXT NOT NULL,
+    agent_id              TEXT,
+    source_type           TEXT DEFAULT 'staff',
+    course_name           TEXT,
+    course_code           TEXT,
+    intake_year           TEXT,
+    intake_month          TEXT,
+    study_mode            TEXT,
+    campus                TEXT,
+    surname               TEXT,
+    given_name            TEXT,
+    chinese_name          TEXT,
+    gender                TEXT,
+    dob                   TEXT,
+    birth_country         TEXT,
+    birth_city            TEXT,
+    nationality           TEXT,
+    race                  TEXT,
+    religion              TEXT,
+    marital_status        TEXT,
+    passport_type         TEXT,
+    passport_no           TEXT,
+    passport_issue_date   TEXT,
+    passport_expiry       TEXT,
+    passport_issue_country TEXT,
+    sg_pass_type          TEXT,
+    sg_nric_fin           TEXT,
+    sg_pass_expiry        TEXT,
+    prior_sg_study        INTEGER DEFAULT 0,
+    prior_sg_school       TEXT,
+    prior_sg_year         TEXT,
+    phone_home            TEXT,
+    phone_mobile          TEXT,
+    email                 TEXT,
+    address_line1         TEXT,
+    address_line2         TEXT,
+    city                  TEXT,
+    state_province        TEXT,
+    postal_code           TEXT,
+    country_of_residence  TEXT,
+    native_language       TEXT,
+    english_proficiency   TEXT,
+    ielts_score           TEXT,
+    toefl_score           TEXT,
+    other_lang_test       TEXT,
+    other_lang_score      TEXT,
+    financial_source      TEXT,
+    annual_income         TEXT,
+    sponsor_name          TEXT,
+    sponsor_relation      TEXT,
+    bank_statement_available INTEGER DEFAULT 0,
+    antecedent_q1         INTEGER DEFAULT 0,
+    antecedent_q2         INTEGER DEFAULT 0,
+    antecedent_q3         INTEGER DEFAULT 0,
+    antecedent_q4         INTEGER DEFAULT 0,
+    antecedent_remarks    TEXT,
+    pdpa_consent          INTEGER DEFAULT 1,
+    pdpa_marketing        INTEGER DEFAULT 1,
+    pdpa_photo_video      INTEGER DEFAULT 1,
+    status                TEXT DEFAULT 'draft',
+    step_completed        INTEGER DEFAULT 0,
+    created_at            TEXT DEFAULT (datetime('now')),
+    updated_at            TEXT DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS adm_family_members (
+    id            TEXT PRIMARY KEY,
+    profile_id    TEXT NOT NULL,
+    member_type   TEXT NOT NULL,
+    surname       TEXT,
+    given_name    TEXT,
+    dob           TEXT,
+    nationality   TEXT,
+    sg_status     TEXT,
+    nric_fin      TEXT,
+    occupation    TEXT,
+    employer      TEXT,
+    relationship  TEXT,
+    is_alive      INTEGER DEFAULT 1,
+    sort_order    INTEGER DEFAULT 0,
+    created_at    TEXT DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS adm_residence_history (
+    id          TEXT PRIMARY KEY,
+    profile_id  TEXT NOT NULL,
+    country     TEXT NOT NULL,
+    city        TEXT,
+    address     TEXT,
+    date_from   TEXT NOT NULL,
+    date_to     TEXT,
+    purpose     TEXT,
+    sort_order  INTEGER DEFAULT 0,
+    created_at  TEXT DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS adm_education_history (
+    id                TEXT PRIMARY KEY,
+    profile_id        TEXT NOT NULL,
+    institution_name  TEXT NOT NULL,
+    country           TEXT,
+    qualification     TEXT,
+    major             TEXT,
+    date_from         TEXT,
+    date_to           TEXT,
+    gpa               TEXT,
+    award_received    TEXT,
+    sort_order        INTEGER DEFAULT 0,
+    created_at        TEXT DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS adm_employment_history (
+    id           TEXT PRIMARY KEY,
+    profile_id   TEXT NOT NULL,
+    employer     TEXT NOT NULL,
+    country      TEXT,
+    position     TEXT,
+    date_from    TEXT,
+    date_to      TEXT,
+    is_current   INTEGER DEFAULT 0,
+    reason_left  TEXT,
+    sort_order   INTEGER DEFAULT 0,
+    created_at   TEXT DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS adm_guardian_info (
+    id           TEXT PRIMARY KEY,
+    profile_id   TEXT NOT NULL UNIQUE,
+    surname      TEXT,
+    given_name   TEXT,
+    relation     TEXT,
+    dob          TEXT,
+    nationality  TEXT,
+    sg_status    TEXT,
+    nric_fin     TEXT,
+    phone        TEXT,
+    email        TEXT,
+    address      TEXT,
+    occupation   TEXT,
+    employer     TEXT,
+    created_at   TEXT DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS adm_parent_pr_additional (
+    id               TEXT PRIMARY KEY,
+    profile_id       TEXT NOT NULL,
+    family_member_id TEXT NOT NULL,
+    arrival_date     TEXT,
+    pr_cert_no       TEXT,
+    sc_cert_no       TEXT,
+    last_departure   TEXT,
+    is_residing_sg   INTEGER DEFAULT 1,
+    address_sg       TEXT,
+    created_at       TEXT DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS adm_spouse_pr_additional (
+    id               TEXT PRIMARY KEY,
+    profile_id       TEXT NOT NULL UNIQUE,
+    family_member_id TEXT,
+    arrival_date     TEXT,
+    pr_cert_no       TEXT,
+    sc_cert_no       TEXT,
+    last_departure   TEXT,
+    is_residing_sg   INTEGER DEFAULT 1,
+    address_sg       TEXT,
+    created_at       TEXT DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS adm_signatures (
+    id           TEXT PRIMARY KEY,
+    profile_id   TEXT NOT NULL,
+    sig_type     TEXT NOT NULL,
+    signer_name  TEXT,
+    signed_at    TEXT,
+    file_id      TEXT,
+    stroke_json  TEXT,
+    sig_date     TEXT,
+    created_at   TEXT DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS adm_generated_documents (
+    id             TEXT PRIMARY KEY,
+    profile_id     TEXT NOT NULL,
+    intake_case_id TEXT,
+    doc_type       TEXT NOT NULL,
+    version_no     INTEGER DEFAULT 1,
+    status         TEXT DEFAULT 'pending',
+    file_id        TEXT,
+    file_size      INTEGER,
+    generated_at   TEXT,
+    error_message  TEXT,
+    is_latest      INTEGER DEFAULT 1,
+    created_at     TEXT DEFAULT (datetime('now'))
+  )`);
+
+  // ADM migrations: extend intake_cases
+  const admMigrations = [
+    `ALTER TABLE intake_cases ADD COLUMN adm_profile_id TEXT`,
+    `ALTER TABLE intake_cases ADD COLUMN source_type TEXT DEFAULT 'staff'`,
+    `ALTER TABLE intake_cases ADD COLUMN submit_mode TEXT DEFAULT 'manual'`,
+    `ALTER TABLE intake_cases ADD COLUMN review_status TEXT DEFAULT 'draft'`,
+    `ALTER TABLE intake_cases ADD COLUMN submitted_at TEXT`,
+    `ALTER TABLE intake_cases ADD COLUMN reviewed_by TEXT`,
+    `ALTER TABLE intake_cases ADD COLUMN reviewed_at TEXT`,
+    `ALTER TABLE intake_cases ADD COLUMN review_note TEXT`,
+    // ── adm_profiles 补全字段 (审计修复) ──
+    `ALTER TABLE adm_profiles ADD COLUMN period_applied_from TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN period_applied_to TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN school_name TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN id_photo TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN alias TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN birth_certificate_no TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN occupation TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN birth_province_state TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN foreign_identification_no TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN malaysian_id_no TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN was_ever_sg_citizen_or_pr INTEGER DEFAULT 0`,
+    `ALTER TABLE adm_profiles ADD COLUMN requires_student_pass INTEGER DEFAULT 1`,
+    `ALTER TABLE adm_profiles ADD COLUMN sg_address TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN sg_tel_no TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN hometown_address TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN language_proof_file TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN highest_lang_proficiency TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN need_english_placement_test INTEGER DEFAULT 0`,
+    `ALTER TABLE adm_profiles ADD COLUMN applicant_monthly_income REAL`,
+    `ALTER TABLE adm_profiles ADD COLUMN applicant_current_saving REAL`,
+    `ALTER TABLE adm_profiles ADD COLUMN spouse_monthly_income REAL`,
+    `ALTER TABLE adm_profiles ADD COLUMN spouse_current_saving REAL`,
+    `ALTER TABLE adm_profiles ADD COLUMN father_monthly_income REAL`,
+    `ALTER TABLE adm_profiles ADD COLUMN father_current_saving REAL`,
+    `ALTER TABLE adm_profiles ADD COLUMN mother_monthly_income REAL`,
+    `ALTER TABLE adm_profiles ADD COLUMN mother_current_saving REAL`,
+    `ALTER TABLE adm_profiles ADD COLUMN other_financial_support INTEGER DEFAULT 0`,
+    `ALTER TABLE adm_profiles ADD COLUMN other_financial_details TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN other_financial_amount REAL`,
+    `ALTER TABLE adm_profiles ADD COLUMN bank_statement_file TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN antecedent_explanation_file TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN f16_declaration_agreed INTEGER DEFAULT 0`,
+    `ALTER TABLE adm_profiles ADD COLUMN v36_declaration_agreed INTEGER DEFAULT 0`,
+    `ALTER TABLE adm_profiles ADD COLUMN remarks TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN commencement_date TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN passport_issue_place TEXT`,
+    `ALTER TABLE adm_profiles ADD COLUMN no_education_info INTEGER DEFAULT 0`,
+    `ALTER TABLE adm_profiles ADD COLUMN no_employment_info INTEGER DEFAULT 0`,
+    // ── adm_family_members 补全 ──
+    `ALTER TABLE adm_family_members ADD COLUMN sex TEXT`,
+    `ALTER TABLE adm_family_members ADD COLUMN sg_mobile TEXT`,
+    `ALTER TABLE adm_family_members ADD COLUMN email TEXT`,
+    `ALTER TABLE adm_family_members ADD COLUMN contact_number TEXT`,
+    `ALTER TABLE adm_family_members ADD COLUMN passport_no TEXT`,
+    // ── adm_education_history 补全 ──
+    `ALTER TABLE adm_education_history ADD COLUMN state_province TEXT`,
+    `ALTER TABLE adm_education_history ADD COLUMN language_of_instruction TEXT`,
+    `ALTER TABLE adm_education_history ADD COLUMN educational_cert_no TEXT`,
+    `ALTER TABLE adm_education_history ADD COLUMN obtained_pass_english INTEGER DEFAULT 0`,
+    // ── adm_employment_history 补全 ──
+    `ALTER TABLE adm_employment_history ADD COLUMN nature_of_duties TEXT`,
+    // ── adm_guardian_info 补全 ──
+    `ALTER TABLE adm_guardian_info ADD COLUMN marital_status TEXT`,
+    `ALTER TABLE adm_guardian_info ADD COLUMN marriage_certificate_no TEXT`,
+    `ALTER TABLE adm_guardian_info ADD COLUMN marriage_date TEXT`,
+    `ALTER TABLE adm_guardian_info ADD COLUMN divorce_certificate_no TEXT`,
+    `ALTER TABLE adm_guardian_info ADD COLUMN divorce_date TEXT`,
+    `ALTER TABLE adm_guardian_info ADD COLUMN custody_of_applicant INTEGER DEFAULT 0`,
+    `ALTER TABLE adm_guardian_info ADD COLUMN passport_no TEXT`,
+    // ── adm_parent_pr_additional 补全 ──
+    `ALTER TABLE adm_parent_pr_additional ADD COLUMN marital_status TEXT`,
+    `ALTER TABLE adm_parent_pr_additional ADD COLUMN marriage_certificate_no TEXT`,
+    `ALTER TABLE adm_parent_pr_additional ADD COLUMN marriage_date TEXT`,
+    `ALTER TABLE adm_parent_pr_additional ADD COLUMN divorce_certificate_no TEXT`,
+    `ALTER TABLE adm_parent_pr_additional ADD COLUMN divorce_date TEXT`,
+    `ALTER TABLE adm_parent_pr_additional ADD COLUMN custody_of_applicant INTEGER DEFAULT 0`,
+    `ALTER TABLE adm_parent_pr_additional ADD COLUMN school_name TEXT`,
+    `ALTER TABLE adm_parent_pr_additional ADD COLUMN school_country TEXT`,
+    `ALTER TABLE adm_parent_pr_additional ADD COLUMN highest_qualification TEXT`,
+    `ALTER TABLE adm_parent_pr_additional ADD COLUMN educational_cert_no TEXT`,
+    `ALTER TABLE adm_parent_pr_additional ADD COLUMN company_name TEXT`,
+    `ALTER TABLE adm_parent_pr_additional ADD COLUMN monthly_income REAL`,
+    `ALTER TABLE adm_parent_pr_additional ADD COLUMN annual_income REAL`,
+    `ALTER TABLE adm_parent_pr_additional ADD COLUMN avg_monthly_cpf REAL`,
+    // ── adm_spouse_pr_additional 补全 ──
+    `ALTER TABLE adm_spouse_pr_additional ADD COLUMN marriage_certificate_no TEXT`,
+    `ALTER TABLE adm_spouse_pr_additional ADD COLUMN marriage_date TEXT`,
+    `ALTER TABLE adm_spouse_pr_additional ADD COLUMN school_name TEXT`,
+    `ALTER TABLE adm_spouse_pr_additional ADD COLUMN school_country TEXT`,
+    `ALTER TABLE adm_spouse_pr_additional ADD COLUMN highest_qualification TEXT`,
+    `ALTER TABLE adm_spouse_pr_additional ADD COLUMN educational_cert_no TEXT`,
+    `ALTER TABLE adm_spouse_pr_additional ADD COLUMN company_name TEXT`,
+    `ALTER TABLE adm_spouse_pr_additional ADD COLUMN monthly_income REAL`,
+    `ALTER TABLE adm_spouse_pr_additional ADD COLUMN annual_income REAL`,
+    `ALTER TABLE adm_spouse_pr_additional ADD COLUMN avg_monthly_cpf REAL`,
+    // ── mat_requests → intake_cases 关联 ──
+    `ALTER TABLE mat_requests ADD COLUMN intake_case_id TEXT`,
+  ];
+  for (const sql of admMigrations) {
+    try { db.run(sql); } catch(e) { /* column exists */ }
+  }
 }
 
 function seedData() {
@@ -1480,6 +1942,276 @@ function seedData() {
     }
   }
 
+  // ── ADM 模块测试数据（独立于用户 seed，始终检查）─────────────────────
+  const existingAdmCheck = get("SELECT COUNT(*) as cnt FROM adm_profiles WHERE surname IS NOT NULL");
+  if (!existingAdmCheck || existingAdmCheck.cnt === 0) {
+    // 清除空草稿记录
+    run("DELETE FROM adm_profiles WHERE surname IS NULL AND given_name IS NULL");
+    // 查找已有的 staff / user ID
+    const counselorUser = get("SELECT id, linked_id FROM users WHERE role='counselor' LIMIT 1");
+    const admCreatedBy = counselorUser ? counselorUser.id : 'system';
+    const admStaffId = counselorUser ? counselorUser.linked_id : null;
+    const admNow = new Date().toISOString();
+
+    // ── Profile 1: 已提交的完整案例（中国学生，18岁以上，已婚）──────────
+    const admP1 = uuidv4();
+    run(`INSERT INTO adm_profiles (
+      id, created_by, source_type, agent_id,
+      course_name, course_code, intake_year, intake_month, study_mode, campus,
+      surname, given_name, chinese_name, gender, dob, birth_country, birth_city,
+      nationality, race, religion, marital_status,
+      passport_type, passport_no, passport_issue_date, passport_expiry, passport_issue_country,
+      sg_pass_type, sg_nric_fin, sg_pass_expiry, prior_sg_study,
+      phone_home, phone_mobile, email,
+      address_line1, address_line2, city, state_province, postal_code, country_of_residence,
+      native_language, english_proficiency, ielts_score,
+      financial_source, annual_income, sponsor_name, sponsor_relation, bank_statement_available,
+      antecedent_q1, antecedent_q2, antecedent_q3, antecedent_q4,
+      pdpa_consent, pdpa_marketing, pdpa_photo_video,
+      status, step_completed, created_at, updated_at
+    ) VALUES (
+      ?,?,?,?,  ?,?,?,?,?,?,  ?,?,?,?,?,?,?,  ?,?,?,?,  ?,?,?,?,?,  ?,?,?,?,  ?,?,?,  ?,?,?,?,?,?,  ?,?,?,  ?,?,?,?,?,  ?,?,?,?,  ?,?,?,  ?,?,?,?
+    )`, [
+      admP1, admCreatedBy, 'staff', null,
+      'Diploma in Business Administration', 'DBA-2026', '2026', 'July', 'Full-Time', 'Main Campus',
+      'CHEN', 'Wei Ming', '陈伟明', 'Male', '2002-03-15', 'China', 'Shanghai',
+      'Chinese', 'Chinese', 'None', 'married',
+      'Ordinary', 'E12345678', '2023-05-10', '2033-05-09', 'China',
+      'Student Pass', 'G1234567A', '2026-12-31', 0,
+      '+86-21-12345678', '+65-91234567', 'chenweiming@gmail.com',
+      'Blk 123 Clementi Ave 3', '#05-678', 'Singapore', 'Singapore', '120123', 'Singapore',
+      'Chinese (Mandarin)', 'Intermediate', '6.5',
+      'Parents', '120000', 'Chen Daming', 'Father', 1,
+      0, 0, 0, 0,
+      1, 1, 1,
+      'submitted', 10, admNow, admNow
+    ]);
+
+    // Family for P1
+    run(`INSERT INTO adm_family_members (id, profile_id, member_type, surname, given_name, dob, nationality, sg_status, nric_fin, occupation, employer, relationship, is_alive, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP1, 'father', 'CHEN', 'Daming', '1970-08-22', 'Chinese', 'N/A', '', 'Business Owner', 'Chen Trading Co', 'Father', 1, 1]);
+    run(`INSERT INTO adm_family_members (id, profile_id, member_type, surname, given_name, dob, nationality, sg_status, nric_fin, occupation, employer, relationship, is_alive, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP1, 'mother', 'LI', 'Xiulan', '1972-11-03', 'Chinese', 'N/A', '', 'Teacher', 'Shanghai No.3 High School', 'Mother', 1, 2]);
+    const spouseMemId = uuidv4();
+    run(`INSERT INTO adm_family_members (id, profile_id, member_type, surname, given_name, dob, nationality, sg_status, nric_fin, occupation, employer, relationship, is_alive, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [spouseMemId, admP1, 'spouse', 'WANG', 'Xiaoli', '2003-06-20', 'Chinese', 'Dependent Pass', 'G9876543B', 'Homemaker', '', 'Spouse', 1, 3]);
+
+    // Residence history for P1
+    run(`INSERT INTO adm_residence_history (id, profile_id, country, city, address, date_from, date_to, purpose, sort_order) VALUES (?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP1, 'China', 'Shanghai', '200 Nanjing Road, Huangpu District', '2002-03-15', '2024-06-30', 'Permanent Residence', 1]);
+    run(`INSERT INTO adm_residence_history (id, profile_id, country, city, address, date_from, date_to, purpose, sort_order) VALUES (?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP1, 'Singapore', 'Singapore', 'Blk 123 Clementi Ave 3 #05-678', '2024-07-01', null, 'Study', 2]);
+
+    // Education history for P1
+    run(`INSERT INTO adm_education_history (id, profile_id, institution_name, country, qualification, major, date_from, date_to, gpa, award_received, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP1, 'Shanghai Jianping High School', 'China', 'High School Diploma', 'Science Stream', '2017-09-01', '2020-06-30', '85/100', '', 1]);
+    run(`INSERT INTO adm_education_history (id, profile_id, institution_name, country, qualification, major, date_from, date_to, gpa, award_received, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP1, 'ESIC International College', 'Singapore', 'O-Level Preparatory', 'General', '2024-07-15', '2025-12-31', '', '', 2]);
+
+    // Employment history for P1
+    run(`INSERT INTO adm_employment_history (id, profile_id, employer, country, position, date_from, date_to, is_current, reason_left, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP1, 'Shanghai Tech Startup', 'China', 'Intern', '2021-07-01', '2021-12-31', 0, 'Returned to studies', 1]);
+
+    // Signatures for P1
+    run(`INSERT INTO adm_signatures (id, profile_id, sig_type, signer_name, signed_at, sig_date) VALUES (?,?,?,?,?,?)`,
+      [uuidv4(), admP1, 'applicant', 'CHEN Wei Ming', admNow, '2026-03-20']);
+
+    // Create intake case for P1
+    const admCase1 = uuidv4();
+    run(`INSERT INTO intake_cases (id, student_name, intake_year, program_name, case_owner_staff_id, source_type, adm_profile_id, review_status, status, submitted_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [admCase1, 'CHEN Wei Ming (陈伟明)', '2026', 'Diploma in Business Administration', admStaffId, 'staff', admP1, 'pending_review', 'open', admNow, admNow, admNow]);
+    run(`UPDATE adm_profiles SET intake_case_id=? WHERE id=?`, [admCase1, admP1]);
+
+    // Generated documents for P1
+    run(`INSERT INTO adm_generated_documents (id, profile_id, intake_case_id, doc_type, version_no, status, generated_at, is_latest, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP1, admCase1, 'SAF', 1, 'done', admNow, 1, admNow]);
+    run(`INSERT INTO adm_generated_documents (id, profile_id, intake_case_id, doc_type, version_no, status, generated_at, is_latest, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP1, admCase1, 'FORM16', 1, 'done', admNow, 1, admNow]);
+    run(`INSERT INTO adm_generated_documents (id, profile_id, intake_case_id, doc_type, version_no, status, generated_at, is_latest, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP1, admCase1, 'V36', 1, 'done', admNow, 1, admNow]);
+
+    // ── Profile 2: 草稿状态（未成年学生，需要监护人）──────────────────
+    const admP2 = uuidv4();
+    run(`INSERT INTO adm_profiles (
+      id, created_by, source_type,
+      course_name, course_code, intake_year, intake_month, study_mode, campus,
+      surname, given_name, chinese_name, gender, dob, birth_country, birth_city,
+      nationality, race, marital_status,
+      passport_type, passport_no, passport_issue_date, passport_expiry, passport_issue_country,
+      phone_mobile, email,
+      address_line1, city, postal_code, country_of_residence,
+      native_language, english_proficiency,
+      financial_source, sponsor_name, sponsor_relation,
+      status, step_completed, created_at, updated_at
+    ) VALUES (
+      ?,?,?,  ?,?,?,?,?,?,  ?,?,?,?,?,?,?,  ?,?,?,  ?,?,?,?,?,  ?,?,  ?,?,?,?,  ?,?,  ?,?,?,  ?,?,?,?
+    )`, [
+      admP2, admCreatedBy, 'staff',
+      'Certificate in English Language', 'CEL-2026', '2026', 'September', 'Full-Time', 'Main Campus',
+      'LIU', 'Jiayi', '刘佳怡', 'Female', '2010-11-28', 'China', 'Beijing',
+      'Chinese', 'Chinese', 'single',
+      'Ordinary', 'E98765432', '2024-01-15', '2034-01-14', 'China',
+      '+86-13912345678', 'liujiayi2010@qq.com',
+      '88 Chaoyang Avenue, Chaoyang District', 'Beijing', '100020', 'China',
+      'Chinese (Mandarin)', 'Elementary',
+      'Parents', 'Liu Jianguo', 'Father',
+      'draft', 5, admNow, admNow
+    ]);
+
+    // Family for P2
+    run(`INSERT INTO adm_family_members (id, profile_id, member_type, surname, given_name, dob, nationality, sg_status, occupation, employer, relationship, is_alive, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP2, 'father', 'LIU', 'Jianguo', '1978-04-10', 'Chinese', 'N/A', 'Engineer', 'CRRC Corporation', 'Father', 1, 1]);
+    run(`INSERT INTO adm_family_members (id, profile_id, member_type, surname, given_name, dob, nationality, sg_status, occupation, employer, relationship, is_alive, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP2, 'mother', 'ZHAO', 'Mei', '1980-09-15', 'Chinese', 'N/A', 'Accountant', 'Bank of China', 'Mother', 1, 2]);
+    run(`INSERT INTO adm_family_members (id, profile_id, member_type, surname, given_name, dob, nationality, sg_status, occupation, employer, relationship, is_alive, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP2, 'sibling', 'LIU', 'Jiahao', '2007-03-05', 'Chinese', 'N/A', 'Student', '', 'Brother', 1, 3]);
+
+    // Guardian for P2 (under 18)
+    run(`INSERT INTO adm_guardian_info (id, profile_id, surname, given_name, relation, dob, nationality, sg_status, nric_fin, phone, email, address, occupation, employer) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP2, 'TAN', 'Ah Kow', 'Family Friend (Appointed Guardian)', '1965-12-01', 'Singaporean', 'Singapore Citizen', 'S1234567D', '+65-98765432', 'tankow@gmail.com', 'Blk 456 Ang Mo Kio Ave 10 #12-345 Singapore 560456', 'Retired', '']);
+
+    // Education for P2
+    run(`INSERT INTO adm_education_history (id, profile_id, institution_name, country, qualification, major, date_from, date_to, gpa, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP2, 'Beijing Chaoyang Foreign Language School', 'China', 'Junior High School', 'General', '2023-09-01', '2026-06-30', '88/100', 1]);
+
+    // ── Profile 3: 中介提交的案例（印尼学生，审核通过）──────────────────
+    const admP3 = uuidv4();
+    run(`INSERT INTO adm_profiles (
+      id, created_by, source_type, agent_id,
+      course_name, course_code, intake_year, intake_month, study_mode, campus,
+      surname, given_name, gender, dob, birth_country, birth_city,
+      nationality, race, religion, marital_status,
+      passport_type, passport_no, passport_issue_date, passport_expiry, passport_issue_country,
+      sg_pass_type, prior_sg_study, prior_sg_school, prior_sg_year,
+      phone_mobile, email,
+      address_line1, address_line2, city, state_province, postal_code, country_of_residence,
+      native_language, english_proficiency, ielts_score, toefl_score,
+      financial_source, annual_income, bank_statement_available,
+      antecedent_q1, antecedent_q2, antecedent_q3, antecedent_q4,
+      pdpa_consent, pdpa_marketing, pdpa_photo_video,
+      status, step_completed, created_at, updated_at
+    ) VALUES (
+      ?,?,?,?,  ?,?,?,?,?,?,  ?,?,?,?,?,?,  ?,?,?,?,  ?,?,?,?,?,  ?,?,?,?,  ?,?,  ?,?,?,?,?,?,  ?,?,?,?,  ?,?,?,  ?,?,?,?,  ?,?,?,  ?,?,?,?
+    )`, [
+      admP3, admCreatedBy, 'agent', admStaffId,
+      'Advanced Diploma in Hospitality Management', 'ADHM-2026', '2026', 'October', 'Full-Time', 'Main Campus',
+      'WIJAYA', 'Putri Sari', 'Female', '2004-07-22', 'Indonesia', 'Jakarta',
+      'Indonesian', 'Malay', 'Islam', 'single',
+      'Ordinary', 'B7654321', '2022-08-01', '2032-07-31', 'Indonesia',
+      'Student Pass', 1, 'ABC Language School', '2024',
+      '+62-81234567890', 'putri.wijaya@yahoo.com',
+      'Jl. Sudirman No. 88', 'Kav 52-53', 'Jakarta', 'DKI Jakarta', '12190', 'Indonesia',
+      'Bahasa Indonesia', 'Upper-Intermediate', '6.0', '80',
+      'Self / Parents', '85000', 1,
+      0, 0, 0, 0,
+      1, 0, 1,
+      'submitted', 10, admNow, admNow
+    ]);
+
+    // Family for P3
+    run(`INSERT INTO adm_family_members (id, profile_id, member_type, surname, given_name, dob, nationality, sg_status, occupation, employer, relationship, is_alive, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP3, 'father', 'WIJAYA', 'Budi', '1972-01-15', 'Indonesian', 'N/A', 'Restaurant Owner', 'Wijaya Restaurant Group', 'Father', 1, 1]);
+    run(`INSERT INTO adm_family_members (id, profile_id, member_type, surname, given_name, dob, nationality, sg_status, occupation, employer, relationship, is_alive, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP3, 'mother', 'WIJAYA', 'Siti Rahayu', '1975-05-30', 'Indonesian', 'N/A', 'Homemaker', '', 'Mother', 1, 2]);
+    run(`INSERT INTO adm_family_members (id, profile_id, member_type, surname, given_name, dob, nationality, sg_status, occupation, employer, relationship, is_alive, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP3, 'sibling', 'WIJAYA', 'Adi', '2008-09-12', 'Indonesian', 'N/A', 'Student', 'Jakarta International School', 'Brother', 1, 3]);
+
+    // Residence for P3
+    run(`INSERT INTO adm_residence_history (id, profile_id, country, city, address, date_from, date_to, purpose, sort_order) VALUES (?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP3, 'Indonesia', 'Jakarta', 'Jl. Sudirman No. 88 Kav 52-53', '2004-07-22', '2024-03-31', 'Permanent Residence', 1]);
+    run(`INSERT INTO adm_residence_history (id, profile_id, country, city, address, date_from, date_to, purpose, sort_order) VALUES (?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP3, 'Singapore', 'Singapore', '10 Dover Drive #03-12', '2024-04-01', null, 'Study', 2]);
+
+    // Education for P3
+    run(`INSERT INTO adm_education_history (id, profile_id, institution_name, country, qualification, major, date_from, date_to, gpa, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP3, 'SMA Negeri 8 Jakarta', 'Indonesia', 'SMA Diploma (High School)', 'Social Sciences', '2019-07-01', '2022-06-30', '8.5/10', 1]);
+    run(`INSERT INTO adm_education_history (id, profile_id, institution_name, country, qualification, major, date_from, date_to, gpa, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP3, 'ABC Language School', 'Singapore', 'English Proficiency Certificate', 'English', '2024-04-15', '2025-04-14', '', 2]);
+
+    // Employment for P3
+    run(`INSERT INTO adm_employment_history (id, profile_id, employer, country, position, date_from, date_to, is_current, reason_left, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP3, 'Wijaya Restaurant Group', 'Indonesia', 'Part-time Waitress', '2022-07-01', '2024-03-15', 0, 'Moving to Singapore for studies', 1]);
+
+    // Signatures for P3
+    run(`INSERT INTO adm_signatures (id, profile_id, sig_type, signer_name, signed_at, sig_date) VALUES (?,?,?,?,?,?)`,
+      [uuidv4(), admP3, 'applicant', 'WIJAYA Putri Sari', admNow, '2026-03-18']);
+
+    // Intake case for P3 (approved)
+    const admCase3 = uuidv4();
+    run(`INSERT INTO intake_cases (id, student_name, intake_year, program_name, case_owner_staff_id, source_type, adm_profile_id, review_status, status, submitted_at, reviewed_by, reviewed_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [admCase3, 'WIJAYA Putri Sari', '2026', 'Advanced Diploma in Hospitality Management', admStaffId, 'agent', admP3, 'approved', 'open', admNow, admCreatedBy, admNow, admNow, admNow]);
+    run(`UPDATE adm_profiles SET intake_case_id=? WHERE id=?`, [admCase3, admP3]);
+
+    // Generated documents for P3
+    run(`INSERT INTO adm_generated_documents (id, profile_id, intake_case_id, doc_type, version_no, status, generated_at, is_latest, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP3, admCase3, 'SAF', 1, 'done', admNow, 1, admNow]);
+    run(`INSERT INTO adm_generated_documents (id, profile_id, intake_case_id, doc_type, version_no, status, generated_at, is_latest, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP3, admCase3, 'FORM16', 1, 'done', admNow, 1, admNow]);
+    run(`INSERT INTO adm_generated_documents (id, profile_id, intake_case_id, doc_type, version_no, status, generated_at, is_latest, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP3, admCase3, 'V36', 1, 'done', admNow, 1, admNow]);
+
+    // ── Profile 4: 生成失败的案例（越南学生）──────────────────────────
+    const admP4 = uuidv4();
+    run(`INSERT INTO adm_profiles (
+      id, created_by, source_type,
+      course_name, course_code, intake_year, intake_month, study_mode, campus,
+      surname, given_name, gender, dob, birth_country, birth_city,
+      nationality, race, marital_status,
+      passport_type, passport_no, passport_issue_date, passport_expiry, passport_issue_country,
+      phone_mobile, email,
+      address_line1, city, country_of_residence,
+      native_language, english_proficiency,
+      financial_source, pdpa_consent,
+      status, step_completed, created_at, updated_at
+    ) VALUES (
+      ?,?,?,  ?,?,?,?,?,?,  ?,?,?,?,?,?,  ?,?,?,  ?,?,?,?,?,  ?,?,  ?,?,?,  ?,?,  ?,?,  ?,?,?,?
+    )`, [
+      admP4, admCreatedBy, 'staff',
+      'Diploma in Information Technology', 'DIT-2026', '2026', 'July', 'Full-Time', 'Main Campus',
+      'NGUYEN', 'Van Huy', 'Male', '2005-01-10', 'Vietnam', 'Ho Chi Minh City',
+      'Vietnamese', 'Vietnamese', 'single',
+      'Ordinary', 'C12345678', '2023-06-01', '2033-05-31', 'Vietnam',
+      '+84-908123456', 'nguyenvanhuy@gmail.com',
+      '123 Le Loi Street, District 1', 'Ho Chi Minh City', 'Vietnam',
+      'Vietnamese', 'Pre-Intermediate',
+      'Parents', 1,
+      'submitted', 10, admNow, admNow
+    ]);
+
+    // Family for P4
+    run(`INSERT INTO adm_family_members (id, profile_id, member_type, surname, given_name, dob, nationality, occupation, relationship, is_alive, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP4, 'father', 'NGUYEN', 'Van Thanh', '1975-06-20', 'Vietnamese', 'Factory Manager', 'Father', 1, 1]);
+    run(`INSERT INTO adm_family_members (id, profile_id, member_type, surname, given_name, dob, nationality, occupation, relationship, is_alive, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP4, 'mother', 'TRAN', 'Thi Lan', '1978-12-05', 'Vietnamese', 'Shop Owner', 'Mother', 1, 2]);
+
+    // Education for P4
+    run(`INSERT INTO adm_education_history (id, profile_id, institution_name, country, qualification, major, date_from, date_to, gpa, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP4, 'Le Hong Phong High School', 'Vietnam', 'High School Diploma', 'Natural Sciences', '2020-09-01', '2023-06-30', '8.0/10', 1]);
+
+    // Intake case for P4 (generation failed)
+    const admCase4 = uuidv4();
+    run(`INSERT INTO intake_cases (id, student_name, intake_year, program_name, case_owner_staff_id, source_type, adm_profile_id, review_status, status, submitted_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [admCase4, 'NGUYEN Van Huy', '2026', 'Diploma in Information Technology', admStaffId, 'staff', admP4, 'generation_failed', 'open', admNow, admNow, admNow]);
+    run(`UPDATE adm_profiles SET intake_case_id=? WHERE id=?`, [admCase4, admP4]);
+
+    // Failed doc generation records
+    run(`INSERT INTO adm_generated_documents (id, profile_id, intake_case_id, doc_type, version_no, status, error_message, is_latest, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP4, admCase4, 'SAF', 1, 'failed', 'PDF template not found', 1, admNow]);
+    run(`INSERT INTO adm_generated_documents (id, profile_id, intake_case_id, doc_type, version_no, status, error_message, is_latest, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP4, admCase4, 'FORM16', 1, 'failed', 'PDF template not found', 1, admNow]);
+    run(`INSERT INTO adm_generated_documents (id, profile_id, intake_case_id, doc_type, version_no, status, error_message, is_latest, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admP4, admCase4, 'V36', 1, 'failed', 'PDF template not found', 1, admNow]);
+
+    // ── Profile 5: 纯草稿（刚创建，只填了第1步）─────────────────────
+    const admP5 = uuidv4();
+    run(`INSERT INTO adm_profiles (id, created_by, source_type, course_name, intake_year, intake_month, status, step_completed, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`, [
+      admP5, admCreatedBy, 'staff', 'Diploma in Accounting', '2026', 'October', 'draft', 1, admNow, admNow
+    ]);
+
+    save();
+  }
+
   // 检查是否已有数据
   const existing = get('SELECT COUNT(*) as cnt FROM users');
   if (existing && existing.cnt > 0) return;
@@ -1942,6 +2674,7 @@ function seedData() {
          cnow2, cnow2]);
     }
   }
+
 
   // 确保所有 seedData 写入的数据持久化到磁盘
   save();

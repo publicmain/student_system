@@ -972,7 +972,7 @@ async function submitAll(){
   if(submitBtn){submitBtn.disabled=true;submitBtn.innerHTML=`<span class="spinner-border spinner-border-sm me-2"></span>${lang==='zh'?'正在提交...':'Submitting...'}`}
   await saveDraft();
   try{await api('POST','/agent/uif/submit',{data:{...S.data,_family:S.family,_residence:S.residence,_education:S.education,_employment:S.employment,_guardian:S.guardian,_signatures:S.signatures}});
-    toast(t('submit_success'));S.uifStatus='SUBMITTED';renderApp()}catch(e){toast(e.message,'danger');if(submitBtn){submitBtn.disabled=false;submitBtn.innerHTML=btnOriginal}}finally{S._submitting=false}}
+    toast(t('submit_success'));S.uifStatus='SUBMITTED';if(S.request)S.request.status='SUBMITTED';renderApp()}catch(e){toast(e.message,'danger');if(submitBtn){submitBtn.disabled=false;submitBtn.innerHTML=btnOriginal}}finally{S._submitting=false}}
 
 // ══════════════════════════════════════════════════
 // RENDER APP (FORM PAGE)

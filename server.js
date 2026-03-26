@@ -5258,21 +5258,27 @@ app.put('/api/agent/uif', (req, res) => {
 });
 
 app.post('/api/agent/uif/submit', (req, res) => {
+  console.log('[SUBMIT] called, token:', (req.query.token||'').slice(0,8));
   const { token } = req.query;
-  if (!_agentRateLimit(token, res)) return;
+  if (!_agentRateLimit(token, res)) { console.log('[SUBMIT] rate limited'); return; }
   const v = _matValidateToken(token, req.ip);
-  if (v.error) return res.status(v.status).json({ error: v.error });
+  if (v.error) { console.log('[SUBMIT] token error:', v.error); return res.status(v.status).json({ error: v.error }); }
+  console.log('[SUBMIT] request_id:', v.rec.request_id.slice(0,8));
   const mr = db.get(`SELECT status, current_version FROM mat_requests WHERE id=?`, [v.rec.request_id]);
+  console.log('[SUBMIT] mr.status:', mr?.status, 'version:', mr?.current_version);
   if (mr && ['CANCELLED', 'COMPLETED'].includes(mr.status)) {
+    console.log('[SUBMIT] BLOCKED: request cancelled/completed');
     return res.status(403).json({ error: `REQUEST_${mr.status}` });
   }
   // 不允许已提交后重复提交（除非被打回或 UIF 状态不一致）
   if (mr && mr.status === 'SUBMITTED') {
     const uifCheck = db.get(`SELECT status FROM mat_uif_submissions WHERE request_id=?`, [v.rec.request_id]);
+    console.log('[SUBMIT] duplicate check: uif.status=', uifCheck?.status);
     if (uifCheck && uifCheck.status === 'SUBMITTED') {
+      console.log('[SUBMIT] BLOCKED: already submitted');
       return res.status(400).json({ error: '已提交，请等待审核' });
     }
-    // UIF 状态不是 SUBMITTED（可能是 DRAFT 不一致），允许继续提交修复
+    console.log('[SUBMIT] ALLOWED: uif not SUBMITTED, proceeding to fix');
   }
 
   const { data } = req.body;

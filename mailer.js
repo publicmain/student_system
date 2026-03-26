@@ -52,6 +52,7 @@ async function sendMail(to, subject, html, attachments = []) {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    family: 4,                 // 强制 IPv4（Railway 不支持 IPv6）
     connectionTimeout: 10000,  // 10秒连接超时
     greetingTimeout: 10000,    // 10秒握手超时
     socketTimeout: 30000,      // 30秒传输超时

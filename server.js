@@ -5280,7 +5280,8 @@ app.post('/api/agent/uif/submit', (req, res) => {
   const newVersion = (mr?.current_version || 0) + 1;
 
   // 更新 mat_uif_submissions（主记录）
-  const existing = db.get(`SELECT id FROM mat_uif_submissions WHERE request_id=?`, [v.rec.request_id]);
+  const existing = db.get(`SELECT id, status FROM mat_uif_submissions WHERE request_id=?`, [v.rec.request_id]);
+  console.log('[UIF SUBMIT]', v.rec.request_id.slice(0,8), 'existing:', existing ? 'id='+existing.id.slice(0,8)+' status='+existing.status : 'NONE', '→ newVersion:', newVersion);
   if (existing) {
     db.run(`UPDATE mat_uif_submissions SET data=?,status='SUBMITTED',submitted_at=datetime('now'),version_no=?,return_reason=NULL,field_notes=NULL WHERE request_id=?`,
       [dataStr, newVersion, v.rec.request_id]);
@@ -5288,6 +5289,9 @@ app.post('/api/agent/uif/submit', (req, res) => {
     db.run(`INSERT INTO mat_uif_submissions (id,request_id,data,status,submitted_at,version_no) VALUES (?,?,?,?,datetime('now'),?)`,
       [uuidv4(), v.rec.request_id, dataStr, 'SUBMITTED', newVersion]);
   }
+  // 验证
+  const verify = db.get(`SELECT status FROM mat_uif_submissions WHERE request_id=?`, [v.rec.request_id]);
+  console.log('[UIF SUBMIT] after update:', verify?.status);
 
   // 创建版本快照
   db.run(`UPDATE mat_uif_versions SET is_current=0 WHERE request_id=?`, [v.rec.request_id]);

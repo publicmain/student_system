@@ -942,8 +942,8 @@ function attachInputs(){
 async function submitAll(){
   if(S._submitting){toast(lang==='zh'?'正在提交中，请稍候...':'Submitting, please wait...','warning');return}
   collect();
-  // 已提交状态下不允许重复提交
-  if(S.request?.status === 'SUBMITTED') {
+  // 已提交状态下不允许重复提交（只有 UIF 也是 SUBMITTED 才算真的已提交）
+  if(S.request?.status === 'SUBMITTED' && S.uifStatus === 'SUBMITTED') {
     toast(lang==='zh'?'表单已提交，请等待审核':'Already submitted, please wait for review','warning');return;
   }
   const req=['surname','given_name','dob','nationality','email','phone_mobile','passport_no','passport_expiry','country_of_residence'];

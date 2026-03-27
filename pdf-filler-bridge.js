@@ -143,6 +143,20 @@ async function generateAllDocuments(profileId, db, uploadDir) {
     // 旧版本置为非最新
     db.run('UPDATE adm_generated_documents SET is_latest=0 WHERE profile_id=? AND doc_type=?', [profileId, docType]);
 
+    // 清理超过 2 个旧版本的物理文件和记录（保留最新 2 个 + 即将插入的新版本）
+    const oldDocs = db.all(
+      'SELECT id, file_id FROM adm_generated_documents WHERE profile_id=? AND doc_type=? AND is_latest=0 ORDER BY version_no DESC',
+      [profileId, docType]
+    );
+    if (oldDocs.length > 1) { // 保留 1 个旧版本，删除更老的
+      for (let i = 1; i < oldDocs.length; i++) {
+        if (oldDocs[i].file_id) {
+          try { require('fs').unlinkSync(require('path').join(uploadDir, oldDocs[i].file_id)); } catch(e) {}
+        }
+        db.run('DELETE FROM adm_generated_documents WHERE id=?', [oldDocs[i].id]);
+      }
+    }
+
     const lastVer = db.get('SELECT MAX(version_no) as v FROM adm_generated_documents WHERE profile_id=? AND doc_type=?', [profileId, docType]);
     const versionNo = ((lastVer?.v) || 0) + 1;
 

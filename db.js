@@ -22,6 +22,9 @@ async function init() {
     db = new SQL.Database();
   }
   createSchema();
+  // 开启 WAL 模式（提高并发读写性能）和外键约束
+  try { db.run('PRAGMA journal_mode=WAL'); } catch(e) { /* sql.js 可能不支持 WAL，忽略 */ }
+  try { db.run('PRAGMA foreign_keys=ON'); } catch(e) {}
   save();
 }
 
@@ -1449,6 +1452,22 @@ function createSchema() {
   for (const sql of admMigrations) {
     try { db.run(sql); } catch(e) { /* column exists */ }
   }
+
+  // ── 审计记录表 ──────────────────────────────────────────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS mat_review_actions (
+    id            TEXT PRIMARY KEY,
+    request_id    TEXT NOT NULL,
+    action_type   TEXT NOT NULL,
+    actor_id      TEXT,
+    actor_name    TEXT,
+    reason        TEXT,
+    field_notes   TEXT,
+    file_rejects  TEXT,
+    add_items     TEXT,
+    version_no    INTEGER,
+    ip_address    TEXT,
+    created_at    TEXT DEFAULT (datetime('now'))
+  )`);
 
   // ── 性能索引 ──────────────────────────────────────────────────────
   const indexes = [

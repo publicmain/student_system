@@ -42,20 +42,35 @@ function backup() {
 function stats() {
   const dbSize = fs.existsSync(DB_PATH) ? fs.statSync(DB_PATH).size : 0;
   let uploadSize = 0, uploadCount = 0;
-  if (fs.existsSync(UPLOAD_DIR)) {
-    const files = fs.readdirSync(UPLOAD_DIR);
-    uploadCount = files.length;
-    files.forEach(f => { try { uploadSize += fs.statSync(path.join(UPLOAD_DIR, f)).size; } catch(e) {} });
-  }
-
-  // 按扩展名统计
   const extStats = {};
+  // 递归扫描所有子目录
+  const scanStats = (dir) => {
+    if (!fs.existsSync(dir)) return;
+    fs.readdirSync(dir).forEach(f => {
+      const fp = path.join(dir, f);
+      try {
+        const st = fs.statSync(fp);
+        if (st.isDirectory()) { scanStats(fp); return; }
+        uploadCount++;
+        uploadSize += st.size;
+        const ext = path.extname(f).toLowerCase() || '.unknown';
+        if (!extStats[ext]) extStats[ext] = { count: 0, size: 0 };
+        extStats[ext].count++;
+        extStats[ext].size += st.size;
+      } catch(e) {}
+    });
+  };
+  if (fs.existsSync(UPLOAD_DIR)) scanStats(UPLOAD_DIR);
+
+  // 按子目录统计
+  const dirStats = {};
   if (fs.existsSync(UPLOAD_DIR)) {
     fs.readdirSync(UPLOAD_DIR).forEach(f => {
-      const ext = path.extname(f).toLowerCase() || '.unknown';
-      if (!extStats[ext]) extStats[ext] = { count: 0, size: 0 };
-      extStats[ext].count++;
-      try { extStats[ext].size += fs.statSync(path.join(UPLOAD_DIR, f)).size; } catch(e) {}
+      const fp = path.join(UPLOAD_DIR, f);
+      if (!fs.statSync(fp).isDirectory()) return;
+      let cnt = 0, sz = 0;
+      fs.readdirSync(fp).forEach(ff => { try { cnt++; sz += fs.statSync(path.join(fp, ff)).size; } catch(e) {} });
+      dirStats[f] = { count: cnt, size: sz };
     });
   }
 
@@ -94,8 +109,28 @@ async function orphans(dryRun = true) {
   for (const [table, col] of tables) {
     try { db.all(`SELECT ${col} FROM ${table} WHERE ${col} IS NOT NULL`).forEach(r => dbFiles.add(r[col])); } catch(e) {}
   }
+  // UIF 中的照片和签名文件引用
+  try {
+    db.all('SELECT data FROM mat_uif_submissions WHERE data IS NOT NULL').forEach(r => {
+      try {
+        const d = JSON.parse(r.data);
+        if (d._id_photo_file) dbFiles.add(d._id_photo_file);
+        if (d._signatures) Object.values(d._signatures).forEach(sig => { if (sig.sig_file) dbFiles.add(sig.sig_file); });
+      } catch(e) {}
+    });
+  } catch(e) {}
 
-  const diskFiles = fs.existsSync(UPLOAD_DIR) ? fs.readdirSync(UPLOAD_DIR) : [];
+  // 扫描所有子目录（不只是 root）
+  let diskFiles = [];
+  const scanDir = (dir) => {
+    if (!fs.existsSync(dir)) return;
+    fs.readdirSync(dir).forEach(f => {
+      const fp = path.join(dir, f);
+      if (fs.statSync(fp).isFile()) diskFiles.push(f);
+      else if (fs.statSync(fp).isDirectory()) scanDir(fp);
+    });
+  };
+  scanDir(UPLOAD_DIR);
   const orphanFiles = diskFiles.filter(f => !dbFiles.has(f));
   let totalSize = 0;
   orphanFiles.forEach(f => { try { totalSize += fs.statSync(path.join(UPLOAD_DIR, f)).size; } catch(e) {} });

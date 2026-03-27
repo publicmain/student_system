@@ -789,7 +789,7 @@ function rReview(){
   <div class="rv-group"><h6>${lang==='zh'?'居住史':'Residence History'} (${S.residence.length}${t('records')})</h6>${S.residence.map(r=>rv(r.country||'-',(r.date_from||'?')+' — '+(r.date_to||'present'))).join('')||`<div class="small text-muted">${t('not_filled')}</div>`}</div>
   <div class="rv-group"><h6>${lang==='zh'?'财务信息':'Financial Info'}</h6>${rv(lang==='zh'?'资金来源':'Source',d.financial_source)}${rv(lang==='zh'?'申请人月收入':'Applicant Income',d.applicant_monthly_income?'S$'+d.applicant_monthly_income:'')}${rv(lang==='zh'?'父亲月收入':'Father Income',d.father_monthly_income?'S$'+d.father_monthly_income:'')}${rv(lang==='zh'?'母亲月收入':'Mother Income',d.mother_monthly_income?'S$'+d.mother_monthly_income:'')}</div>
   <div class="rv-group"><h6>${lang==='zh'?'声明事项':'Declarations'}</h6>${rv(lang==='zh'?'曾被拒绝入境/遣返':'Refused entry/deported',d.antecedent_q1==='1'?'Yes':'No')}${rv(lang==='zh'?'曾被法院定罪':'Convicted',d.antecedent_q2==='1'?'Yes':'No')}${rv(lang==='zh'?'曾被禁止入境新加坡':'Prohibited entry SG',d.antecedent_q3==='1'?'Yes':'No')}${rv(lang==='zh'?'曾用不同护照/姓名入境':'Different passport/name',d.antecedent_q4==='1'?'Yes':'No')}</div>
-  <div class="rv-group"><h6>${lang==='zh'?'签名与证件照':'Signature & Photo'}</h6>${rv(lang==='zh'?'学生签名':'Student Signature',S.signatures.applicant?.sig_data?'✓ '+(lang==='zh'?'已签名':'Signed'):lang==='zh'?'未签名':'Not signed')}${rv(lang==='zh'?'证件照':'ID Photo',d._id_photo_data?'✓ '+(lang==='zh'?'已上传':'Uploaded'):lang==='zh'?'未上传':'Not uploaded')}${rv(lang==='zh'?'签名日期':'Signature Date',d.sig_date)}</div>
+  <div class="rv-group"><h6>${lang==='zh'?'签名与证件照':'Signature & Photo'}</h6>${rv(lang==='zh'?'学生签名':'Student Signature',(S.signatures.applicant?.sig_data||S.signatures.applicant?.sig_file)?'✓ '+(lang==='zh'?'已签名':'Signed'):lang==='zh'?'未签名':'Not signed')}${rv(lang==='zh'?'证件照':'ID Photo',(d._id_photo_data||d._id_photo_file)?'✓ '+(lang==='zh'?'已上传':'Uploaded'):lang==='zh'?'未上传':'Not uploaded')}${rv(lang==='zh'?'签名日期':'Signature Date',d.sig_date)}</div>
   <div class="rv-group"><h6>${lang==='zh'?'材料上传':'Materials'}</h6>${(S.materials||[]).map(m=>rv(m.name+(m.is_required?' *':''),m.status==='UPLOADED'||m.status==='APPROVED'?'✓ '+(lang==='zh'?'已上传':'Uploaded'):lang==='zh'?'未上传':'Not uploaded')).join('')||`<div class="small text-muted">${t('not_filled')}</div>`}</div>
   ${calcAge(d.dob)<18?`<div class="rv-group"><h6>${lang==='zh'?'监护人信息':'Guardian Info'}</h6>${rv(lang==='zh'?'监护人姓名':'Guardian Name',(d.guardian_surname||'')+' '+(d.guardian_given_name||''))}${rv(lang==='zh'?'关系':'Relationship',d.guardian_relation)}${rv(lang==='zh'?'电话':'Phone',d.guardian_phone)}</div>`:''}
   <hr class="sec-divider">
@@ -1102,8 +1102,9 @@ async function loadWorkspace(){
         delete p._family;delete p._residence;delete p._education;delete p._employment;delete p._guardian;delete p._signatures;delete p._step;
         // 合并数据：服务器字段覆盖 demo 字段，保留 demo 中有但服务器没有的
         S.data = {...S.data, ...p};
-        // 证件照：服务器有就用服务器的
+        // 证件照：服务器有就用服务器的（兼容 base64 和文件引用）
         if(p._id_photo_data) S.data._id_photo_data = p._id_photo_data;
+        if(p._id_photo_file) S.data._id_photo_file = p._id_photo_file;
       }
     }catch(e){if(!S._isDemo)S.data={}}
     renderApp()}catch(e){showError(e.message)}}

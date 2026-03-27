@@ -5274,6 +5274,7 @@ app.put('/api/agent/uif', (req, res) => {
       try {
         const old = JSON.parse(existing.old_data);
         if (!merged._id_photo_data && old._id_photo_data) merged._id_photo_data = old._id_photo_data;
+        if (!merged._id_photo_file && old._id_photo_file) merged._id_photo_file = old._id_photo_file;
         if ((!merged._signatures || !Object.keys(merged._signatures).length) && old._signatures && Object.keys(old._signatures).length) {
           merged._signatures = old._signatures;
         }

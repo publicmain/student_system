@@ -717,7 +717,8 @@ function rDeclarations(){
 
 function rSignature(){
   const isMinor=calcAge(S.data.dob)<18;
-  const photoPreview=S.data._id_photo_data?`<img src="${S.data._id_photo_data}" style="max-width:120px;max-height:150px;border-radius:6px;border:1px solid var(--bdr);margin-top:8px">`:'';
+  const photoSrc=S.data._id_photo_data||(S.data._id_photo_file?`/api/agent/file/${S.data._id_photo_file}?token=${encodeURIComponent(S.token)}`:'');
+  const photoPreview=photoSrc?`<img src="${photoSrc}" style="max-width:120px;max-height:150px;border-radius:6px;border:1px solid var(--bdr);margin-top:8px">`:'';
   return`<div class="sec-title"><i class="bi bi-pen"></i>${t('s9_title')}</div><div class="sec-desc">${t('s9_desc')}</div>
 
   <div class="sub-heading"><i class="bi bi-camera"></i> ${t('id_photo_title')}</div>
@@ -740,10 +741,10 @@ function rSignature(){
   ${F('remarks','general_remarks','textarea',{rows:2})}
   <hr class="sec-divider"><div class="sub-heading">${t('applicant_sig')}</div>
   <div class="fl-hint mb-2">${t('sig_hint')}</div>
-  ${S.signatures.applicant?.sig_data ? `
+  ${(S.signatures.applicant?.sig_data || S.signatures.applicant?.sig_file) ? `
     <div class="mb-2 p-2 rounded" style="background:#f0f9f0;border:1px solid #c3e6c3">
       <div class="small text-success mb-1"><i class="bi bi-check-circle me-1"></i>${lang==='zh'?'签名已保存':'Signature saved'}</div>
-      <img src="${S.signatures.applicant.sig_data}" style="max-width:300px;max-height:80px;border:1px solid #ddd;border-radius:4px;background:#fff">
+      <img src="${S.signatures.applicant.sig_data || `/api/agent/file/${S.signatures.applicant.sig_file}?token=${encodeURIComponent(S.token)}`}" style="max-width:300px;max-height:80px;border:1px solid #ddd;border-radius:4px;background:#fff">
     </div>
     <div class="fl-hint mb-2">${lang==='zh'?'如需重新签名，请在下方画板重新签写：':'To re-sign, draw in the canvas below:'}</div>
   ` : ''}
@@ -843,14 +844,22 @@ function handlePhotoUpload(file){
   if(!file)return;
   if(file.size>5*1024*1024){toast('Photo must be under 5MB','danger');return}
   if(!file.type.startsWith('image/')){toast('Please select an image file','danger');return}
-  const reader=new FileReader();
-  reader.onload=function(e){
-    S.data._id_photo_data=e.target.result;
+  // 压缩图片：缩放到最大 800x1000，质量 80%
+  const img=new Image();
+  img.onload=function(){
+    const MAX_W=800,MAX_H=1000;
+    let w=img.width,h=img.height;
+    if(w>MAX_W||h>MAX_H){const r=Math.min(MAX_W/w,MAX_H/h);w=Math.round(w*r);h=Math.round(h*r)}
+    const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+    canvas.getContext('2d').drawImage(img,0,0,w,h);
+    const compressed=canvas.toDataURL('image/jpeg',0.8);
+    S.data._id_photo_data=compressed;
     const preview=document.getElementById('photoPreview');
-    if(preview)preview.innerHTML=`<img src="${e.target.result}" style="max-width:120px;max-height:150px;border-radius:6px;border:1px solid var(--bdr)">`;
+    if(preview)preview.innerHTML=`<img src="${compressed}" style="max-width:120px;max-height:150px;border-radius:6px;border:1px solid var(--bdr)">`;
     S.dirty=true;scheduleSave();
+    URL.revokeObjectURL(img.src);
   };
-  reader.readAsDataURL(file);
+  img.src=URL.createObjectURL(file);
 }
 
 // ══════════════════════════════════════════════════
@@ -892,6 +901,7 @@ async function saveDraft(){
   const payload = {...S.data,_family:S.family,_residence:S.residence,_education:S.education,_employment:S.employment,_guardian:S.guardian,_step:S.step};
   if(S.signatures && Object.keys(S.signatures).length) payload._signatures = S.signatures;
   if(S.data._id_photo_data) payload._id_photo_data = S.data._id_photo_data;
+  if(S.data._id_photo_file) payload._id_photo_file = S.data._id_photo_file;
   try{await api('PUT','/agent/uif',{data:payload});
     let ind=document.getElementById('svInd');if(!ind){ind=document.createElement('div');ind.id='svInd';ind.className='save-ind';document.body.appendChild(ind)}
     ind.textContent=t('draft_saved');ind.style.opacity='1';setTimeout(()=>ind.style.opacity='0',2500)}catch(e){}}

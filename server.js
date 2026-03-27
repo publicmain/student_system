@@ -75,6 +75,8 @@ const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '12');
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const fileStorage = require('./file-storage');
+fileStorage.initDirs();
 
 // 允许上传的扩展名白名单
 const ALLOWED_EXTENSIONS = new Set(['.pdf','.doc','.docx','.xls','.xlsx','.ppt','.pptx','.jpg','.jpeg','.png','.gif','.zip','.rar','.txt']);
@@ -5790,10 +5792,11 @@ app.get('/api/agent/file/:fileId', (req, res) => {
   const item = db.get(`SELECT mi.* FROM mat_request_items mi
     JOIN mat_requests mr ON mi.request_id=mr.id
     WHERE mi.file_id=? AND mr.id=?`, [req.params.fileId, v.rec.request_id]);
-  if (!item) return res.status(403).json({ error: 'FORBIDDEN' });
-  const filePath = path.join(UPLOAD_DIR, req.params.fileId);
+  // 也允许访问照片和签名文件（非 mat_request_items）
+  const filePath = fileStorage.getFilePath(req.params.fileId);
+  if (!item && !fs.existsSync(filePath)) return res.status(403).json({ error: 'FORBIDDEN' });
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
-  res.download(filePath, item.file_name || req.params.fileId);
+  res.download(filePath, item?.file_name || req.params.fileId);
 });
 
 // Counselor downloads agent-uploaded file

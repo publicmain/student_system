@@ -7374,10 +7374,6 @@ async function renderIntakeCases(params = {}) {
       </div>
       <div class="page-header-actions">
         ${hasRole('principal','intake_staff','counselor') ? `
-          <button class="btn btn-outline-primary btn-sm me-2" onclick="navigate('intake-cases')">
-            <i class="bi bi-person-lines-fill me-1"></i>入学案例</button>
-          <button class="btn btn-outline-success btn-sm me-2" onclick="renderAdmFormWizard()">
-            <i class="bi bi-plus-circle me-1"></i>新建申请表</button>
           <button class="btn btn-primary btn-sm" onclick="showCreateIntakeModal()">
             <i class="bi bi-plus-lg me-1"></i>新建案例</button>` : ''}
       </div>

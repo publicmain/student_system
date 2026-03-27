@@ -1,8 +1,8 @@
 [phases.setup]
-nixPkgs = ["...", "python312", "python312Packages.pip"]
+nixPkgs = ["...", "python312", "python312Packages.pip", "gcc", "swig"]
 
 [phases.install]
-cmds = ["npm ci --production", "python3 -m pip install --break-system-packages pymupdf reportlab Pillow"]
+cmds = ["npm ci --production", "python3 -m pip install --break-system-packages --only-binary=:all: PyMuPDF reportlab Pillow || python3 -m pip install --break-system-packages PyMuPDF reportlab Pillow"]
 
 [start]
 cmd = "node server.js"

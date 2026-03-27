@@ -11,7 +11,7 @@
 <body>
 
 <!-- ════════════════════ 登录页 ════════════════════ -->
-<div id="login-page" class="login-wrapper">
+<div id="login-page" class="login-wrapper d-none">
   <div class="login-card">
     <div class="text-center mb-4">
       <div class="logo-icon mb-3"><i class="bi bi-mortarboard-fill"></i></div>
@@ -49,10 +49,10 @@
     </div>
     <div class="d-flex align-items-center" style="gap:12px">
       <!-- 通知铃 -->
-      <div class="position-relative d-none" id="notif-bell-wrap" style="margin-right:8px;padding:2px 6px">
-        <button class="btn btn-link text-white p-0" id="notif-bell-btn" title="通知" style="font-size:1.2rem;line-height:1;position:relative">
+      <div class="d-none" id="notif-bell-wrap" style="margin-right:10px">
+        <button class="btn text-white p-0 border-0" id="notif-bell-btn" title="通知" style="font-size:1.15rem;background:none;position:relative;width:32px;height:32px;display:flex;align-items:center;justify-content:center">
           <i class="bi bi-bell-fill"></i>
-          <span class="badge rounded-pill bg-danger" id="notif-badge" style="display:none;font-size:9px;position:absolute;top:-4px;right:-8px;min-width:16px;padding:2px 5px"></span>
+          <span class="badge rounded-pill bg-danger" id="notif-badge" style="display:none;font-size:9px;position:absolute;top:0;right:0;min-width:16px;padding:2px 4px;line-height:1"></span>
         </button>
       </div>
       <span class="badge" id="nav-role-badge" style="background:rgba(255,255,255,0.15);color:#e2e8f0;font-weight:500;font-size:11px"></span>

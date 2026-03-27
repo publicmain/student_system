@@ -6,6 +6,15 @@ fill_v36.py — V36 / Form 36 (eForm V36) 模板填充器
 from pdf_utils import OverlayBuilder, merge_overlay, fmt_date, fmt_amount, yn, safe_str, to_bool
 import os
 
+def _find_file(upload_dir, file_id):
+    if not file_id: return None
+    direct = os.path.join(upload_dir, file_id)
+    if os.path.exists(direct): return direct
+    for sub in ['photos','materials','generated','signatures','exchange','case-files']:
+        p = os.path.join(upload_dir, sub, file_id)
+        if os.path.exists(p): return p
+    return direct
+
 
 def fill_v36(data, template_path, output_path, upload_dir=None, font_path=None):
     p = data.get('profile', {})
@@ -263,8 +272,8 @@ def fill_v36(data, template_path, output_path, upload_dir=None, font_path=None):
     ob.text(298.5, 659, fn, 9)
 
     if app_sig.get('file_id') and upload_dir:
-        sig_path = os.path.join(upload_dir, app_sig['file_id'])
-        if os.path.exists(sig_path):
+        sig_path = _find_file(upload_dir, app_sig['file_id'])
+        if sig_path and os.path.exists(sig_path):
             ob.image(392.5, 643.5, sig_path, 150, 35)
 
     # ── 保存并合并 ──

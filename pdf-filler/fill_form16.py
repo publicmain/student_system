@@ -6,6 +6,15 @@ fill_form16.py — Form 16 (eForm 16 / IMM16) 模板填充器
 from pdf_utils import OverlayBuilder, merge_overlay, fmt_date, fmt_amount, yn, safe_str, to_bool
 import os
 
+def _find_file(upload_dir, file_id):
+    if not file_id: return None
+    direct = os.path.join(upload_dir, file_id)
+    if os.path.exists(direct): return direct
+    for sub in ['photos','materials','generated','signatures','exchange','case-files']:
+        p = os.path.join(upload_dir, sub, file_id)
+        if os.path.exists(p): return p
+    return direct
+
 
 def fill_form16(data, template_path, output_path, upload_dir=None, font_path=None):
     p = data.get('profile', {})
@@ -21,8 +30,8 @@ def fill_form16(data, template_path, output_path, upload_dir=None, font_path=Non
 
     # Photo (右上角 "PHOTO PREVIEW HERE" 区域)
     if p.get('id_photo') and upload_dir:
-        photo_path = os.path.join(upload_dir, p['id_photo'])
-        if os.path.exists(photo_path):
+        photo_path = _find_file(upload_dir, p['id_photo'])
+        if photo_path and os.path.exists(photo_path):
             ob.image(482, 47, photo_path, 80, 95)
 
     # FIN: label "Foreign Identification No. (FIN)" bottom≈176 → 值 y=182
@@ -140,8 +149,8 @@ def fill_form16(data, template_path, output_path, upload_dir=None, font_path=Non
     ob.text(74.5, 470.5, fmt_date(app_sig.get('sig_date')), 9)
 
     if app_sig.get('file_id') and upload_dir:
-        sig_path = os.path.join(upload_dir, app_sig['file_id'])
-        if os.path.exists(sig_path):
+        sig_path = _find_file(upload_dir, app_sig['file_id'])
+        if sig_path and os.path.exists(sig_path):
             ob.image(313.5, 450, sig_path, 150, 40)
     elif app_sig.get('signer_name'):
         ob.text(313.5, 470, safe_str(app_sig.get('signer_name')), 9)

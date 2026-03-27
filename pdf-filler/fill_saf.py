@@ -6,6 +6,21 @@ fill_saf.py — Student Application Form 模板填充器
 from pdf_utils import OverlayBuilder, merge_overlay, fmt_date, fmt_amount, yn, safe_str, to_bool
 import os
 
+def _find_file(upload_dir, file_id):
+    """在 upload_dir 及其子目录中查找文件（兼容分层目录结构）"""
+    if not file_id:
+        return None
+    # 直接在根目录
+    direct = os.path.join(upload_dir, file_id)
+    if os.path.exists(direct):
+        return direct
+    # 搜索子目录
+    for sub in ['photos', 'materials', 'generated', 'signatures', 'exchange', 'case-files']:
+        p = os.path.join(upload_dir, sub, file_id)
+        if os.path.exists(p):
+            return p
+    return direct  # fallback
+
 def fill_saf(data, template_path, output_path, upload_dir=None, font_path=None):
     p = data.get('profile', {})
     family = data.get('family', [])
@@ -23,8 +38,8 @@ def fill_saf(data, template_path, output_path, upload_dir=None, font_path=None):
 
     # ── ID Photo (右上角) ──
     if p.get('id_photo') and upload_dir:
-        photo_path = os.path.join(upload_dir, p['id_photo'])
-        if os.path.exists(photo_path):
+        photo_path = _find_file(upload_dir, p['id_photo'])
+        if photo_path and os.path.exists(photo_path):
             ob.image(493.5, 51, photo_path, 75, 95)
 
     # ── 1. Course Details ──
@@ -331,8 +346,8 @@ def fill_saf(data, template_path, output_path, upload_dir=None, font_path=None):
     # Signatures: "Signature of Student" at top=364.1
     app_sig = sigs.get('applicant', {})
     if app_sig.get('file_id') and upload_dir:
-        sig_path = os.path.join(upload_dir, app_sig['file_id'])
-        if os.path.exists(sig_path):
+        sig_path = _find_file(upload_dir, app_sig['file_id'])
+        if sig_path and os.path.exists(sig_path):
             ob.image(76, 328, sig_path, 100, 35)
     elif app_sig.get('signer_name'):
         # 无签名图片时用文字代替
@@ -340,8 +355,8 @@ def fill_saf(data, template_path, output_path, upload_dir=None, font_path=None):
 
     gdn_sig = sigs.get('guardian', {})
     if gdn_sig.get('file_id') and upload_dir:
-        sig_path = os.path.join(upload_dir, gdn_sig['file_id'])
-        if os.path.exists(sig_path):
+        sig_path = _find_file(upload_dir, gdn_sig['file_id'])
+        if sig_path and os.path.exists(sig_path):
             ob.image(247, 325.5, sig_path, 100, 35)
     elif gdn_sig.get('signer_name'):
         ob.text(247, 340, safe_str(gdn_sig.get('signer_name')), 9)

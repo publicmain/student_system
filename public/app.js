@@ -10763,12 +10763,13 @@ async function viewUifDetail(requestId) {
       ]},
       { title: '准证类型', icon: 'bi-card-heading', fields: [
         ['sg_pass_type','新加坡准证类型'],['requires_student_pass','需要学生准证'],['was_ever_sg_citizen_or_pr','曾是SC/PR'],
-        ['sg_nric_fin','NRIC/FIN'],['sg_pass_expiry','准证到期']
+        ['sg_nric_fin','NRIC/FIN'],['sg_pass_expiry','准证到期'],
+        ['prior_sg_study','曾在新加坡就读'],['prior_sg_school','曾就读学校'],['prior_sg_year','就读年份']
       ]},
       { title: '个人信息', icon: 'bi-person', fields: [
         ['surname','姓氏'],['given_name','名字'],['chinese_name','中文名'],['alias','别名'],
         ['gender','性别'],['dob','出生日期'],['birth_certificate_no','出生证号'],
-        ['nationality','国籍'],['birth_country','出生国'],['birth_city','出生城市'],
+        ['nationality','国籍'],['birth_country','出生国'],['birth_city','出生城市'],['birth_province_state','出生省/州'],
         ['race','种族'],['religion','宗教'],['occupation','职业'],['marital_status','婚姻状况']
       ]},
       { title: '联系方式', icon: 'bi-telephone', fields: [
@@ -10833,7 +10834,7 @@ async function viewUifDetail(requestId) {
 
     // 分组渲染
     for (const g of groups) {
-      const rows = g.fields.filter(([k]) => d[k] !== undefined && d[k] !== '').map(([k, label]) =>
+      const rows = g.fields.filter(([k]) => d[k] !== undefined && d[k] !== null).map(([k, label]) =>
         `<tr><td class="text-muted small" style="width:35%;vertical-align:top;padding:4px 8px">${label}</td><td class="small" style="padding:4px 8px">${fmtVal(k, d[k])}</td></tr>`
       );
       if (!rows.length) continue;

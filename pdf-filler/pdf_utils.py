@@ -102,16 +102,17 @@ class OverlayBuilder:
     内部转换为 ReportLab 的左下角原点。
     """
 
-    # Windows 系统中文字体候选列表（.ttf 优先，.ttc ReportLab 兼容性差）
+    # CJK 字体候选列表（优先项目内置字体，再回退系统字体）
     _SYSTEM_CJK_FONTS = [
+        os.path.join(os.path.dirname(__file__), 'fonts', 'simhei.ttf'),  # 项目内置黑体（最可靠）
         r'C:\Windows\Fonts\simhei.ttf',     # 黑体 (Windows)
         r'C:\Windows\Fonts\simsunb.ttf',     # 宋体粗
         r'C:\Windows\Fonts\simfang.ttf',     # 仿宋
         r'C:\Windows\Fonts\simkai.ttf',      # 楷体
         r'C:\Windows\Fonts\msyh.ttc',        # 微软雅黑
-        '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',       # Debian/Ubuntu (fonts-noto-cjk)
-        '/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc',      # Debian serif
-        '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',       # Alternative path
+        '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',       # Debian/Ubuntu
+        '/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc',
+        '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
         '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc',            # Another variant
         '/System/Library/Fonts/PingFang.ttc',  # macOS
     ]

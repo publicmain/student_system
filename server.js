@@ -78,6 +78,12 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 const fileStorage = require('./file-storage');
 fileStorage.initDirs();
 
+// 上传后自动移动文件到分类子目录的辅助函数
+function moveUploadedFile(fileId, category) {
+  if (!fileId || !category) return;
+  try { fileStorage.migrateFile(fileId, category); } catch(e) { console.error('[FILE MOVE]', e.message); }
+}
+
 // 允许上传的扩展名白名单
 const ALLOWED_EXTENSIONS = new Set(['.pdf','.doc','.docx','.xls','.xlsx','.ppt','.pptx','.jpg','.jpeg','.png','.gif','.zip','.rar','.txt']);
 
@@ -922,6 +928,7 @@ app.put('/api/materials/:id', requireRole('principal','counselor','mentor','inta
 
 app.post('/api/materials/:id/upload', requireRole('principal','counselor','mentor','intake_staff'), upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: '未收到文件' });
+  moveUploadedFile(req.file.filename, 'material');
   db.run('UPDATE material_items SET file_path=?,updated_at=? WHERE id=?',
     [req.file.filename, new Date().toISOString(), req.params.id]);
   audit(req, 'UPLOAD', 'material_items', req.params.id, { filename: req.file.filename });
@@ -3423,7 +3430,7 @@ app.post('/api/intake-cases/:id/file-exchange', requireRole('principal','intake_
     (id,case_id,title,description,direction,file_path,original_name,file_size,related_stage,category,status,request_reply,reply_instruction,deadline_at,student_email,student_name,created_by,created_by_name,upload_items)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [id, req.params.id, title, description||null, dir,
-     req.file ? req.file.filename : null,
+     req.file ? (moveUploadedFile(req.file.filename, 'exchange'), req.file.filename) : null,
      req.file ? req.file.originalname : null,
      req.file ? req.file.size : null,
      stage, category||null, 'draft',
@@ -3884,6 +3891,7 @@ app.post('/s/fx/:token/reply', upload.single('file'), (req, res) => {
   if (!rec) return res.status(404).send('<h2>链接无效或已失效</h2>');
   if (rec.status === 'closed') return res.redirect(`/s/fx/${rec.access_token}`);
   if (!req.file) return res.redirect(`/s/fx/${rec.access_token}`);
+  moveUploadedFile(req.file.filename, 'exchange');
   // 软删除之前的回传件（允许替换）
   db.run(`UPDATE file_exchange_records SET is_deleted=1, updated_at=datetime('now') WHERE parent_id=? AND direction='student_to_admin'`, [rec.id]);
   // 创建新回传记录
@@ -3910,6 +3918,7 @@ app.post('/s/fx/:token/reply-item', upload.single('file'), (req, res) => {
   if (!rec) return res.status(404).send('<h2>链接无效或已失效</h2>');
   if (rec.status === 'closed') return res.redirect(`/s/fx/${rec.access_token}`);
   if (!req.file) return res.redirect(`/s/fx/${rec.access_token}`);
+  moveUploadedFile(req.file.filename, 'exchange');
   const itemName = req.body.item_name || rec.title;
   // 软删除同名旧回传件（允许替换）
   db.run(`UPDATE file_exchange_records SET is_deleted=1, updated_at=datetime('now') WHERE parent_id=? AND direction='student_to_admin' AND title=? AND is_deleted=0`, [rec.id, `【上传】${itemName}`]);
@@ -3952,6 +3961,7 @@ app.post('/api/intake-cases/:id/case-files', requireRole('principal','intake_sta
   if (!req.file) return res.status(400).json({ error: '请上传文件' });
   const { file_type, display_name, notes } = req.body;
   if (!file_type || !display_name) return res.status(400).json({ error: '请填写文件类型和名称' });
+  moveUploadedFile(req.file.filename, 'case');
   const id = uuidv4();
   db.run(`INSERT INTO case_files (id,case_id,file_type,display_name,filename,original_name,file_size,uploaded_by,uploaded_by_name,notes) VALUES (?,?,?,?,?,?,?,?,?,?)`,
     [id, req.params.id, file_type, display_name, req.file.filename, req.file.originalname, req.file.size,
@@ -4176,6 +4186,7 @@ app.post('/s/upload/:token', upload.single('file'), (req, res) => {
   if (!send) return res.status(404).send('<h2>链接无效或已失效</h2>');
   if (send.completed_at) return res.send('<h2>您已经上传过了，无需重复提交。</h2>');
   if (!req.file) return res.status(400).send('<h2>请选择文件</h2>');
+  moveUploadedFile(req.file.filename, 'case');
   // 保存文件记录
   const fileId = uuidv4();
   db.run(`INSERT INTO case_files (id,case_id,file_type,display_name,filename,original_name,file_size,uploaded_by,uploaded_by_name) VALUES (?,?,?,?,?,?,?,?,?)`,
@@ -5212,6 +5223,7 @@ app.post('/api/agent/upload/:itemId', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: '未收到文件' });
 
   const fileId = req.file.filename;
+  moveUploadedFile(fileId, 'material');
   // 计算文件版本号
   const curFileVer = db.get(`SELECT MAX(version_no) as mv FROM mat_item_versions WHERE item_id=?`, [req.params.itemId]);
   const fileVersionNo = (curFileVer?.mv || 0) + 1;
@@ -6068,6 +6080,7 @@ app.post('/api/adm-profiles/:id/signature', requireAuth, upload.single('file'), 
   const { sig_type, signer_name, sig_date, stroke_json } = req.body;
   if (!sig_type) return res.status(400).json({ error: 'sig_type required' });
 
+  if (req.file) moveUploadedFile(req.file.filename, 'signature');
   const existing = db.get('SELECT id FROM adm_signatures WHERE profile_id=? AND sig_type=?', [req.params.id, sig_type]);
   const fileId = req.file ? req.file.filename : (existing?.file_id || null);
 

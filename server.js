@@ -5072,10 +5072,8 @@ app.put('/api/mat-request-items/:id/review', requireAuth, requireRole('principal
   const allApproved = allItems.every(i => i.id === req.params.id ? status === 'APPROVED' : i.status === 'APPROVED');
   if (allApproved) {
     db.run(`UPDATE mat_requests SET status='APPROVED',updated_at=datetime('now') WHERE id=?`, [item.request_id]);
-  } else {
-    // 不再自动改为 REVISION_NEEDED，由统一退回操作处理
-    db.run(`UPDATE mat_requests SET status='REVISION_NEEDED',updated_at=datetime('now') WHERE id=?`, [item.request_id]);
   }
+  // 不全部通过时不改 request 状态——由统一退回操作处理
 
   res.json({ ok: true });
 });

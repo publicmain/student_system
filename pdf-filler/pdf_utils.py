@@ -104,12 +104,15 @@ class OverlayBuilder:
 
     # Windows 系统中文字体候选列表（.ttf 优先，.ttc ReportLab 兼容性差）
     _SYSTEM_CJK_FONTS = [
-        r'C:\Windows\Fonts\simhei.ttf',     # 黑体
+        r'C:\Windows\Fonts\simhei.ttf',     # 黑体 (Windows)
         r'C:\Windows\Fonts\simsunb.ttf',     # 宋体粗
         r'C:\Windows\Fonts\simfang.ttf',     # 仿宋
         r'C:\Windows\Fonts\simkai.ttf',      # 楷体
-        r'C:\Windows\Fonts\msyh.ttc',        # 微软雅黑（ttc，兼容性差但备选）
-        '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',  # Linux
+        r'C:\Windows\Fonts\msyh.ttc',        # 微软雅黑
+        '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',       # Debian/Ubuntu (fonts-noto-cjk)
+        '/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc',      # Debian serif
+        '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',       # Alternative path
+        '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc',            # Another variant
         '/System/Library/Fonts/PingFang.ttc',  # macOS
     ]
 
@@ -129,7 +132,11 @@ class OverlayBuilder:
         for fp in font_candidates:
             if fp and os.path.exists(fp):
                 try:
-                    pdfmetrics.registerFont(TTFont('CJK', fp))
+                    if fp.endswith('.ttc'):
+                        # TTC 集合字体需要指定 subfontIndex
+                        pdfmetrics.registerFont(TTFont('CJK', fp, subfontIndex=0))
+                    else:
+                        pdfmetrics.registerFont(TTFont('CJK', fp))
                     self._cjk_font_name = 'CJK'
                     self._font_registered = True
                     break

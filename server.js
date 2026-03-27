@@ -944,7 +944,7 @@ app.get('/api/files/:filename', requireAuth, (req, res) => {
     return res.status(403).json({ error: '无权访问此文件' });
   }
 
-  const filePath = path.join(UPLOAD_DIR, filename);
+  const filePath = fileStorage.getFilePath(filename);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: '文件不存在' });
 
   audit(req, 'DOWNLOAD', 'material_items', material.id, { filename });
@@ -2817,21 +2817,11 @@ app.delete('/api/intake-cases/:id', requireRole('principal','intake_staff'), (re
     return res.status(500).json({ error: '删除失败: ' + e.message });
   }
   // Clean up physical files after successful DB deletion
-  for (const f of exchangeFiles) {
-    try { fs.unlinkSync(path.join(UPLOAD_DIR, f.file_path)); } catch(e) { /* ignore missing */ }
-  }
-  for (const f of caseFiles) {
-    try { fs.unlinkSync(path.join(UPLOAD_DIR, f.filename)); } catch(e) { /* ignore missing */ }
-  }
-  for (const f of materialFiles) {
-    try { fs.unlinkSync(path.join(UPLOAD_DIR, f.file_path)); } catch(e) { /* ignore missing */ }
-  }
-  for (const f of matUploadFiles.concat(matVersionFiles)) {
-    try { fs.unlinkSync(path.join(UPLOAD_DIR, f.file_id)); } catch(e) { /* ignore */ }
-  }
-  for (const f of admDocFiles.concat(admSigFiles)) {
-    try { fs.unlinkSync(path.join(UPLOAD_DIR, f.file_id)); } catch(e) { /* ignore */ }
-  }
+  for (const f of exchangeFiles) { fileStorage.deleteFile(f.file_path); }
+  for (const f of caseFiles) { fileStorage.deleteFile(f.filename); }
+  for (const f of materialFiles) { fileStorage.deleteFile(f.file_path); }
+  for (const f of matUploadFiles.concat(matVersionFiles)) { fileStorage.deleteFile(f.file_id); }
+  for (const f of admDocFiles.concat(admSigFiles)) { fileStorage.deleteFile(f.file_id); }
   audit(req, 'DELETE', 'intake_cases', req.params.id, { student_name: ic.student_name });
   res.json({ ok: true });
 });
@@ -3375,7 +3365,7 @@ app.post('/api/intake-cases/:id/send-docs', requireRole('principal','intake_staf
         arc.on('end', () => resolve(Buffer.concat(chunks)));
         arc.on('error', reject);
         files.forEach(f => {
-          const filePath = path.join(UPLOAD_DIR, f.file_path);
+          const filePath = fileStorage.getFilePath(f.file_path);
           if (fs.existsSync(filePath)) {
             const ext = path.extname(f.file_path);
             arc.file(filePath, { name: (f.title || f.material_type) + ext });
@@ -3565,7 +3555,7 @@ app.post('/api/file-exchange/:id/remind', requireRole('principal','intake_staff'
 app.get('/api/file-exchange/:id/download', requireAdmissionModule, (req, res) => {
   const rec = db.get('SELECT * FROM file_exchange_records WHERE id=? AND is_deleted=0', [req.params.id]);
   if (!rec) return res.status(404).json({ error: '记录不存在' });
-  const fp = path.join(UPLOAD_DIR, rec.file_path || '');
+  const fp = fileStorage.getFilePath(rec.file_path || '');
   if (!rec.file_path || !fs.existsSync(fp)) return res.status(404).json({ error: '文件不存在' });
   fxLog(req.params.id, rec.case_id, 'admin_downloaded', 'admin', req.session.user.name||req.session.user.username, null, req.ip);
   const ext = path.extname(rec.file_path);
@@ -3578,7 +3568,7 @@ app.get('/api/file-exchange/:id/download', requireAdmissionModule, (req, res) =>
 app.get('/api/file-exchange/:id/reply-download', requireAdmissionModule, (req, res) => {
   const reply = db.get('SELECT * FROM file_exchange_records WHERE parent_id=? AND direction=? AND is_deleted=0 ORDER BY created_at DESC LIMIT 1', [req.params.id, 'student_to_admin']);
   if (!reply || !reply.file_path) return res.status(404).json({ error: '学生尚未上传回传文件' });
-  const fp = path.join(UPLOAD_DIR, reply.file_path);
+  const fp = fileStorage.getFilePath(reply.file_path);
   if (!fs.existsSync(fp)) return res.status(404).json({ error: '文件不存在' });
   fxLog(req.params.id, reply.case_id, 'admin_reviewed_reply', 'admin', req.session.user.name||req.session.user.username, null, req.ip);
   db.run(`UPDATE file_exchange_records SET reviewed_by=?, reviewed_at=datetime('now') WHERE id=?`, [req.session.user.id, reply.id]);
@@ -3878,7 +3868,7 @@ app.get('/s/fx/:token', (req, res) => {
 app.get('/s/fx/:token/dl', (req, res) => {
   const rec = db.get('SELECT * FROM file_exchange_records WHERE access_token=? AND is_deleted=0', [req.params.token]);
   if (!rec || !rec.file_path) return res.status(404).send('文件不存在');
-  const fp = path.join(UPLOAD_DIR, rec.file_path);
+  const fp = fileStorage.getFilePath(rec.file_path);
   if (!fs.existsSync(fp)) return res.status(404).send('文件不存在');
   fxLog(rec.id, rec.case_id, 'student_downloaded', 'student', rec.student_name||'学生', null, req.ip);
   const isPdfDl = rec.file_path && /\.pdf$/i.test(rec.file_path);
@@ -3988,7 +3978,7 @@ app.delete('/api/case-files/:id', requireRole('principal','intake_staff'), (req,
   const f = db.get('SELECT * FROM case_files WHERE id=?', [req.params.id]);
   if (!f) return res.status(404).json({ error: '文件不存在' });
   try {
-    const fp = path.join(UPLOAD_DIR, f.filename);
+    const fp = fileStorage.getFilePath(f.filename);
     if (fs.existsSync(fp)) fs.unlinkSync(fp);
   } catch(e) { console.error('删除文件失败:', e.message); }
   db.run('DELETE FROM case_file_sends WHERE file_id=?', [req.params.id]);
@@ -4092,7 +4082,7 @@ app.get('/s/file/:token', (req, res) => {
   if (!send) return res.status(404).send('<h2>链接无效或已失效</h2>');
   if (send.expires_at && new Date(send.expires_at) < new Date()) return res.status(410).send('<h2>此文件链接已过期，请联系顾问重新发送</h2>');
   if (!send.viewed_at) db.run(`UPDATE case_file_sends SET viewed_at=datetime('now') WHERE token=?`, [req.params.token]);
-  const filePath = path.join(UPLOAD_DIR, send.filename);
+  const filePath = fileStorage.getFilePath(send.filename);
   if (!fs.existsSync(filePath)) return res.status(404).send('<h2>文件不存在</h2>');
   const isImage = /\.(jpg|jpeg|png|gif)$/i.test(send.filename);
   const isPdf = /\.pdf$/i.test(send.filename);
@@ -4135,7 +4125,7 @@ app.get('/s/file/:token/download', (req, res) => {
   const send = db.get('SELECT cfs.*, cf.filename, cf.display_name, cf.original_name FROM case_file_sends cfs JOIN case_files cf ON cf.id=cfs.file_id WHERE cfs.token=? AND cfs.send_type=?', [req.params.token, 'file_view']);
   if (!send) return res.status(404).send('链接无效');
   if (send.expires_at && new Date(send.expires_at) < new Date()) return res.status(410).send('链接已过期');
-  const filePath = path.join(UPLOAD_DIR, send.filename);
+  const filePath = fileStorage.getFilePath(send.filename);
   if (!fs.existsSync(filePath)) return res.status(404).send('文件不存在');
   if (!send.downloaded_at) db.run(`UPDATE case_file_sends SET downloaded_at=datetime('now') WHERE token=?`, [req.params.token]);
   const ext = path.extname(send.filename);
@@ -5627,7 +5617,7 @@ app.post('/api/mat-requests/:id/generate-documents', requireAuth, requireRole('p
       const base64 = data._id_photo_data.replace(/^data:image\/\w+;base64,/, '');
       const ext = data._id_photo_data.match(/^data:image\/(\w+)/)?.[1] || 'jpg';
       const photoFileId = uuidv4() + '.' + ext;
-      fs.writeFileSync(path.join(UPLOAD_DIR, photoFileId), Buffer.from(base64, 'base64'));
+      fileStorage.saveFile('photo', photoFileId, Buffer.from(base64, 'base64'));
       db.run(`UPDATE adm_profiles SET id_photo=? WHERE id=?`, [photoFileId, profileId]);
     } catch(e) { console.error('[ADM] Photo save error:', e.message); }
   }
@@ -5803,7 +5793,7 @@ app.get('/api/agent/file/:fileId', (req, res) => {
 app.get('/api/mat-request-items/:id/download', requireAuth, requireRole('principal','counselor','intake_staff'), (req, res) => {
   const item = db.get(`SELECT * FROM mat_request_items WHERE id=?`, [req.params.id]);
   if (!item || !item.file_id) return res.status(404).json({ error: 'File not found' });
-  const filePath = path.join(UPLOAD_DIR, item.file_id);
+  const filePath = fileStorage.getFilePath(item.file_id);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found on disk' });
   res.download(filePath, item.file_name || item.file_id);
 });
@@ -6062,7 +6052,7 @@ app.get('/api/adm-profiles/:id/documents', requireAuth, requireRole(...ADM_ROLES
 app.get('/api/adm-docs/:docId/download', requireAuth, requireRole(...ADM_ROLES), (req, res) => {
   const doc = db.get('SELECT * FROM adm_generated_documents WHERE id=?', [req.params.docId]);
   if (!doc || !doc.file_id) return res.status(404).json({ error: 'File not found' });
-  const filePath = path.join(UPLOAD_DIR, doc.file_id);
+  const filePath = fileStorage.getFilePath(doc.file_id);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not on disk' });
   const names = { SAF: 'Student_Application_Form', FORM16: 'Form_16', V36: 'V36' };
   const profile = db.get('SELECT surname, given_name FROM adm_profiles WHERE id=?', [doc.profile_id]);

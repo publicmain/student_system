@@ -1449,6 +1449,29 @@ function createSchema() {
   for (const sql of admMigrations) {
     try { db.run(sql); } catch(e) { /* column exists */ }
   }
+
+  // ── 性能索引 ──────────────────────────────────────────────────────
+  const indexes = [
+    'CREATE INDEX IF NOT EXISTS idx_mat_requests_case ON mat_requests(intake_case_id)',
+    'CREATE INDEX IF NOT EXISTS idx_mat_items_request ON mat_request_items(request_id)',
+    'CREATE INDEX IF NOT EXISTS idx_mat_uif_request ON mat_uif_submissions(request_id)',
+    'CREATE INDEX IF NOT EXISTS idx_mat_versions_request ON mat_uif_versions(request_id)',
+    'CREATE INDEX IF NOT EXISTS idx_mat_tokens_request ON mat_magic_tokens(request_id)',
+    'CREATE INDEX IF NOT EXISTS idx_mat_tokens_token ON mat_magic_tokens(token)',
+    'CREATE INDEX IF NOT EXISTS idx_adm_profiles_case ON adm_profiles(intake_case_id)',
+    'CREATE INDEX IF NOT EXISTS idx_adm_docs_profile ON adm_generated_documents(profile_id)',
+    'CREATE INDEX IF NOT EXISTS idx_adm_family_profile ON adm_family_members(profile_id)',
+    'CREATE INDEX IF NOT EXISTS idx_adm_edu_profile ON adm_education_history(profile_id)',
+    'CREATE INDEX IF NOT EXISTS idx_adm_emp_profile ON adm_employment_history(profile_id)',
+    'CREATE INDEX IF NOT EXISTS idx_adm_res_profile ON adm_residence_history(profile_id)',
+    'CREATE INDEX IF NOT EXISTS idx_adm_sig_profile ON adm_signatures(profile_id)',
+    'CREATE INDEX IF NOT EXISTS idx_tasks_case ON milestone_tasks(intake_case_id)',
+    'CREATE INDEX IF NOT EXISTS idx_fx_records_case ON file_exchange_records(case_id)',
+    'CREATE INDEX IF NOT EXISTS idx_item_versions_item ON mat_item_versions(item_id)',
+  ];
+  for (const sql of indexes) {
+    try { db.run(sql); } catch(e) { /* ignore */ }
+  }
 }
 
 function seedData() {

@@ -7325,10 +7325,10 @@ async function renderIntakeCases(params = {}) {
           ${c.review_status && c.review_status !== 'draft' ? `<br>${admReviewBadge(c.review_status)}` : ''}</td>
         <td><span class="badge bg-${visaBg} text-xs">${visaLabel}</span></td>
         <td>${ipaInvoiceHtml}</td>
-        <td class="d-flex gap-1">
+        <td><div class="d-flex gap-1 justify-content-center">
           <button class="btn btn-sm btn-outline-primary" onclick="showCaseDetail('${c.id}')"><i class="bi bi-eye"></i></button>
           ${hasRole('principal','intake_staff') ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteIntakeCase('${c.id}','${escapeHtml(c.student_name||'')}')"><i class="bi bi-trash3"></i></button>` : ''}
-        </td>
+        </div></td>
       </tr>`;
     }).join('') : '<tr><td colspan="7" class="text-center text-muted py-4">暂无案例</td></tr>';
   };
@@ -7362,7 +7362,7 @@ async function renderIntakeCases(params = {}) {
 
   const tableHeaders = isStudentAdminView
     ? '<th>学生</th><th>课程/项目</th><th>状态</th><th>最后更新</th><th>操作</th>'
-    : '<th>学生 / 学年</th><th>课程/项目</th><th>来源渠道</th><th>状态</th><th>签证</th><th>IPA到期 / 账单</th><th>操作</th>';
+    : '<th>学生 / 学年</th><th>课程/项目</th><th>来源渠道</th><th>状态</th><th>签证</th><th>IPA到期 / 账单</th><th class="text-center">操作</th>';
 
   const arrivedCount = cases.filter(c => c.status === 'arrived').length;
 

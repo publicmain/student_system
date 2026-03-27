@@ -2761,6 +2761,15 @@ app.delete('/api/intake-cases/:id', requireRole('principal','intake_staff'), (re
   const exchangeFiles = db.all('SELECT file_path FROM file_exchange_records WHERE case_id=? AND file_path IS NOT NULL', [req.params.id]);
   const caseFiles = db.all('SELECT filename FROM case_files WHERE case_id=? AND filename IS NOT NULL', [req.params.id]);
   const materialFiles = db.all('SELECT file_path FROM material_items WHERE intake_case_id=? AND file_path IS NOT NULL', [req.params.id]);
+  // 材料收集相关文件
+  const matRequests = db.all('SELECT id FROM mat_requests WHERE intake_case_id=?', [req.params.id]);
+  const matReqIds = matRequests.map(r => r.id);
+  const matUploadFiles = matReqIds.length ? db.all(`SELECT file_id FROM mat_request_items WHERE request_id IN (${matReqIds.map(()=>'?').join(',')}) AND file_id IS NOT NULL`, matReqIds) : [];
+  const matVersionFiles = matReqIds.length ? db.all(`SELECT file_id FROM mat_item_versions WHERE request_id IN (${matReqIds.map(()=>'?').join(',')}) AND file_id IS NOT NULL`, matReqIds) : [];
+  // ADM 生成的 PDF 文件
+  const profileId = ic.adm_profile_id || db.get('SELECT adm_profile_id FROM intake_cases WHERE id=?', [req.params.id])?.adm_profile_id;
+  const admDocFiles = profileId ? db.all('SELECT file_id FROM adm_generated_documents WHERE profile_id=? AND file_id IS NOT NULL', [profileId]) : [];
+  const admSigFiles = profileId ? db.all('SELECT file_id FROM adm_signatures WHERE profile_id=? AND file_id IS NOT NULL', [profileId]) : [];
   try {
     db.transaction((run) => {
       run(`DELETE FROM post_arrival_surveys WHERE case_id=?`, [req.params.id]);
@@ -2777,6 +2786,29 @@ app.delete('/api/intake-cases/:id', requireRole('principal','intake_staff'), (re
       run(`DELETE FROM case_files WHERE case_id=?`, [req.params.id]);
       run(`DELETE FROM file_exchange_logs WHERE case_id=?`, [req.params.id]);
       run(`DELETE FROM file_exchange_records WHERE case_id=?`, [req.params.id]);
+      // 材料收集相关
+      for (const rid of matReqIds) {
+        run(`DELETE FROM mat_item_versions WHERE request_id=?`, [rid]);
+        run(`DELETE FROM mat_request_items WHERE request_id=?`, [rid]);
+        run(`DELETE FROM mat_uif_versions WHERE request_id=?`, [rid]);
+        run(`DELETE FROM mat_uif_submissions WHERE request_id=?`, [rid]);
+        run(`DELETE FROM mat_magic_tokens WHERE request_id=?`, [rid]);
+        run(`DELETE FROM mat_review_actions WHERE request_id=?`, [rid]);
+      }
+      run(`DELETE FROM mat_requests WHERE intake_case_id=?`, [req.params.id]);
+      // ADM Profile 相关
+      if (profileId) {
+        run(`DELETE FROM adm_generated_documents WHERE profile_id=?`, [profileId]);
+        run(`DELETE FROM adm_signatures WHERE profile_id=?`, [profileId]);
+        run(`DELETE FROM adm_family_members WHERE profile_id=?`, [profileId]);
+        run(`DELETE FROM adm_education_history WHERE profile_id=?`, [profileId]);
+        run(`DELETE FROM adm_employment_history WHERE profile_id=?`, [profileId]);
+        run(`DELETE FROM adm_residence_history WHERE profile_id=?`, [profileId]);
+        run(`DELETE FROM adm_guardian_info WHERE profile_id=?`, [profileId]);
+        run(`DELETE FROM adm_parent_pr_additional WHERE profile_id=?`, [profileId]);
+        run(`DELETE FROM adm_spouse_pr_additional WHERE profile_id=?`, [profileId]);
+        run(`DELETE FROM adm_profiles WHERE id=?`, [profileId]);
+      }
       run(`DELETE FROM intake_cases WHERE id=?`, [req.params.id]);
     });
   } catch(e) {
@@ -2791,6 +2823,12 @@ app.delete('/api/intake-cases/:id', requireRole('principal','intake_staff'), (re
   }
   for (const f of materialFiles) {
     try { fs.unlinkSync(path.join(UPLOAD_DIR, f.file_path)); } catch(e) { /* ignore missing */ }
+  }
+  for (const f of matUploadFiles.concat(matVersionFiles)) {
+    try { fs.unlinkSync(path.join(UPLOAD_DIR, f.file_id)); } catch(e) { /* ignore */ }
+  }
+  for (const f of admDocFiles.concat(admSigFiles)) {
+    try { fs.unlinkSync(path.join(UPLOAD_DIR, f.file_id)); } catch(e) { /* ignore */ }
   }
   audit(req, 'DELETE', 'intake_cases', req.params.id, { student_name: ic.student_name });
   res.json({ ok: true });

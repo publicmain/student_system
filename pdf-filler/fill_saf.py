@@ -110,8 +110,8 @@ def fill_saf(data, template_path, output_path, upload_dir=None, font_path=None):
 
     # "Singapore Address...Hometown Address" label_bottom=420.3 → 值 y=430
     sg_addr = safe_str(p.get('sg_address') or p.get('address_line1',''))
-    ob.text(98, 430, sg_addr, 7, max_width=250)
-    ob.text(376, 430, safe_str(p.get('hometown_address','')), 7, max_width=195)
+    ob.text(26, 427, sg_addr, 7, max_width=250)
+    ob.text(302.5, 426.5, safe_str(p.get('hometown_address','')), 7, max_width=195)
 
     # ── Residence History 表格（每行独立坐标，可拖拽）──
     def _res(i): return residence[i] if i < len(residence) else {}
@@ -189,29 +189,29 @@ def fill_saf(data, template_path, output_path, upload_dir=None, font_path=None):
     # ── 5. Educational Background（展开成静态行）──
     def _ed(i): return education[i] if i < len(education) else {}
     # Row 1
-    ob.text(40, 93, safe_str(_ed(0).get('institution_name')), 6, max_width=95)    # Edu1 school
+    ob.text(20, 86.5, safe_str(_ed(0).get('institution_name')), 6, max_width=95)    # Edu1 school
     ob.text(141, 93, safe_str(_ed(0).get('country')), 6, max_width=45)            # Edu1 country
     ob.text(197, 93, safe_str(_ed(0).get('state_province')), 6, max_width=45)     # Edu1 state
     ob.text(275, 93, fmt_date(_ed(0).get('date_from')), 6)                        # Edu1 from
     ob.text(330, 93, fmt_date(_ed(0).get('date_to')), 6)                          # Edu1 to
     ob.text(407, 93, safe_str(_ed(0).get('qualification')), 6, max_width=75)      # Edu1 qual
-    ob.text(489, 93, safe_str(_ed(0).get('educational_cert_no')), 5, max_width=70)  # Edu1 cert
+    ob.text(467, 87, safe_str(_ed(0).get('educational_cert_no')), 5, max_width=70)  # Edu1 cert
     # Row 2
-    ob.text(40, 111, safe_str(_ed(1).get('institution_name')), 6, max_width=95)   # Edu2 school
+    ob.text(20, 105, safe_str(_ed(1).get('institution_name')), 6, max_width=95)   # Edu2 school
     ob.text(141, 111, safe_str(_ed(1).get('country')), 6, max_width=45)           # Edu2 country
     ob.text(197, 111, safe_str(_ed(1).get('state_province')), 6, max_width=45)    # Edu2 state
     ob.text(275, 111, fmt_date(_ed(1).get('date_from')), 6)                       # Edu2 from
     ob.text(330, 111, fmt_date(_ed(1).get('date_to')), 6)                         # Edu2 to
     ob.text(407, 111, safe_str(_ed(1).get('qualification')), 6, max_width=75)     # Edu2 qual
-    ob.text(489, 111, safe_str(_ed(1).get('educational_cert_no')), 5, max_width=70)  # Edu2 cert
+    ob.text(467, 107.5, safe_str(_ed(1).get('educational_cert_no')), 5, max_width=70)  # Edu2 cert
     # Row 3
-    ob.text(40, 129, safe_str(_ed(2).get('institution_name')), 6, max_width=95)   # Edu3 school
+    ob.text(20, 126, safe_str(_ed(2).get('institution_name')), 6, max_width=95)   # Edu3 school
     ob.text(141, 129, safe_str(_ed(2).get('country')), 6, max_width=45)           # Edu3 country
     ob.text(197, 129, safe_str(_ed(2).get('state_province')), 6, max_width=45)    # Edu3 state
     ob.text(275, 129, fmt_date(_ed(2).get('date_from')), 6)                       # Edu3 from
     ob.text(330, 129, fmt_date(_ed(2).get('date_to')), 6)                         # Edu3 to
     ob.text(407, 129, safe_str(_ed(2).get('qualification')), 6, max_width=75)     # Edu3 qual
-    ob.text(489, 129, safe_str(_ed(2).get('educational_cert_no')), 5, max_width=70)  # Edu3 cert
+    ob.text(468.5, 126, safe_str(_ed(2).get('educational_cert_no')), 5, max_width=70)  # Edu3 cert
 
     # ── 6. Language Proficiency ──
     # "Highest Language Proficiency" label_bottom=174 → 值 y=178
@@ -266,27 +266,27 @@ def fill_saf(data, template_path, output_path, upload_dir=None, font_path=None):
     # 上半部 婚姻表: Father y=504, Mother y=519, Step y=534
     if _is_scpr('father'):
         ob.text(95, 494.5, _fn(_fm('father')), 6, max_width=95)                         # S9 Father name
-        ob.text(195, 504, safe_str(_ppr('father').get('marital_status')), 6, max_width=55)  # S9 Father marital
-        ob.text(229.5, 496, safe_str(_ppr('father').get('marriage_certificate_no')), 5, max_width=55)  # S9 Father marriage cert
-        ob.text(316.5, 497, fmt_date(_ppr('father').get('marriage_date')), 5)            # S9 Father marriage date
-        ob.text(402.5, 496, safe_str(_ppr('father').get('divorce_certificate_no')), 5, max_width=45)  # S9 Father divorce cert
-        ob.text(470.5, 494.5, fmt_date(_ppr('father').get('divorce_date')), 5)             # S9 Father divorce date
+        ob.text(245, 492.5, safe_str(_ppr('father').get('marital_status')), 6, max_width=55)  # S9 Father marital
+        ob.text(307.5, 493.5, safe_str(_ppr('father').get('marriage_certificate_no')), 5, max_width=55)  # S9 Father marriage cert
+        ob.text(405.5, 495, fmt_date(_ppr('father').get('marriage_date')), 5)            # S9 Father marriage date
+        ob.text(475.5, 494, safe_str(_ppr('father').get('divorce_certificate_no')), 5, max_width=45)  # S9 Father divorce cert
+        ob.text(479, 426, fmt_date(_ppr('father').get('divorce_date')), 5)             # S9 Father divorce date
 
     if _is_scpr('mother'):
         ob.text(95.5, 508, _fn(_fm('mother')), 6, max_width=95)                         # S9 Mother name
-        ob.text(195, 519, safe_str(_ppr('mother').get('marital_status')), 6, max_width=55)  # S9 Mother marital
-        ob.text(227, 510.5, safe_str(_ppr('mother').get('marriage_certificate_no')), 5, max_width=55)  # S9 Mother marriage cert
-        ob.text(315.5, 512, fmt_date(_ppr('mother').get('marriage_date')), 5)            # S9 Mother marriage date
-        ob.text(401.5, 510.5, safe_str(_ppr('mother').get('divorce_certificate_no')), 5, max_width=45)  # S9 Mother divorce cert
-        ob.text(469.5, 509.5, fmt_date(_ppr('mother').get('divorce_date')), 5)             # S9 Mother divorce date
+        ob.text(245, 508.5, safe_str(_ppr('mother').get('marital_status')), 6, max_width=55)  # S9 Mother marital
+        ob.text(308, 510.5, safe_str(_ppr('mother').get('marriage_certificate_no')), 5, max_width=55)  # S9 Mother marriage cert
+        ob.text(403.5, 508, fmt_date(_ppr('mother').get('marriage_date')), 5)            # S9 Mother marriage date
+        ob.text(476.5, 510, safe_str(_ppr('mother').get('divorce_certificate_no')), 5, max_width=45)  # S9 Mother divorce cert
+        ob.text(432.5, 428, fmt_date(_ppr('mother').get('divorce_date')), 5)             # S9 Mother divorce date
 
     if _is_scpr('step_father'):
         ob.text(95.5, 522, _fn(_fm('step_father')), 6, max_width=95)                    # S9 Step name
-        ob.text(195, 534, safe_str(_ppr('step_father').get('marital_status')), 6, max_width=55)  # S9 Step marital
-        ob.text(225, 524, safe_str(_ppr('step_father').get('marriage_certificate_no')), 5, max_width=55)  # S9 Step marriage cert
-        ob.text(315.5, 526, fmt_date(_ppr('step_father').get('marriage_date')), 5)       # S9 Step marriage date
-        ob.text(401.5, 526, safe_str(_ppr('step_father').get('divorce_certificate_no')), 5, max_width=45)  # S9 Step divorce cert
-        ob.text(469, 525, fmt_date(_ppr('step_father').get('divorce_date')), 5)        # S9 Step divorce date
+        ob.text(243, 522, safe_str(_ppr('step_father').get('marital_status')), 6, max_width=55)  # S9 Step marital
+        ob.text(307, 525, safe_str(_ppr('step_father').get('marriage_certificate_no')), 5, max_width=55)  # S9 Step marriage cert
+        ob.text(403.5, 524, fmt_date(_ppr('step_father').get('marriage_date')), 5)       # S9 Step marriage date
+        ob.text(473.5, 524, safe_str(_ppr('step_father').get('divorce_certificate_no')), 5, max_width=45)  # S9 Step divorce cert
+        ob.text(368, 427, fmt_date(_ppr('step_father').get('divorce_date')), 5)        # S9 Step divorce date
 
     # 下半部 学历/工作表: Father y=623, Mother y=638, Step y=653
     if _is_scpr('father'):

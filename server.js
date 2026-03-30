@@ -2603,6 +2603,8 @@ app.get('/api/intake-cases/:id', requireAdmissionModule, (req, res) => {
     matReq.items = db.all(`SELECT * FROM mat_request_items WHERE request_id=? ORDER BY sort_order`, [matReq.id]);
     matReq.uif = db.get(`SELECT * FROM mat_uif_submissions WHERE request_id=?`, [matReq.id]);
     matReq.token = db.get(`SELECT token, status as token_status, expires_at FROM mat_magic_tokens WHERE request_id=? AND status='ACTIVE' ORDER BY created_at DESC LIMIT 1`, [matReq.id]);
+    matReq.reviewActions = db.all(`SELECT * FROM mat_review_actions WHERE request_id=? ORDER BY created_at DESC`, [matReq.id]);
+    matReq.uifVersions = db.all(`SELECT id, version_no, status, submitted_at, reviewed_at, return_reason, is_current FROM mat_uif_versions WHERE request_id=? ORDER BY version_no DESC`, [matReq.id]);
     matRequest = matReq;
   }
   res.json({ ...ic, visa, arrival, invoices, payments, tasks, materials, survey, phase_handed_off, caseFiles, caseSends, caseSignatures, fileExchange, fileExchangeLogs, admDocs, matRequest });
@@ -5380,6 +5382,8 @@ app.post('/api/mat-requests/:id/approve', requireAuth, requireRole('principal','
     [req.session.user.id, req.params.id]);
 
   _matAudit(req.params.id, 'internal', req.session.user.id, req.session.user.name||'', 'UIF_APPROVED', { version: mr.current_version }, req.ip);
+  db.run(`INSERT INTO mat_review_actions (id,request_id,action_type,actor_id,actor_name,version_no,ip_address) VALUES (?,?,?,?,?,?,?)`,
+    [uuidv4(), req.params.id, 'APPROVE', req.session.user.id, req.session.user.name||'', mr.current_version, req.ip]);
   res.json({ ok: true });
 });
 
@@ -5432,11 +5436,17 @@ app.post('/api/mat-requests/:id/return', requireAuth, requireRole('principal','c
     if (profileId) db.run(`UPDATE adm_generated_documents SET is_outdated=1 WHERE profile_id=? AND is_latest=1`, [profileId]);
   }
 
-  // 5. 审计记录
+  // 5. 审计记录 + 退回动作记录
   _matAudit(req.params.id, 'internal', req.session.user.id, req.session.user.name||'', 'RETURNED', {
     reason, field_notes: field_notes || null, rejected_files: rejectedFiles.length ? rejectedFiles : null,
     version: mr.current_version
   }, req.ip);
+  db.run(`INSERT INTO mat_review_actions (id,request_id,action_type,actor_id,actor_name,reason,field_notes,file_rejects,add_items,version_no,ip_address) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    [uuidv4(), req.params.id, 'RETURN', req.session.user.id, req.session.user.name||'',
+     reason, field_notes ? JSON.stringify(field_notes) : null,
+     rejectedFiles.length ? JSON.stringify(rejectedFiles) : null,
+     addedItems.length ? JSON.stringify(addedItems) : null,
+     mr.current_version, req.ip]);
 
   // 6. 发送 1 封汇总邮件
   try {

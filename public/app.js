@@ -8102,6 +8102,28 @@ function _renderAgentTab(c) {
       ${mr.current_version > 1 ? `<div class="mt-2"><button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="showVersionHistory('${mr.id}')"><i class="bi bi-clock-history me-1"></i>版本历史 (${mr.current_version})</button></div>` : ''}
     </div>
 
+    <!-- ②b 审核历史 -->
+    ${(mr.reviewActions||[]).length ? `
+    <div class="border rounded p-3 mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="mb-0" style="font-size:.9rem"><i class="bi bi-clock-history text-secondary me-1"></i>审核记录</h6>
+        <span class="badge bg-secondary" style="font-size:.75rem">${mr.reviewActions.length} 条</span>
+      </div>
+      <div style="max-height:200px;overflow-y:auto">
+        ${mr.reviewActions.map(a => `
+          <div class="border-bottom py-2" style="font-size:.82rem">
+            <div class="d-flex justify-content-between">
+              <span class="fw-semibold">${a.action_type==='RETURN'?'<i class="bi bi-arrow-return-left text-danger me-1"></i>退回修改':'<i class="bi bi-check-circle text-success me-1"></i>审核通过'}</span>
+              <span class="text-muted">${a.created_at?.slice(0,16)||''}</span>
+            </div>
+            <div class="text-muted small">${escapeHtml(a.actor_name||'')} · v${a.version_no||0}</div>
+            ${a.reason?`<div class="small mt-1" style="color:#7f1d1d">${escapeHtml(a.reason)}</div>`:''}
+            ${a.file_rejects?`<div class="small text-warning mt-1">退回文件: ${(() => { try { return JSON.parse(a.file_rejects).map(f => escapeHtml(f.name||f.reason||'')).join(', '); } catch(e) { return ''; } })()}</div>`:''}
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
+
     <!-- ③ 生成 PDF -->
     <div class="border rounded p-3 mb-3">
       <div class="d-flex justify-content-between align-items-center mb-2">

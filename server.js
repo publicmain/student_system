@@ -5837,6 +5837,20 @@ app.get('/api/mat-request-items/:id/download', requireAuth, requireRole('princip
   res.download(filePath, item.file_name || item.file_id);
 });
 
+// 文件预览（inline 显示，不触发下载）
+app.get('/api/mat-request-items/:id/preview', requireAuth, requireRole('principal','counselor','intake_staff'), (req, res) => {
+  const item = db.get(`SELECT * FROM mat_request_items WHERE id=?`, [req.params.id]);
+  if (!item || !item.file_id) return res.status(404).json({ error: 'File not found' });
+  const filePath = fileStorage.getFilePath(item.file_id);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found on disk' });
+  const ext = path.extname(item.file_id).toLowerCase();
+  const mimeMap = {'.pdf':'application/pdf','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif','.webp':'image/webp'};
+  const mime = mimeMap[ext] || 'application/octet-stream';
+  res.setHeader('Content-Type', mime);
+  res.setHeader('Content-Disposition', 'inline; filename="' + (item.file_name || item.file_id) + '"');
+  fs.createReadStream(filePath).pipe(res);
+});
+
 // ── 自动催件引擎 (每小时检查，每天仅发一次) ─────────
 let _matLastReminderDate = '';
 setInterval(async () => {

@@ -10742,7 +10742,8 @@ async function approveUifFromDetail(requestId) {
 
 // ── 文件预览 ──
 function previewMatFile(itemId, fileName) {
-  const url = '/api/mat-request-items/' + itemId + '/download';
+  const url = '/api/mat-request-items/' + itemId + '/preview';
+  const dlUrl = '/api/mat-request-items/' + itemId + '/download';
   const ext = (fileName || '').split('.').pop().toLowerCase();
   const isImage = ['jpg','jpeg','png','gif','webp'].includes(ext);
   const isPdf = ext === 'pdf';
@@ -10756,7 +10757,7 @@ function previewMatFile(itemId, fileName) {
     content = `<div class="text-center py-5">
       <i class="bi bi-file-earmark" style="font-size:3rem;color:#999"></i>
       <p class="text-muted mt-2">此文件类型不支持在线预览</p>
-      <a href="${url}" class="btn btn-primary" download><i class="bi bi-download me-1"></i>下载查看</a>
+      <a href="${dlUrl}" class="btn btn-primary" download><i class="bi bi-download me-1"></i>下载查看</a>
     </div>`;
   }
 
@@ -10771,7 +10772,7 @@ function previewMatFile(itemId, fileName) {
     <div class="modal-header py-2">
       <h6 class="modal-title"><i class="bi bi-eye me-2"></i>${escapeHtml(fileName)}</h6>
       <div class="d-flex gap-2 align-items-center">
-        <a href="${url}" class="btn btn-sm btn-outline-primary" download><i class="bi bi-download"></i></a>
+        <a href="${dlUrl}" class="btn btn-sm btn-outline-primary" download><i class="bi bi-download"></i></a>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
     </div>

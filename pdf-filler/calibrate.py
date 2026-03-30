@@ -426,7 +426,10 @@ cv.addEventListener('mousedown',e=>{
   if(hit>=0){
     sel=hit;const f=fields[hit];
     drag={idx:hit,ox:mx-f.x,oy:my-f.y};cv.style.cursor='grabbing';
-    showP(f);draw();
+    showP(f);draw();buildFieldList();
+    // scroll field list to selected item
+    const items=document.querySelectorAll('#fieldListBody .fi');
+    items.forEach(el=>{if(el.classList.contains('act'))el.scrollIntoView({block:'nearest'})});
   }else{sel=-1;hideP();draw();}
 });
 cv.addEventListener('mouseup',()=>{

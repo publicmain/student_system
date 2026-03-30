@@ -10699,12 +10699,14 @@ function toggleUifFlag(btn) {
       section.appendChild(noteDiv);
     }
   }
-  // 更新计数
+  // 更新计数 + 按钮显隐联动
   const count = Object.keys(window._uifFlaggedFields).length;
   const countEl = document.getElementById('uifFlagCount');
   if (countEl) countEl.textContent = '已标记 ' + count + ' 个问题字段';
   const issueBtn = document.getElementById('uifConfirmIssuesBtn');
   if (issueBtn) issueBtn.style.display = count > 0 ? '' : 'none';
+  const approveBtn = document.getElementById('uifApproveBtn');
+  if (approveBtn) approveBtn.style.display = count > 0 ? 'none' : '';
 }
 
 async function confirmUifIssues(requestId) {
@@ -11106,7 +11108,7 @@ async function viewUifDetail(requestId) {
           <button type="button" class="btn btn-warning" id="uifConfirmIssuesBtn" onclick="confirmUifIssues('${requestId}')" style="display:none">
             <i class="bi bi-exclamation-triangle me-1"></i>确认标记问题
           </button>
-          <button type="button" class="btn btn-success" onclick="approveUifFromDetail('${requestId}')">
+          <button type="button" class="btn btn-success" id="uifApproveBtn" onclick="approveUifFromDetail('${requestId}')">
             <i class="bi bi-check-circle me-1"></i>表单审核通过
           </button>
         </div>

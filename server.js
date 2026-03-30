@@ -5095,6 +5095,14 @@ app.get('/api/mat-requests/:id/uif', requireAuth, requireRole('principal','couns
   res.json(uif || { request_id: req.params.id, data: '{}', status: 'DRAFT' });
 });
 
+// 保存表单字段审核标注（不改状态，只更新 field_notes）
+app.put('/api/mat-uif/:requestId/field-notes', requireAuth, requireRole('principal','counselor','intake_staff'), (req, res) => {
+  const { field_notes } = req.body;
+  db.run(`UPDATE mat_uif_submissions SET field_notes=? WHERE request_id=?`,
+    [field_notes ? JSON.stringify(field_notes) : null, req.params.requestId]);
+  res.json({ ok: true });
+});
+
 app.post('/api/mat-uif/:requestId/merge', requireAuth, requireRole('principal','counselor','intake_staff'), (req, res) => {
   const { fields } = req.body; // { uif_field: value, ... } — only selected fields
   const uif = db.get(`SELECT * FROM mat_uif_submissions WHERE request_id=?`, [req.params.requestId]);

@@ -8103,7 +8103,7 @@ function _renderAgentTab(c) {
       ${uifStatus==='SUBMITTED' ? `
         <div class="small text-muted mb-2">代理已提交表单，请点击查看并逐项审核。</div>
         <button class="btn btn-sm btn-primary" onclick="viewUifDetail('${mr.id}')"><i class="bi bi-eye me-1"></i>查看并审核表单</button>
-        ${window._pendingFieldNotes && Object.keys(window._pendingFieldNotes).length ? `<div class="small text-danger mt-2"><i class="bi bi-exclamation-circle me-1"></i>已标记 ${Object.keys(window._pendingFieldNotes).length} 个问题字段，待退回</div>` : ''}` : ''}
+        ${(() => { const fn = window._pendingFieldNotes || {}; let cnt = Object.keys(fn).length; if (!cnt && mr.uif?.field_notes) { try { cnt = Object.keys(JSON.parse(mr.uif.field_notes)).length; } catch(e) {} } return cnt ? '<div class="small text-danger mt-2"><i class="bi bi-exclamation-circle me-1"></i>已标记 ' + cnt + ' 个问题字段，待退回</div>' : ''; })()}` : ''}
       ${uifStatus==='APPROVED' ? `
         <div class="small text-success mb-2"><i class="bi bi-check-circle-fill me-1"></i>表单内容已审核通过</div>
         <button class="btn btn-sm btn-outline-primary" onclick="viewUifDetail('${mr.id}')"><i class="bi bi-eye me-1"></i>查看表单内容</button>` : ''}
@@ -10703,25 +10703,26 @@ function toggleUifFlag(btn) {
   if (issueBtn) issueBtn.style.display = count > 0 ? '' : 'none';
 }
 
-function confirmUifIssues(requestId) {
+async function confirmUifIssues(requestId) {
   const fieldNotes = {};
   document.querySelectorAll('[data-flag-key]').forEach(el => {
     const key = el.dataset.flagKey;
     const note = el.value?.trim() || window._uifFlaggedFields[key] || '需要修改';
     fieldNotes[key] = note;
   });
-  // 也加入没有备注的标记字段
   for (const [k, label] of Object.entries(window._uifFlaggedFields)) {
     if (!fieldNotes[k]) fieldNotes[k] = label + ' 需要修改';
   }
-
-  // 保存到全局状态，供退回弹窗使用
-  window._pendingFieldNotes = fieldNotes;
   const count = Object.keys(fieldNotes).length;
 
+  // 直接保存到后端（持久化，不依赖 window 变量）
+  try {
+    await api('PUT', '/api/mat-uif/' + requestId + '/field-notes', { field_notes: fieldNotes });
+  } catch(e) { console.error('Save field notes failed:', e.message); }
+
+  window._pendingFieldNotes = fieldNotes;
   bootstrap.Modal.getInstance(document.getElementById('uifDetailModal'))?.hide();
   showSuccess('已标记 ' + count + ' 个表单问题，请在审核总览中确认退回');
-  // 刷新页面以显示汇总
   loadCaseDetail();
 }
 
@@ -11119,8 +11120,11 @@ async function returnUif(requestId) {
     </div>`
   ).join('') : '';
 
-  // 表单字段问题（从 viewUifDetail 标记带入）
-  const pendingFields = window._pendingFieldNotes || {};
+  // 表单字段问题（优先从后端读取，其次从 window 变量）
+  let pendingFields = window._pendingFieldNotes || {};
+  if (!Object.keys(pendingFields).length && caseData.matRequest?.uif?.field_notes) {
+    try { pendingFields = JSON.parse(caseData.matRequest.uif.field_notes); } catch(e) {}
+  }
   const fieldIssueHtml = Object.keys(pendingFields).length ? `
     <div class="border rounded p-3 mb-3">
       <div class="fw-semibold small mb-2"><i class="bi bi-input-cursor-text me-1 text-primary"></i>已标记的表单问题 (${Object.keys(pendingFields).length})</div>

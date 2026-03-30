@@ -152,8 +152,6 @@ def fill_form16(data, template_path, output_path, upload_dir=None, font_path=Non
         sig_path = _find_file(upload_dir, app_sig['file_id'])
         if sig_path and os.path.exists(sig_path):
             ob.image(313.5, 450, sig_path, 150, 40)
-    elif app_sig.get('signer_name'):
-        ob.text(313.5, 470, safe_str(app_sig.get('signer_name')), 9)
 
     # ── 保存并合并 ──
     overlay_buf = ob.save()

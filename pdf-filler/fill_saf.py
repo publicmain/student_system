@@ -355,17 +355,12 @@ def fill_saf(data, template_path, output_path, upload_dir=None, font_path=None):
         sig_path = _find_file(upload_dir, app_sig['file_id'])
         if sig_path and os.path.exists(sig_path):
             ob.image(76, 328, sig_path, 100, 35)
-    elif app_sig.get('signer_name'):
-        # 无签名图片时用文字代替
-        ob.text(76, 340, safe_str(app_sig.get('signer_name')), 9)
 
     gdn_sig = sigs.get('guardian', {})
     if gdn_sig.get('file_id') and upload_dir:
         sig_path = _find_file(upload_dir, gdn_sig['file_id'])
         if sig_path and os.path.exists(sig_path):
             ob.image(247, 325.5, sig_path, 100, 35)
-    elif gdn_sig.get('signer_name'):
-        ob.text(247, 340, safe_str(gdn_sig.get('signer_name')), 9)
 
     # Date
     sig_date = app_sig.get('sig_date') or gdn_sig.get('sig_date') or ''

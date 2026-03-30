@@ -8122,61 +8122,48 @@ function _renderAgentTab(c) {
       ${mr.current_version > 1 ? `<div class="mt-2"><button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="showVersionHistory('${mr.id}')"><i class="bi bi-clock-history me-1"></i>版本历史 (${mr.current_version})</button></div>` : ''}
     </div>
 
-    <!-- ②b 审核历史 -->
-    ${(mr.reviewActions||[]).length ? `
-    <div class="border rounded p-3 mb-3">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <h6 class="mb-0" style="font-size:.9rem"><i class="bi bi-clock-history text-secondary me-1"></i>审核记录</h6>
-        <span class="badge bg-secondary" style="font-size:.75rem">${mr.reviewActions.length} 条</span>
-      </div>
-      <div style="max-height:200px;overflow-y:auto">
-        ${mr.reviewActions.map(a => `
-          <div class="border-bottom py-2" style="font-size:.82rem">
-            <div class="d-flex justify-content-between">
-              <span class="fw-semibold">${a.action_type==='RETURN'?'<i class="bi bi-arrow-return-left text-danger me-1"></i>退回修改':'<i class="bi bi-check-circle text-success me-1"></i>审核通过'}</span>
-              <span class="text-muted">${a.created_at?.slice(0,16)||''}</span>
-            </div>
-            <div class="text-muted small">${escapeHtml(a.actor_name||'')} · v${a.version_no||0}</div>
-            ${a.reason?`<div class="small mt-1" style="color:#7f1d1d">${escapeHtml(a.reason)}</div>`:''}
-            ${a.file_rejects?`<div class="small text-warning mt-1">退回文件: ${(() => { try { return JSON.parse(a.file_rejects).map(f => escapeHtml(f.name||f.reason||'')).join(', '); } catch(e) { return ''; } })()}</div>`:''}
-          </div>
-        `).join('')}
-      </div>
-    </div>` : ''}
+    <!-- ═══ 辅助功能区（默认折叠）═══ -->
+    <div class="mt-3 mb-2">
+      <div class="d-flex gap-2 flex-wrap">
+        <!-- PDF 生成按钮（直接显示，不折叠） -->
+        ${(uifStatus==='APPROVED' || uifStatus==='MERGED') && !allDocsOk ? `
+          <button class="btn btn-sm btn-primary" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-file-earmark-pdf me-1"></i>生成 3 份申请文件</button>` : ''}
+        ${allDocsOk && hasOutdatedPdf ? `
+          <button class="btn btn-sm btn-warning" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-arrow-clockwise me-1"></i>PDF 需更新</button>` : ''}
+        ${allDocsOk && !hasOutdatedPdf ? `
+          <button class="btn btn-sm btn-outline-success" onclick="event.preventDefault();document.querySelector('[href=\\'#fcAll\\']')?.click()"><i class="bi bi-file-earmark-pdf me-1"></i>PDF 已就绪</button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-arrow-clockwise me-1"></i>重新生成</button>` : ''}
 
-    <!-- ③ 生成 PDF -->
-    <div class="border rounded p-3 mb-3">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <h6 class="mb-0" style="font-size:.9rem"><i class="bi bi-file-earmark-pdf text-danger me-1"></i>申请文件 (PDF)</h6>
-        ${allDocsOk && !hasOutdatedPdf ? `<span class="badge bg-success" style="font-size:.75rem">已生成</span>` :
-          allDocsOk && hasOutdatedPdf ? `<span class="badge bg-warning" style="font-size:.75rem">需更新</span>` :
-          `<span class="badge bg-secondary" style="font-size:.75rem">未生成</span>`}
+        <!-- Agent 链接 -->
+        ${agentLink ? `<button class="btn btn-sm btn-outline-primary" onclick="navigator.clipboard.writeText('${agentLink}');showToast('链接已复制')"><i class="bi bi-link-45deg me-1"></i>复制代理链接</button>` : ''}
+
+        <!-- 折叠触发按钮 -->
+        ${(mr.reviewActions||[]).length ? `
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#matReviewHistory"><i class="bi bi-clock-history me-1"></i>审核记录 (${mr.reviewActions.length})</button>` : ''}
+        ${mr.current_version > 1 ? `
+          <button class="btn btn-sm btn-outline-secondary" onclick="showVersionHistory('${mr.id}')"><i class="bi bi-git me-1"></i>版本 v${mr.current_version}</button>` : ''}
       </div>
-      ${allDocsOk && !hasOutdatedPdf ? `
-        <div class="small text-success mb-2"><i class="bi bi-check-circle-fill me-1"></i>3 份文件已就绪</div>
-        <div class="d-flex gap-2">
-          <a href="#" class="btn btn-sm btn-outline-primary" onclick="event.preventDefault();document.querySelector('[href=\\'#fcAll\\']').click()"><i class="bi bi-eye me-1"></i>查看文件</a>
-          <button class="btn btn-sm btn-outline-secondary" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-arrow-clockwise me-1"></i>重新生成</button>
-        </div>` :
-        allDocsOk && hasOutdatedPdf ? `
-        <div class="small text-warning mb-2"><i class="bi bi-exclamation-triangle me-1"></i>数据已变更，PDF 需要重新生成</div>
-        <button class="btn btn-sm btn-warning" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-arrow-clockwise me-1"></i>重新生成 PDF</button>` :
-        (uifStatus==='APPROVED' || uifStatus==='MERGED') ? `
-        <div class="small text-muted mb-2">表单已通过审核，可以生成正式 PDF</div>
-        <button class="btn btn-sm btn-primary" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-file-earmark-pdf me-1"></i>生成 3 份申请文件</button>` :
-        uifStatus==='SUBMITTED' ? `
-        <div class="small text-muted mb-2">表单待审核。审核通过后即可生成 PDF。</div>
-        <button class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-file-earmark-pdf me-1"></i>需先审核通过</button>
-        <button class="btn btn-sm btn-outline-primary ms-1" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-file-earmark-pdf me-1"></i>跳过审核直接生成</button>` :
-        `<div class="small text-muted">等待表单提交并通过审核后生成</div>`}
     </div>
 
-    <!-- Agent 链接 -->
-    ${agentLink ? `
-      <div class="p-2 rounded d-flex justify-content-between align-items-center" style="background:#f0f4ff;border:1px solid #dbeafe;border-radius:8px">
-        <span class="small text-muted"><i class="bi bi-link-45deg me-1"></i>Agent 链接</span>
-        <button class="btn btn-sm btn-outline-primary py-0 px-2" onclick="navigator.clipboard.writeText('${agentLink}');showToast('链接已复制')"><i class="bi bi-clipboard me-1"></i>复制</button>
-      </div>` : ''}
+    <!-- 审核记录（折叠） -->
+    ${(mr.reviewActions||[]).length ? `
+    <div class="collapse mb-3" id="matReviewHistory">
+      <div class="border rounded p-3" style="background:#fafafa">
+        <h6 class="mb-2" style="font-size:.85rem"><i class="bi bi-clock-history text-secondary me-1"></i>审核记录</h6>
+        <div style="max-height:250px;overflow-y:auto">
+          ${mr.reviewActions.map(a => `
+            <div class="border-bottom py-2" style="font-size:.82rem">
+              <div class="d-flex justify-content-between">
+                <span class="fw-semibold">${a.action_type==='RETURN'?'<i class="bi bi-arrow-return-left text-danger me-1"></i>退回':'<i class="bi bi-check-circle text-success me-1"></i>通过'}</span>
+                <span class="text-muted">${a.created_at?.slice(0,16)||''}</span>
+              </div>
+              <div class="text-muted small">${escapeHtml(a.actor_name||'')} · v${a.version_no||0}</div>
+              ${a.reason?`<div class="small mt-1" style="color:#7f1d1d">${escapeHtml(a.reason)}</div>`:''}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>` : ''}
   `;
 }
 

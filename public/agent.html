@@ -505,6 +505,55 @@ async function startForm(){
 // ══════════════════════════════════════════════════
 const STEPS = 12; // 0-11
 
+// 字段 → 中文名称 + 所在步骤（用于退回横幅跳转）
+const _fieldLabelMap = {
+  course_name:'申请课程',course_code:'课程代码',intake_year:'入学年份',intake_month:'入学月份',study_mode:'学习模式',campus:'校区',school_name:'学校名称',
+  sg_pass_type:'准证类型',requires_student_pass:'需要学生准证',was_ever_sg_citizen_or_pr:'曾是SC/PR',sg_nric_fin:'NRIC/FIN',sg_pass_expiry:'准证到期',
+  surname:'姓氏',given_name:'名字',chinese_name:'中文名',alias:'别名',gender:'性别',dob:'出生日期',birth_certificate_no:'出生证号',
+  nationality:'国籍',birth_country:'出生国',birth_city:'出生城市',race:'种族',religion:'宗教',occupation:'职业',marital_status:'婚姻状况',
+  email:'邮箱',phone_mobile:'手机号',phone_home:'家庭电话',
+  passport_type:'证件类型',passport_no:'护照号码',passport_issue_country:'签发国',passport_issue_place:'签发地',passport_issue_date:'签发日期',passport_expiry:'护照有效期',
+  foreign_identification_no:'外国识别号',malaysian_id_no:'马来西亚IC号',
+  address_line1:'地址行1',address_line2:'地址行2',city:'城市',state_province:'省/州',postal_code:'邮编',country_of_residence:'居住国',
+  sg_address:'新加坡地址',sg_tel_no:'新加坡电话',hometown_address:'家乡地址',
+  native_language:'母语',english_proficiency:'英语水平',ielts_score:'雅思',toefl_score:'托福',highest_lang_proficiency:'最高语言水平',
+  other_lang_test:'其他语言考试',other_lang_score:'其他分数',need_english_placement_test:'英语分级测试',
+  financial_source:'资金来源',applicant_monthly_income:'申请人月收入',applicant_current_saving:'申请人存款',
+  father_monthly_income:'父亲月收入',father_current_saving:'父亲存款',mother_monthly_income:'母亲月收入',mother_current_saving:'母亲存款',
+  spouse_monthly_income:'配偶月收入',spouse_current_saving:'配偶存款',
+  sponsor_name:'赞助人',sponsor_relation:'赞助关系',other_financial_support:'其他经济支持',other_financial_details:'其他经济详情',other_financial_amount:'其他经济金额',
+  bank_statement_available:'银行证明',
+  antecedent_q1:'曾被拒绝入境',antecedent_q2:'曾被定罪',antecedent_q3:'曾被禁止入境',antecedent_q4:'曾用不同护照',antecedent_remarks:'声明备注',
+  guardian_surname:'监护人姓',guardian_given_name:'监护人名',guardian_relation:'监护人关系',guardian_nationality:'监护人国籍',
+  guardian_phone:'监护人电话',guardian_email:'监护人邮箱',guardian_address:'监护人地址',guardian_passport_no:'监护人证件号',guardian_occupation:'监护人职业',
+  pdpa_consent:'PDPA同意',pdpa_marketing:'营销同意',pdpa_photo_video:'拍摄同意',sig_date:'签名日期',
+  prior_sg_study:'曾在新加坡就读',prior_sg_school:'就读学校',prior_sg_year:'就读年份',
+  _family:'家庭成员',_education:'教育经历',_employment:'工作经历',_residence:'居住史',
+};
+const _fieldStepMap = {
+  course_name:0,course_code:0,intake_year:0,intake_month:0,study_mode:0,campus:0,school_name:0,
+  sg_pass_type:0,requires_student_pass:0,was_ever_sg_citizen_or_pr:0,sg_nric_fin:0,sg_pass_expiry:0,
+  surname:1,given_name:1,chinese_name:1,alias:1,gender:1,dob:1,birth_certificate_no:1,
+  nationality:1,birth_country:1,birth_city:1,race:1,religion:1,occupation:1,marital_status:1,
+  email:1,phone_mobile:1,phone_home:1,
+  passport_type:2,passport_no:2,passport_issue_country:2,passport_issue_place:2,passport_issue_date:2,passport_expiry:2,
+  foreign_identification_no:2,malaysian_id_no:2,
+  address_line1:2,address_line2:2,city:2,state_province:2,postal_code:2,country_of_residence:2,
+  sg_address:2,sg_tel_no:2,hometown_address:2,
+  prior_sg_study:2,prior_sg_school:2,prior_sg_year:2,
+  _family:3,_education:5,_employment:6,_residence:4,
+  native_language:5,english_proficiency:5,ielts_score:5,toefl_score:5,highest_lang_proficiency:5,
+  other_lang_test:5,other_lang_score:5,need_english_placement_test:5,
+  financial_source:7,applicant_monthly_income:7,applicant_current_saving:7,
+  father_monthly_income:7,father_current_saving:7,mother_monthly_income:7,mother_current_saving:7,
+  spouse_monthly_income:7,spouse_current_saving:7,
+  sponsor_name:7,sponsor_relation:7,other_financial_support:7,other_financial_details:7,other_financial_amount:7,bank_statement_available:7,
+  antecedent_q1:8,antecedent_q2:8,antecedent_q3:8,antecedent_q4:8,antecedent_remarks:8,
+  guardian_surname:9,guardian_given_name:9,guardian_relation:9,guardian_nationality:9,
+  guardian_phone:9,guardian_email:9,guardian_address:9,guardian_passport_no:9,guardian_occupation:9,
+  pdpa_consent:9,pdpa_marketing:9,pdpa_photo_video:9,sig_date:9,
+};
+
 function renderStepContent(idx){
   const renderers=[rCourse,rPersonal,rPassport,rFamily,rResidence,rEducation,rEmployment,rFinancial,rDeclarations,rSignature,rMaterials,rReview];
   try{
@@ -1052,7 +1101,15 @@ function renderApp(){
           </div>
           ${fieldIssues.length ? `<div style="background:#fff;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin:8px 0">
             <div style="font-weight:600;color:#dc2626;font-size:.85rem;margin-bottom:6px"><i class="bi bi-input-cursor-text me-1"></i>${lang==='zh'?'表单字段问题':'Form Field Issues'}</div>
-            ${fieldIssues.map(([k,v])=>'<div style="font-size:.83rem;color:#991b1b;padding:2px 0"><code style="background:#fde8e8;padding:1px 4px;border-radius:3px">'+k+'</code> '+v.replace(/</g,'&lt;')+'</div>').join('')}
+            ${fieldIssues.map(([k,v])=>{
+              const fieldLabel=_fieldLabelMap[k]||k;
+              const step=_fieldStepMap[k]??-1;
+              return '<div style="font-size:.83rem;color:#991b1b;padding:3px 0">'
+                +(step>=0?'<a href="#" onclick="event.preventDefault();goStep('+step+');setTimeout(()=>{const el=document.querySelector(\'[name='+k+']\');if(el){el.scrollIntoView({behavior:\'smooth\',block:\'center\'});el.focus()}},200)" style="color:#dc2626;text-decoration:underline;cursor:pointer">':'')
+                +'<b>'+fieldLabel+'</b>'
+                +(step>=0?'</a>':'')
+                +' — '+v.replace(/</g,'&lt;')+'</div>'
+            }).join('')}
           </div>` : ''}
           ${fileIssues.length ? `<div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin:8px 0">
             <div style="font-weight:600;color:#d97706;font-size:.85rem;margin-bottom:6px"><i class="bi bi-file-earmark-x me-1"></i>${lang==='zh'?'文件问题':'File Issues'}</div>

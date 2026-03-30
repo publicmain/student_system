@@ -549,8 +549,8 @@ const _fieldStepMap = {
   spouse_monthly_income:7,spouse_current_saving:7,
   sponsor_name:7,sponsor_relation:7,other_financial_support:7,other_financial_details:7,other_financial_amount:7,bank_statement_available:7,
   antecedent_q1:8,antecedent_q2:8,antecedent_q3:8,antecedent_q4:8,antecedent_remarks:8,
-  guardian_surname:9,guardian_given_name:9,guardian_relation:9,guardian_nationality:9,
-  guardian_phone:9,guardian_email:9,guardian_address:9,guardian_passport_no:9,guardian_occupation:9,
+  guardian_surname:8,guardian_given_name:8,guardian_relation:8,guardian_nationality:8,
+  guardian_phone:8,guardian_email:8,guardian_address:8,guardian_passport_no:8,guardian_occupation:8,
   pdpa_consent:9,pdpa_marketing:9,pdpa_photo_video:9,sig_date:9,
 };
 
@@ -744,13 +744,18 @@ function rFinancial(){
 
 function rDeclarations(){
   const age=calcAge(S.data.dob);const isMinor=age!==null&&age<18;
+  // 如果有退回的监护人字段，强制显示监护人区域（即使成年人）
+  const guardianKeys=['guardian_surname','guardian_given_name','guardian_relation','guardian_nationality','guardian_phone','guardian_email','guardian_address','guardian_passport_no','guardian_occupation'];
+  const hasGuardianIssue=S.fieldNotes&&typeof S.fieldNotes==='object'&&guardianKeys.some(k=>S.fieldNotes[k]);
+  const hasGuardianData=guardianKeys.some(k=>S.data[k]);
+  const showGuardian=isMinor||hasGuardianIssue||hasGuardianData;
   return`<div class="sec-title"><i class="bi bi-shield-check"></i>${t('s8_title')}</div><div class="sec-desc">${t('s8_desc')}</div>
   ${F('antecedent_q1','ant_q1','bool',{req:true})}
   ${F('antecedent_q2','ant_q2','bool',{req:true})}
   ${F('antecedent_q3','ant_q3','bool',{req:true})}
   ${F('antecedent_q4','ant_q4','bool',{req:true})}
   ${F('antecedent_remarks','ant_remarks','textarea',{rows:3})}
-  ${isMinor?`<div class="cond-block"><div class="cond-label"><i class="bi bi-exclamation-triangle"></i>${t('guardian_title')}</div>
+  ${showGuardian?`<div class="cond-block"><div class="cond-label"><i class="bi bi-exclamation-triangle"></i>${t('guardian_title')}${!isMinor&&hasGuardianIssue?' <span class="badge bg-danger" style="font-size:.7rem">需修改</span>':''}</div>
     ${R2(F('guardian_surname','surname','text',{req:true}),F('guardian_given_name','given_name','text',{req:true}))}
     ${R2(F('guardian_relation','relationship','text',{req:true}),F('guardian_nationality','nationality','text'))}
     ${R2(F('guardian_phone','phone_mobile','tel',{req:true}),F('guardian_email','email','email'))}

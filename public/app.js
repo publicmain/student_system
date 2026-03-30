@@ -8101,11 +8101,9 @@ function _renderAgentTab(c) {
         <span class="badge bg-${uifStatusColor}" style="font-size:.75rem">${uifStatusLabel}</span>
       </div>
       ${uifStatus==='SUBMITTED' ? `
-        <div class="small text-muted mb-2">代理已提交表单，请审核内容是否正确。</div>
-        <div class="d-flex gap-2 flex-wrap">
-          <button class="btn btn-sm btn-primary" onclick="viewUifDetail('${mr.id}')"><i class="bi bi-eye me-1"></i>查看表单内容</button>
-          <button class="btn btn-sm btn-success" onclick="approveUif('${mr.id}')"><i class="bi bi-check-circle me-1"></i>表单审核通过</button>
-        </div>` : ''}
+        <div class="small text-muted mb-2">代理已提交表单，请点击查看并逐项审核。</div>
+        <button class="btn btn-sm btn-primary" onclick="viewUifDetail('${mr.id}')"><i class="bi bi-eye me-1"></i>查看并审核表单</button>
+        ${window._pendingFieldNotes && Object.keys(window._pendingFieldNotes).length ? `<div class="small text-danger mt-2"><i class="bi bi-exclamation-circle me-1"></i>已标记 ${Object.keys(window._pendingFieldNotes).length} 个问题字段，待退回</div>` : ''}` : ''}
       ${uifStatus==='APPROVED' ? `
         <div class="small text-success mb-2"><i class="bi bi-check-circle-fill me-1"></i>表单内容已审核通过</div>
         <button class="btn btn-sm btn-outline-primary" onclick="viewUifDetail('${mr.id}')"><i class="bi bi-eye me-1"></i>查看表单内容</button>` : ''}
@@ -10671,6 +10669,72 @@ function renderUifDataDisplay(data) {
   }).join('');
 }
 
+// ── 表单字段级问题标记 ──
+window._uifFlaggedFields = {};
+
+function toggleUifFlag(btn) {
+  const key = btn.dataset.key;
+  const label = btn.dataset.label;
+  const row = btn.closest('tr');
+  if (window._uifFlaggedFields[key]) {
+    delete window._uifFlaggedFields[key];
+    btn.style.opacity = '.3';
+    btn.style.color = '';
+    row.style.background = '';
+    // 移除备注输入
+    const noteEl = row.parentElement.querySelector('.flag-note-' + key);
+    if (noteEl) noteEl.remove();
+  } else {
+    window._uifFlaggedFields[key] = label;
+    btn.style.opacity = '1';
+    btn.style.color = '#dc2626';
+    row.style.background = '#fef2f2';
+    // 加备注输入
+    const noteRow = document.createElement('tr');
+    noteRow.className = 'flag-note-' + key;
+    noteRow.innerHTML = '<td colspan="3" style="padding:2px 8px"><input type="text" class="form-control form-control-sm" placeholder="问题说明（可选）" data-flag-key="' + key + '" style="border-color:#fca5a5"></td>';
+    row.after(noteRow);
+  }
+  // 更新计数
+  const count = Object.keys(window._uifFlaggedFields).length;
+  const countEl = document.getElementById('uifFlagCount');
+  if (countEl) countEl.textContent = '已标记 ' + count + ' 个问题字段';
+  const issueBtn = document.getElementById('uifConfirmIssuesBtn');
+  if (issueBtn) issueBtn.style.display = count > 0 ? '' : 'none';
+}
+
+function confirmUifIssues(requestId) {
+  const fieldNotes = {};
+  document.querySelectorAll('[data-flag-key]').forEach(el => {
+    const key = el.dataset.flagKey;
+    const note = el.value?.trim() || window._uifFlaggedFields[key] || '需要修改';
+    fieldNotes[key] = note;
+  });
+  // 也加入没有备注的标记字段
+  for (const [k, label] of Object.entries(window._uifFlaggedFields)) {
+    if (!fieldNotes[k]) fieldNotes[k] = label + ' 需要修改';
+  }
+
+  // 保存到全局状态，供退回弹窗使用
+  window._pendingFieldNotes = fieldNotes;
+  const count = Object.keys(fieldNotes).length;
+
+  bootstrap.Modal.getInstance(document.getElementById('uifDetailModal'))?.hide();
+  showSuccess('已标记 ' + count + ' 个表单问题，请在审核总览中确认退回');
+  // 刷新页面以显示汇总
+  loadCaseDetail();
+}
+
+async function approveUifFromDetail(requestId) {
+  if (!confirm('确认表单内容无误，审核通过？')) return;
+  try {
+    await api('POST', '/api/mat-requests/' + requestId + '/approve');
+    bootstrap.Modal.getInstance(document.getElementById('uifDetailModal'))?.hide();
+    showSuccess('表单已审核通过');
+    loadCaseDetail();
+  } catch(e) { showError(e.message); }
+}
+
 function showRejectInput(itemId) {
   document.getElementById('reject-input-' + itemId)?.classList.remove('d-none');
   document.getElementById('reject-reason-' + itemId)?.focus();
@@ -10906,11 +10970,18 @@ async function viewUifDetail(requestId) {
     const residence = d._residence || [];
 
     let html = '<div style="max-height:70vh;overflow-y:auto;padding-right:8px">';
+    html += '<div class="alert alert-info py-2 small mb-3"><i class="bi bi-info-circle me-1"></i>点击字段右侧的 <i class="bi bi-flag text-danger"></i> 标记有问题的字段，完成后点击底部按钮。</div>';
 
-    // 分组渲染
+    // 分组渲染 — 每行加标记按钮
     for (const g of groups) {
       const rows = g.fields.filter(([k]) => d[k] !== undefined && d[k] !== null).map(([k, label]) =>
-        `<tr><td class="text-muted small" style="width:35%;vertical-align:top;padding:4px 8px">${label}</td><td class="small" style="padding:4px 8px">${fmtVal(k, d[k])}</td></tr>`
+        `<tr data-field="${k}">
+          <td class="text-muted small" style="width:30%;vertical-align:top;padding:4px 8px">${label}</td>
+          <td class="small" style="padding:4px 8px">${fmtVal(k, d[k])}</td>
+          <td style="width:40px;padding:4px;text-align:center;vertical-align:top">
+            <button class="btn btn-sm p-0 uif-flag-btn" data-key="${k}" data-label="${escapeHtml(label)}" onclick="toggleUifFlag(this)" title="标记问题" style="opacity:.3;font-size:.9rem"><i class="bi bi-flag-fill"></i></button>
+          </td>
+        </tr>`
       );
       if (!rows.length) continue;
       html += `<div class="mb-3"><div class="fw-semibold small mb-1" style="color:var(--primary)"><i class="${g.icon} me-1"></i>${g.title}</div>
@@ -10969,18 +11040,31 @@ async function viewUifDetail(requestId) {
     // 弹窗展示
     const modalId = 'uifDetailModal';
     let modal = document.getElementById(modalId);
-    if (!modal) {
-      modal = document.createElement('div');
-      modal.id = modalId;
-      modal.className = 'modal fade';
-      modal.setAttribute('tabindex','-1');
-      modal.innerHTML = `<div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
-        <div class="modal-header"><h5 class="modal-title"><i class="bi bi-file-text me-2"></i>代理提交表单内容</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body" id="uifDetailBody"></div>
-        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button></div>
-      </div></div>`;
-      document.body.appendChild(modal);
-    }
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = modalId;
+    modal.className = 'modal fade';
+    modal.setAttribute('tabindex','-1');
+    modal.innerHTML = `<div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-file-text me-2"></i>审核表单内容</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="uifDetailBody"></div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div><span class="small text-muted" id="uifFlagCount">已标记 0 个问题字段</span></div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+          <button type="button" class="btn btn-warning" id="uifConfirmIssuesBtn" onclick="confirmUifIssues('${requestId}')" style="display:none">
+            <i class="bi bi-exclamation-triangle me-1"></i>确认标记问题
+          </button>
+          <button type="button" class="btn btn-success" onclick="approveUifFromDetail('${requestId}')">
+            <i class="bi bi-check-circle me-1"></i>表单审核通过
+          </button>
+        </div>
+      </div>
+    </div></div>`;
+    document.body.appendChild(modal);
     document.getElementById('uifDetailBody').innerHTML = html;
     bootstrap.Modal.getOrCreateInstance(modal).show();
   } catch(e) {
@@ -11035,11 +11119,21 @@ async function returnUif(requestId) {
     </div>`
   ).join('') : '';
 
+  // 表单字段问题（从 viewUifDetail 标记带入）
+  const pendingFields = window._pendingFieldNotes || {};
+  const fieldIssueHtml = Object.keys(pendingFields).length ? `
+    <div class="border rounded p-3 mb-3">
+      <div class="fw-semibold small mb-2"><i class="bi bi-input-cursor-text me-1 text-primary"></i>已标记的表单问题 (${Object.keys(pendingFields).length})</div>
+      ${Object.entries(pendingFields).map(([k, v]) => `<div class="small py-1" style="color:#1d4ed8"><code style="background:#eff6ff;padding:1px 4px;border-radius:3px">${escapeHtml(k)}</code> ${escapeHtml(v)}</div>`).join('')}
+    </div>` : '';
+
   const html = `
     <div class="mb-3">
       <label class="form-label fw-semibold">退回原因概述 <span class="text-danger">*</span></label>
       <textarea id="returnReason" class="form-control" rows="3" placeholder="请说明需要修改的内容，代理会看到这段话。"></textarea>
     </div>
+
+    ${fieldIssueHtml}
 
     ${rejectedHtml ? `<div class="border rounded p-3 mb-3">
       <div class="fw-semibold small mb-2"><i class="bi bi-x-circle-fill me-1 text-danger"></i>已标记退回的文件 (${rejectedItems.length})</div>
@@ -11087,12 +11181,17 @@ async function returnUif(requestId) {
       if (name) addItems.push({ name, is_required: !!required });
     });
 
+    // 合并表单字段问题
+    const fieldNotes = Object.keys(pendingFields).length ? pendingFields : null;
+
     try {
       await api('POST', `/api/mat-requests/${requestId}/return`, {
         reason,
+        field_notes: fieldNotes,
         file_rejects: fileRejects.length ? fileRejects : null,
         add_items: addItems.length ? addItems : null
       });
+      window._pendingFieldNotes = {}; // 清空
       showSuccess('已退回修改，代理将收到汇总通知邮件');
       loadCaseDetail();
     } catch(e) { showError(e.message); return false; }

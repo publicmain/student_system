@@ -270,9 +270,8 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0a1a;color:#ddd;display:fle
       <img id="iL"><canvas id="cv"></canvas>
     </div>
   </div>
-  <div class="pane" id="pR">
-    <div class="lbl">ORIGINAL TEMPLATE</div>
-    <img id="iR" style="width:100%">
+  <div class="pane" id="pR" style="display:none">
+    <img id="iR">
   </div>
 </div>
 

@@ -1411,8 +1411,12 @@ app.get('/api/notifications', requireAuth, (req, res) => {
   } else if (u.role === 'mentor') {
     where.push('n.student_id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?)');
     params.push(u.linked_id);
+  } else if (u.role === 'intake_staff' || u.role === 'student_admin') {
+    // 入学管理角色：只看入学相关通知（target_role 匹配或直接点名）
+    where.push('(n.target_user_id=? OR n.target_role=?)');
+    params.push(u.id, u.role);
   } else {
-    // 其他角色：看自己被直接点名的通知 OR 按角色广播的通知（无 target_user_id）
+    // 其他角色(principal/counselor)：看自己被直接点名的通知 OR 按角色广播的通知
     where.push('(n.target_user_id=? OR (n.target_role=? AND n.target_user_id IS NULL) OR (n.target_role IS NULL AND n.target_user_id IS NULL))');
     params.push(u.id, u.role);
   }

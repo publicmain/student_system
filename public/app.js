@@ -8082,7 +8082,8 @@ function _renderAgentTab(c) {
               ${item.is_required?'<span class="text-danger" style="font-size:.65rem">必须</span>':''}
             </div>
             <div class="d-flex align-items-center gap-1 flex-shrink-0">
-              ${item.file_id ? `<a href="/api/mat-request-items/${item.id}/download" class="btn btn-sm btn-outline-secondary py-0 px-1" download title="下载"><i class="bi bi-download"></i></a>` : ''}
+              ${item.file_id ? `<button class="btn btn-sm btn-outline-primary py-0 px-1" onclick="previewMatFile('${item.id}','${escapeHtml(item.file_name||item.name)}')" title="预览"><i class="bi bi-eye"></i></button>
+                <a href="/api/mat-request-items/${item.id}/download" class="btn btn-sm btn-outline-secondary py-0 px-1" download title="下载"><i class="bi bi-download"></i></a>` : ''}
               ${item.file_id && !['APPROVED','REJECTED'].includes(item.status) ? `
                 <button class="btn btn-sm btn-outline-success py-0 px-1" onclick="reviewMatItem('${item.id}','approve')" title="通过"><i class="bi bi-check-lg"></i></button>
                 <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="showRejectInput('${item.id}')" title="不通过"><i class="bi bi-x-lg"></i></button>` : ''}
@@ -10737,6 +10738,48 @@ async function approveUifFromDetail(requestId) {
     showSuccess('表单已审核通过');
     loadCaseDetail();
   } catch(e) { showError(e.message); }
+}
+
+// ── 文件预览 ──
+function previewMatFile(itemId, fileName) {
+  const url = '/api/mat-request-items/' + itemId + '/download';
+  const ext = (fileName || '').split('.').pop().toLowerCase();
+  const isImage = ['jpg','jpeg','png','gif','webp'].includes(ext);
+  const isPdf = ext === 'pdf';
+
+  let content;
+  if (isImage) {
+    content = `<div class="text-center"><img src="${url}" style="max-width:100%;max-height:75vh;border-radius:6px"></div>`;
+  } else if (isPdf) {
+    content = `<iframe src="${url}" style="width:100%;height:75vh;border:none;border-radius:6px"></iframe>`;
+  } else {
+    content = `<div class="text-center py-5">
+      <i class="bi bi-file-earmark" style="font-size:3rem;color:#999"></i>
+      <p class="text-muted mt-2">此文件类型不支持在线预览</p>
+      <a href="${url}" class="btn btn-primary" download><i class="bi bi-download me-1"></i>下载查看</a>
+    </div>`;
+  }
+
+  const modalId = 'filePreviewModal';
+  let modal = document.getElementById(modalId);
+  if (modal) modal.remove();
+  modal = document.createElement('div');
+  modal.id = modalId;
+  modal.className = 'modal fade';
+  modal.setAttribute('tabindex', '-1');
+  modal.innerHTML = `<div class="modal-dialog modal-xl modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header py-2">
+      <h6 class="modal-title"><i class="bi bi-eye me-2"></i>${escapeHtml(fileName)}</h6>
+      <div class="d-flex gap-2 align-items-center">
+        <a href="${url}" class="btn btn-sm btn-outline-primary" download><i class="bi bi-download"></i></a>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+    </div>
+    <div class="modal-body p-2">${content}</div>
+  </div></div>`;
+  document.body.appendChild(modal);
+  bootstrap.Modal.getOrCreateInstance(modal).show();
+  modal.addEventListener('hidden.bs.modal', () => modal.remove());
 }
 
 function showRejectInput(itemId) {

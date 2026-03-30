@@ -8085,10 +8085,10 @@ function _renderAgentTab(c) {
           </div>
           ${item.status==='REJECTED'&&item.reject_reason ? `<div class="small text-danger mt-1 ms-4"><i class="bi bi-exclamation-circle me-1"></i>${escapeHtml(item.reject_reason)}</div>` : ''}
           <div id="reject-input-${item.id}" class="d-none mt-1 ms-4">
-            <div class="input-group input-group-sm">
-              <input type="text" class="form-control" placeholder="不通过原因..." id="reject-reason-${item.id}">
-              <button class="btn btn-danger" onclick="reviewMatItem('${item.id}','reject',document.getElementById('reject-reason-${item.id}').value)">确认</button>
-              <button class="btn btn-outline-secondary" onclick="document.getElementById('reject-input-${item.id}').classList.add('d-none')">取消</button>
+            <div class="d-flex gap-2 align-items-center">
+              <input type="text" class="form-control form-control-sm" style="flex:1" placeholder="请填写不通过原因..." id="reject-reason-${item.id}">
+              <button class="btn btn-sm btn-danger px-3" onclick="reviewMatItem('${item.id}','reject',document.getElementById('reject-reason-${item.id}').value)"><i class="bi bi-check2 me-1"></i>确认</button>
+              <button class="btn btn-sm btn-outline-secondary px-2" onclick="document.getElementById('reject-input-${item.id}').classList.add('d-none')">取消</button>
             </div>
           </div>
         </div>`).join('')}
@@ -10683,7 +10683,7 @@ async function reviewMatItem(itemId, action, directReason) {
   }
   try {
     await PUT(`/api/mat-request-items/${itemId}/review`, { action, reason });
-    showSuccess(action === 'approve' ? '已通过' : '已退回，通知邮件已发送');
+    showSuccess(action === 'approve' ? '文件已通过' : '已标记为不通过');
     // 刷新：优先刷新 intake case detail（如果当前在 case 页面），否则刷新 MAT 页面
     if (State.currentPage === 'intake-case-detail' && State.currentCaseId) {
       renderIntakeCaseDetail(State.currentCaseId);

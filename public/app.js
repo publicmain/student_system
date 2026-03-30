@@ -8043,10 +8043,18 @@ function _renderAgentTab(c) {
       ${mr.status==='REVISION_NEEDED' ? `<div class="small text-danger"><i class="bi bi-exclamation-triangle me-1"></i>已打回修改，等待代理重新提交</div>` : ''}
       ${mr.return_reason && mr.status==='REVISION_NEEDED' ? `<div class="small text-danger mt-1" style="background:#fff;border:1px solid #fca5a5;border-radius:6px;padding:6px 10px"><strong>退回原因：</strong>${escapeHtml(mr.return_reason)}</div>` : ''}
       ${hasOutdatedPdf ? `<div class="small text-warning mt-1"><i class="bi bi-exclamation-triangle me-1"></i>已有 PDF 已过期（数据已变更），需重新生成</div>` : ''}
-      ${['SUBMITTED','APPROVED','MERGED'].includes(mr.status) ? `
-      <div class="mt-2">
-        <button class="btn btn-sm btn-outline-danger" onclick="returnUif('${mr.id}')"><i class="bi bi-arrow-return-left me-1"></i>退回修改</button>
-      </div>` : ''}
+      ${['SUBMITTED','APPROVED','MERGED'].includes(mr.status) ? (() => {
+        const rejectedItems = items.filter(i => i.status === 'REJECTED');
+        const hasIssues = rejectedItems.length > 0;
+        return `
+        ${hasIssues ? `<div class="mt-2 p-2 rounded" style="background:#fef2f2;border:1px solid #fca5a5;font-size:.82rem">
+          <div class="fw-semibold text-danger mb-1"><i class="bi bi-exclamation-circle me-1"></i>待退回项汇总 (${rejectedItems.length})</div>
+          ${rejectedItems.map(i => `<div class="text-danger"><i class="bi bi-file-earmark-x me-1"></i>${escapeHtml(i.name)}${i.reject_reason ? '：' + escapeHtml(i.reject_reason) : ''}</div>`).join('')}
+        </div>` : ''}
+        <div class="mt-2">
+          <button class="btn btn-sm btn-outline-danger" onclick="returnUif('${mr.id}')"><i class="bi bi-arrow-return-left me-1"></i>${hasIssues ? '确认退回修改 (' + rejectedItems.length + ' 项)' : '退回修改'}</button>
+        </div>`;
+      })() : ''}
     </div>
 
     <!-- ① 文件审核 -->
@@ -8061,18 +8069,27 @@ function _renderAgentTab(c) {
       </div>
       <div class="progress mb-2" style="height:5px"><div class="progress-bar bg-success" style="width:${pct}%"></div></div>
       ${items.map(item => `
-        <div class="d-flex justify-content-between align-items-center py-2 border-bottom" style="font-size:.85rem">
-          <div class="d-flex align-items-center gap-1">
-            <i class="bi ${item.status==='APPROVED'?'bi-check-circle-fill text-success':item.status==='REJECTED'?'bi-x-circle-fill text-danger':item.status==='UPLOADED'?'bi-clock text-warning':'bi-circle text-secondary'}" style="font-size:.9rem"></i>
-            <span>${escapeHtml(item.name)}</span>
-            ${item.is_required?'<span class="text-danger" style="font-size:.65rem">必须</span>':''}
-            ${item.reject_reason ? `<span class="text-danger ms-1" style="font-size:.75rem">(${escapeHtml(item.reject_reason)})</span>` : ''}
+        <div class="py-2 border-bottom" style="font-size:.85rem">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-1">
+              <i class="bi ${item.status==='APPROVED'?'bi-check-circle-fill text-success':item.status==='REJECTED'?'bi-x-circle-fill text-danger':item.status==='UPLOADED'?'bi-clock text-warning':'bi-circle text-secondary'}" style="font-size:.9rem"></i>
+              <span>${escapeHtml(item.name)}</span>
+              ${item.is_required?'<span class="text-danger" style="font-size:.65rem">必须</span>':''}
+            </div>
+            <div class="d-flex align-items-center gap-1 flex-shrink-0">
+              ${item.file_id ? `<a href="/api/mat-request-items/${item.id}/download" class="btn btn-sm btn-outline-secondary py-0 px-1" download title="下载"><i class="bi bi-download"></i></a>` : ''}
+              ${item.file_id && !['APPROVED'].includes(item.status) ? `
+                <button class="btn btn-sm btn-outline-success py-0 px-1" onclick="reviewMatItem('${item.id}','approve')" title="通过"><i class="bi bi-check-lg"></i></button>
+                <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="showRejectInput('${item.id}')" title="不通过"><i class="bi bi-x-lg"></i></button>` : ''}
+            </div>
           </div>
-          <div class="d-flex align-items-center gap-1 flex-shrink-0">
-            ${item.file_id ? `<a href="/api/mat-request-items/${item.id}/download" class="btn btn-sm btn-outline-secondary py-0 px-1" download title="下载"><i class="bi bi-download"></i></a>` : ''}
-            ${item.file_id && !['APPROVED'].includes(item.status) ? `
-              <button class="btn btn-sm btn-outline-success py-0 px-1" onclick="reviewMatItem('${item.id}','approve')" title="通过"><i class="bi bi-check-lg"></i></button>
-              <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="reviewMatItem('${item.id}','reject')" title="退回"><i class="bi bi-x-lg"></i></button>` : ''}
+          ${item.status==='REJECTED'&&item.reject_reason ? `<div class="small text-danger mt-1 ms-4"><i class="bi bi-exclamation-circle me-1"></i>${escapeHtml(item.reject_reason)}</div>` : ''}
+          <div id="reject-input-${item.id}" class="d-none mt-1 ms-4">
+            <div class="input-group input-group-sm">
+              <input type="text" class="form-control" placeholder="不通过原因..." id="reject-reason-${item.id}">
+              <button class="btn btn-danger" onclick="reviewMatItem('${item.id}','reject',document.getElementById('reject-reason-${item.id}').value)">确认</button>
+              <button class="btn btn-outline-secondary" onclick="document.getElementById('reject-input-${item.id}').classList.add('d-none')">取消</button>
+            </div>
           </div>
         </div>`).join('')}
     </div>
@@ -10654,11 +10671,15 @@ function renderUifDataDisplay(data) {
   }).join('');
 }
 
-async function reviewMatItem(itemId, action) {
-  let reason = null;
-  if (action === 'reject') {
-    reason = prompt('请填写退回原因：');
-    if (!reason) return;
+function showRejectInput(itemId) {
+  document.getElementById('reject-input-' + itemId)?.classList.remove('d-none');
+  document.getElementById('reject-reason-' + itemId)?.focus();
+}
+
+async function reviewMatItem(itemId, action, directReason) {
+  let reason = directReason || null;
+  if (action === 'reject' && !reason) {
+    reason = '需要重新上传';
   }
   try {
     await PUT(`/api/mat-request-items/${itemId}/review`, { action, reason });
@@ -10957,26 +10978,46 @@ async function approveUif(requestId) {
 
 // ── UIF 打回修改（支持三类问题）──
 async function returnUif(requestId) {
-  // 获取已上传文件列表
+  // 获取文件列表，自动识别已标记为 REJECTED 的
   const caseData = await api('GET', `/api/intake-cases/${State.currentCaseId}`);
-  const uploadedItems = (caseData.matRequest?.items || []).filter(i => i.file_id);
-  const fileCheckboxes = uploadedItems.length ? uploadedItems.map(item =>
+  const allItems = caseData.matRequest?.items || [];
+  const rejectedItems = allItems.filter(i => i.status === 'REJECTED');
+  const otherItems = allItems.filter(i => i.file_id && i.status !== 'REJECTED' && i.status !== 'APPROVED');
+
+  // 已退回文件（自动带出，已勾选）
+  const rejectedHtml = rejectedItems.length ? rejectedItems.map(item =>
+    `<div class="d-flex align-items-center gap-2 mb-1 py-1" style="background:#fef2f2;border-radius:4px;padding:4px 8px">
+      <i class="bi bi-x-circle-fill text-danger"></i>
+      <span class="small fw-semibold">${escapeHtml(item.name)}</span>
+      <span class="small text-danger">${item.reject_reason ? escapeHtml(item.reject_reason) : '需重新上传'}</span>
+      <input type="hidden" class="auto-reject-item" value="${item.id}" data-reason="${escapeHtml(item.reject_reason||'需重新上传')}">
+    </div>`
+  ).join('') : '';
+
+  // 其他待审核文件（可手动勾选追加）
+  const otherHtml = otherItems.length ? otherItems.map(item =>
     `<div class="form-check mb-1">
       <input class="form-check-input" type="checkbox" id="retFile-${item.id}" value="${item.id}" onchange="document.getElementById('retFN-${item.id}').classList.toggle('d-none',!this.checked)">
-      <label class="form-check-label small" for="retFile-${item.id}">${escapeHtml(item.name)}${item.is_required?' *':''}</label>
+      <label class="form-check-label small" for="retFile-${item.id}">${escapeHtml(item.name)}</label>
       <input class="form-control form-control-sm mt-1 d-none" id="retFN-${item.id}" placeholder="问题说明">
     </div>`
   ).join('') : '';
 
   const html = `
     <div class="mb-3">
-      <label class="form-label fw-semibold">退回原因 <span class="text-danger">*</span></label>
-      <textarea id="returnReason" class="form-control" rows="3" placeholder="请说明需要修改的内容，代理会看到这段话。&#10;例如：护照号与扫描件不一致，请核对后修改；成绩单需要补传最新学期的。"></textarea>
+      <label class="form-label fw-semibold">退回原因概述 <span class="text-danger">*</span></label>
+      <textarea id="returnReason" class="form-control" rows="3" placeholder="请说明需要修改的内容，代理会看到这段话。"></textarea>
     </div>
 
-    ${fileCheckboxes ? `<div class="border rounded p-3 mb-3">
-      <div class="fw-semibold small mb-2"><i class="bi bi-file-earmark-x me-1 text-warning"></i>退回文件 <span class="text-muted fw-normal">(可选，勾选需退回的)</span></div>
-      ${fileCheckboxes}
+    ${rejectedHtml ? `<div class="border rounded p-3 mb-3">
+      <div class="fw-semibold small mb-2"><i class="bi bi-x-circle-fill me-1 text-danger"></i>已标记退回的文件 (${rejectedItems.length})</div>
+      <div class="small text-muted mb-2">以下文件已在审核中标记为不通过，将自动包含在退回通知中</div>
+      ${rejectedHtml}
+    </div>` : ''}
+
+    ${otherHtml ? `<div class="border rounded p-3 mb-3">
+      <div class="fw-semibold small mb-2"><i class="bi bi-file-earmark-x me-1 text-warning"></i>追加退回文件 <span class="text-muted fw-normal">(可选)</span></div>
+      ${otherHtml}
     </div>` : ''}
 
     <div class="border rounded p-3 mb-3">
@@ -10994,8 +11035,13 @@ async function returnUif(requestId) {
     const reason = document.getElementById('returnReason').value.trim();
     if (!reason) { showError('请填写退回原因'); return false; }
 
-    // 收集退回文件
+    // 收集退回文件：自动退回项 + 手动追加项
     const fileRejects = [];
+    // 已在审核中标记为 REJECTED 的（自动带入）
+    document.querySelectorAll('.auto-reject-item').forEach(el => {
+      fileRejects.push({ item_id: el.value, reason: el.dataset.reason || '需要重新上传' });
+    });
+    // 手动追加勾选的
     document.querySelectorAll('[id^="retFile-"]:checked').forEach(cb => {
       const noteEl = document.getElementById('retFN-' + cb.value);
       fileRejects.push({ item_id: cb.value, reason: noteEl?.value?.trim() || '需要重新上传' });

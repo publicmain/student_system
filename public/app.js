@@ -8078,7 +8078,7 @@ function _renderAgentTab(c) {
             </div>
             <div class="d-flex align-items-center gap-1 flex-shrink-0">
               ${item.file_id ? `<a href="/api/mat-request-items/${item.id}/download" class="btn btn-sm btn-outline-secondary py-0 px-1" download title="下载"><i class="bi bi-download"></i></a>` : ''}
-              ${item.file_id && !['APPROVED'].includes(item.status) ? `
+              ${item.file_id && !['APPROVED','REJECTED'].includes(item.status) ? `
                 <button class="btn btn-sm btn-outline-success py-0 px-1" onclick="reviewMatItem('${item.id}','approve')" title="通过"><i class="bi bi-check-lg"></i></button>
                 <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="showRejectInput('${item.id}')" title="不通过"><i class="bi bi-x-lg"></i></button>` : ''}
             </div>

@@ -10676,24 +10676,35 @@ function toggleUifFlag(btn) {
   const key = btn.dataset.key;
   const label = btn.dataset.label;
   const row = btn.closest('tr');
+  const section = btn.closest('.mb-3');
   if (window._uifFlaggedFields[key]) {
     delete window._uifFlaggedFields[key];
     btn.style.opacity = '.3';
     btn.style.color = '';
-    row.style.background = '';
+    if (row) row.style.background = '';
+    if (section && !row) section.style.background = '';
     // 移除备注输入
-    const noteEl = row.parentElement.querySelector('.flag-note-' + key);
+    const noteEl = (row?.parentElement || section)?.querySelector('.flag-note-' + key);
     if (noteEl) noteEl.remove();
   } else {
     window._uifFlaggedFields[key] = label;
     btn.style.opacity = '1';
     btn.style.color = '#dc2626';
-    row.style.background = '#fef2f2';
-    // 加备注输入
-    const noteRow = document.createElement('tr');
-    noteRow.className = 'flag-note-' + key;
-    noteRow.innerHTML = '<td colspan="3" style="padding:2px 8px"><input type="text" class="form-control form-control-sm" placeholder="问题说明（可选）" data-flag-key="' + key + '" style="border-color:#fca5a5"></td>';
-    row.after(noteRow);
+    if (row) {
+      row.style.background = '#fef2f2';
+      const noteRow = document.createElement('tr');
+      noteRow.className = 'flag-note-' + key;
+      noteRow.innerHTML = '<td colspan="3" style="padding:2px 8px"><input type="text" class="form-control form-control-sm" placeholder="问题说明（可选）" data-flag-key="' + key + '" style="border-color:#fca5a5"></td>';
+      row.after(noteRow);
+    } else if (section) {
+      section.style.background = '#fef2f2';
+      section.style.borderRadius = '6px';
+      section.style.padding = '8px';
+      const noteDiv = document.createElement('div');
+      noteDiv.className = 'flag-note-' + key + ' mt-1';
+      noteDiv.innerHTML = '<input type="text" class="form-control form-control-sm" placeholder="问题说明（可选）" data-flag-key="' + key + '" style="border-color:#fca5a5">';
+      section.appendChild(noteDiv);
+    }
   }
   // 更新计数
   const count = Object.keys(window._uifFlaggedFields).length;
@@ -10991,7 +11002,7 @@ async function viewUifDetail(requestId) {
 
     // 家庭成员
     if (family.length) {
-      html += '<div class="mb-3"><div class="fw-semibold small mb-1" style="color:var(--primary)"><i class="bi bi-people me-1"></i>家庭成员 ('+family.length+'人)</div>';
+      html += '<div class="mb-3"><div class="fw-semibold small mb-1" style="color:var(--primary)"><i class="bi bi-people me-1"></i>家庭成员 ('+family.length+'人) <button class="btn btn-sm p-0 uif-flag-btn ms-2" data-key="_family" data-label="家庭成员" onclick="toggleUifFlag(this)" title="标记问题" style="opacity:.3;font-size:.85rem"><i class="bi bi-flag-fill"></i></button></div>';
       html += '<table class="table table-sm table-bordered mb-0" style="font-size:.8rem"><thead><tr><th>关系</th><th>姓名</th><th>出生日期</th><th>国籍</th><th>SG身份</th><th>职业</th></tr></thead><tbody>';
       for (const m of family) {
         html += `<tr><td>${escapeHtml(m.member_type||'')}</td><td>${escapeHtml((m.surname||'')+' '+(m.given_name||''))}</td><td>${escapeHtml(m.dob||'')}</td><td>${escapeHtml(m.nationality||'')}</td><td>${escapeHtml(m.sg_status||'')}</td><td>${escapeHtml(m.occupation||'')}</td></tr>`;
@@ -11001,7 +11012,7 @@ async function viewUifDetail(requestId) {
 
     // 教育经历
     if (education.length) {
-      html += '<div class="mb-3"><div class="fw-semibold small mb-1" style="color:var(--primary)"><i class="bi bi-book me-1"></i>教育经历 ('+education.length+'条)</div>';
+      html += '<div class="mb-3"><div class="fw-semibold small mb-1" style="color:var(--primary)"><i class="bi bi-book me-1"></i>教育经历 ('+education.length+'条) <button class="btn btn-sm p-0 uif-flag-btn ms-2" data-key="_education" data-label="教育经历" onclick="toggleUifFlag(this)" title="标记问题" style="opacity:.3;font-size:.85rem"><i class="bi bi-flag-fill"></i></button></div>';
       html += '<table class="table table-sm table-bordered mb-0" style="font-size:.8rem"><thead><tr><th>学校</th><th>国家</th><th>时间</th><th>学历</th></tr></thead><tbody>';
       for (const e of education) {
         html += `<tr><td>${escapeHtml(e.institution_name||'')}</td><td>${escapeHtml(e.country||'')}</td><td>${escapeHtml((e.date_from||'')+' ~ '+(e.date_to||''))}</td><td>${escapeHtml(e.qualification||'')}</td></tr>`;
@@ -11011,7 +11022,7 @@ async function viewUifDetail(requestId) {
 
     // 工作经历
     if (employment.length) {
-      html += '<div class="mb-3"><div class="fw-semibold small mb-1" style="color:var(--primary)"><i class="bi bi-briefcase me-1"></i>工作经历 ('+employment.length+'条)</div>';
+      html += '<div class="mb-3"><div class="fw-semibold small mb-1" style="color:var(--primary)"><i class="bi bi-briefcase me-1"></i>工作经历 ('+employment.length+'条) <button class="btn btn-sm p-0 uif-flag-btn ms-2" data-key="_employment" data-label="工作经历" onclick="toggleUifFlag(this)" title="标记问题" style="opacity:.3;font-size:.85rem"><i class="bi bi-flag-fill"></i></button></div>';
       html += '<table class="table table-sm table-bordered mb-0" style="font-size:.8rem"><thead><tr><th>公司</th><th>国家</th><th>时间</th><th>职位</th><th>职责</th></tr></thead><tbody>';
       for (const e of employment) {
         html += `<tr><td>${escapeHtml(e.employer||'')}</td><td>${escapeHtml(e.country||'')}</td><td>${escapeHtml((e.date_from||'')+' ~ '+(e.date_to||''))}</td><td>${escapeHtml(e.position||'')}</td><td>${escapeHtml(e.nature_of_duties||'')}</td></tr>`;
@@ -11021,7 +11032,7 @@ async function viewUifDetail(requestId) {
 
     // 居住史
     if (residence.length) {
-      html += '<div class="mb-3"><div class="fw-semibold small mb-1" style="color:var(--primary)"><i class="bi bi-geo-alt me-1"></i>居住史 ('+residence.length+'条)</div>';
+      html += '<div class="mb-3"><div class="fw-semibold small mb-1" style="color:var(--primary)"><i class="bi bi-geo-alt me-1"></i>居住史 ('+residence.length+'条) <button class="btn btn-sm p-0 uif-flag-btn ms-2" data-key="_residence" data-label="居住史" onclick="toggleUifFlag(this)" title="标记问题" style="opacity:.3;font-size:.85rem"><i class="bi bi-flag-fill"></i></button></div>';
       html += '<table class="table table-sm table-bordered mb-0" style="font-size:.8rem"><thead><tr><th>国家</th><th>地址</th><th>从</th><th>到</th></tr></thead><tbody>';
       for (const r of residence) {
         html += `<tr><td>${escapeHtml(r.country||'')}</td><td>${escapeHtml(r.address||'')}</td><td>${escapeHtml(r.date_from||'')}</td><td>${escapeHtml(r.date_to||'present')}</td></tr>`;

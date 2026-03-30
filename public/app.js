@@ -216,22 +216,27 @@ function showModal(title, bodyHtml, onOk, okLabel = '确定', size = '') {
   const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('generic-form-modal'));
   modal.show();
   const okBtn = document.getElementById('generic-form-ok');
-  okBtn.disabled = false;
-  okBtn.onclick = async () => {
-    if (okBtn.disabled) return;
-    okBtn.disabled = true;
-    const originalHtml = okBtn.innerHTML;
-    okBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>处理中…`;
-    try {
-      const result = await onOk();
-      if (result !== false) modal.hide();
-    } catch(e) {
-      showError(e.message);
-    } finally {
-      okBtn.disabled = false;
-      okBtn.innerHTML = originalHtml;
-    }
-  };
+  if (!onOk) {
+    okBtn.style.display = 'none';
+  } else {
+    okBtn.style.display = '';
+    okBtn.disabled = false;
+    okBtn.onclick = async () => {
+      if (okBtn.disabled) return;
+      okBtn.disabled = true;
+      const originalHtml = okBtn.innerHTML;
+      okBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>处理中…`;
+      try {
+        const result = await onOk();
+        if (result !== false) modal.hide();
+      } catch(e) {
+        showError(e.message);
+      } finally {
+        okBtn.disabled = false;
+        okBtn.innerHTML = originalHtml;
+      }
+    };
+  }
 }
 
 // ════════════════════════════════════════════════════════

@@ -224,6 +224,12 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0a1a;color:#ddd;display:fle
 .bar .s{flex:1}
 .pnav button{padding:3px 8px;font-size:11px}.pnav button.act{background:#e94560}
 .mid{display:flex;flex:1;overflow:hidden;min-height:0}
+.field-list{width:220px;flex-shrink:0;border-right:1px solid #333;display:flex;flex-direction:column;background:#0f0f1f;overflow:hidden}
+.field-list .fi{padding:4px 8px;font-size:10px;cursor:pointer;border-bottom:1px solid #1a1a2e;display:flex;justify-content:space-between;align-items:center}
+.field-list .fi:hover{background:#16213e}
+.field-list .fi.act{background:#e94560;color:#fff}
+.field-list .fi .fc{color:#666;font-size:9px}
+.field-list .fi.changed{border-left:2px solid #4ecca3}
 .pane{flex:1;overflow:auto;position:relative}
 .pane .lbl{position:sticky;top:0;z-index:10;background:rgba(15,52,96,.95);padding:3px 8px;font-size:10px;color:#888;border-bottom:1px solid #333}
 .left-wrap{position:relative;display:inline-block}
@@ -254,8 +260,12 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0a1a;color:#ddd;display:fle
 </div>
 
 <div class="mid">
+  <div class="field-list" id="fieldList">
+    <div class="lbl" style="display:flex;gap:4px;align-items:center">FIELDS <input type="text" id="fieldSearch" placeholder="Search..." style="flex:1;padding:2px 6px;background:#0a0a1a;border:1px solid #444;border-radius:3px;color:#fff;font-size:10px" oninput="filterFields()"></div>
+    <div id="fieldListBody" style="overflow-y:auto;flex:1"></div>
+  </div>
   <div class="pane" id="pL">
-    <div class="lbl">FILLED PREVIEW — drag markers to adjust | Ctrl+click = jump field to cursor</div>
+    <div class="lbl">FILLED PREVIEW — drag markers | Ctrl+click = jump | Arrow keys = nudge (Shift=5px)</div>
     <div class="left-wrap" id="lw">
       <img id="iL"><canvas id="cv"></canvas>
     </div>
@@ -319,9 +329,27 @@ async function loadPg(n){
     };
   }
   if(p.error)toast('Error: '+p.error);
+  buildFieldList();
 }
 
 function buildNav(){const e=document.getElementById('pnav');e.innerHTML='';for(let i=0;i<PC;i++){const b=document.createElement('button');b.textContent='P'+(i+1);b.className=i===PG?'act':'';b.onclick=()=>loadPg(i);e.appendChild(b);}}
+function buildFieldList(){
+  const body=document.getElementById('fieldListBody');if(!body)return;
+  const q=(document.getElementById('fieldSearch')?.value||'').toLowerCase();
+  const pf=fields.filter(f=>f.page===PG);
+  body.innerHTML=pf.filter(f=>!q||f.id.toLowerCase().includes(q)||f.preview.toLowerCase().includes(q)).map((f,i)=>{
+    const gi=fields.indexOf(f);
+    const ch=changes[f.id]?'changed':'';
+    return '<div class="fi '+ch+(gi===sel?' act':'')+'" onclick="selectField('+gi+')" title="'+f.id+'">'+
+      '<span>'+f.preview.slice(0,22)+(f.preview.length>22?'…':'')+'</span>'+
+      '<span class="fc">'+f.x.toFixed(1)+','+f.y.toFixed(1)+'</span></div>';
+  }).join('')||(q?'<div style="padding:8px;color:#666;font-size:10px">No match</div>':'');
+}
+function filterFields(){buildFieldList();}
+function selectField(gi){sel=gi;const f=fields[gi];if(f.page!==PG)loadPg(f.page);showP(f);draw();buildFieldList();
+  // scroll field into view on canvas
+  const pL=document.getElementById('pL');if(pL)pL.scrollTo({top:Math.max(0,f.y*SC-200),behavior:'smooth'});
+}
 function buildTabs(){const e=document.getElementById('tabs');e.innerHTML='';['SAF','FORM16','V36'].forEach(f=>{const b=document.createElement('button');b.textContent=f;b.className=f===F?'act':'';b.onclick=()=>{document.getElementById('sel').value=f;init(f);};e.appendChild(b);});}
 
 function fieldBox(f){
@@ -416,7 +444,7 @@ document.addEventListener('keydown',e=>{
   }
 });
 
-function mv(dx,dy){if(sel<0)return;const f=fields[sel];f.x=Math.round((f.x+dx)*2)/2;f.y=Math.round((f.y+dy)*2)/2;document.getElementById('px').value=f.x;document.getElementById('py').value=f.y;changes[f.id]={x:f.x,y:f.y,line_no:f.line_no};draw();}
+function mv(dx,dy){if(sel<0)return;const f=fields[sel];f.x=Math.round((f.x+dx)*2)/2;f.y=Math.round((f.y+dy)*2)/2;document.getElementById('px').value=f.x;document.getElementById('py').value=f.y;changes[f.id]={x:f.x,y:f.y,line_no:f.line_no};draw();buildFieldList();}
 function setXY(){if(sel<0)return;const f=fields[sel];f.x=parseFloat(document.getElementById('px').value)||0;f.y=parseFloat(document.getElementById('py').value)||0;changes[f.id]={x:f.x,y:f.y,line_no:f.line_no};draw();}
 function showP(f){document.getElementById('panel').classList.add('show');document.getElementById('pn').textContent=f.preview;document.getElementById('px').value=f.x;document.getElementById('py').value=f.y;document.getElementById('pd').textContent='Line '+f.line_no+' | '+f.type;}
 function hideP(){document.getElementById('panel').classList.remove('show');}

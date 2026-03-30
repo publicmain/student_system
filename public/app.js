@@ -7371,40 +7371,74 @@ async function renderIntakeCases(params = {}) {
 
   const arrivedCount = cases.filter(c => c.status === 'arrived').length;
 
+  // ── Master-Detail 布局：左侧卡片列表 + 右侧详情面板 ──
+  const renderCardList = () => {
+    const keyword = (document.getElementById('intakeSearchInput')?.value||'').trim().toLowerCase();
+    let filtered = filterCases();
+    if (keyword) filtered = filtered.filter(c => (c.student_name||'').toLowerCase().includes(keyword) || (c.program_name||'').toLowerCase().includes(keyword));
+    const list = document.getElementById('intakeCaseList');
+    if (!list) return;
+    list.innerHTML = filtered.length ? filtered.map(c => {
+      const isActive = State.currentCaseId === c.id;
+      return `<div class="case-card ${isActive?'active':''}" onclick="showCaseDetail('${c.id}')" data-case-id="${c.id}">
+        <div class="d-flex justify-content-between align-items-start">
+          <div style="min-width:0">
+            <div class="case-card-name">${escapeHtml(c.student_name||'')}</div>
+            <div class="case-card-sub">${escapeHtml(c.program_name||'')} · ${c.intake_year||''}</div>
+          </div>
+          <span class="badge bg-${statusColor[c.status]||'secondary'}" style="font-size:.68rem;flex-shrink:0">${statusMap[c.status]||c.status}</span>
+        </div>
+        ${c.owner_name ? `<div class="case-card-meta"><i class="bi bi-person me-1"></i>${escapeHtml(c.owner_name)}</div>` : ''}
+      </div>`;
+    }).join('') : '<div class="text-center text-muted py-4" style="font-size:.85rem">暂无案例</div>';
+  };
+
   main.innerHTML = `
-    <div class="page-header mb-3">
-      <div>
-        <h4 class="mb-0"><i class="bi bi-person-lines-fill me-2"></i>${isStudentAdminView ? '我的学生' : '入学案例管理'}</h4>
-        ${isStudentAdminView && arrivedCount > 0 ? `<div class="text-primary small mt-1"><i class="bi bi-bell-fill me-1"></i>${arrivedCount} 名学生已到校，待跟进 Orientation</div>` : ''}
+    <div class="intake-master-detail">
+      <!-- 左侧列表面板 -->
+      <div class="intake-list-panel">
+        <div class="intake-list-header">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0" style="font-size:1rem"><i class="bi bi-person-lines-fill me-2"></i>${isStudentAdminView ? '我的学生' : '入学案例'}</h5>
+            ${hasRole('principal','intake_staff','counselor') ? `
+              <button class="btn btn-primary btn-sm" onclick="showCreateIntakeModal()"><i class="bi bi-plus-lg"></i></button>` : ''}
+          </div>
+          <div class="input-group input-group-sm mb-2">
+            <span class="input-group-text" style="background:#f8fafc;border-right:0"><i class="bi bi-search text-muted"></i></span>
+            <input type="text" class="form-control" id="intakeSearchInput" placeholder="搜索学生..." style="border-left:0" oninput="window._intakeCaseRenderTable&&window._intakeCaseRenderTable()">
+          </div>
+          <div class="d-flex gap-1 flex-wrap">${filterGroups.map(f =>
+            `<button class="btn btn-sm ${f.key==='all'?'btn-secondary':'btn-outline-'+f.color}" data-fkey="${f.key}" onclick="_intakeCaseFilter('${f.key}')" style="font-size:.72rem;padding:2px 8px">${f.label} <span style="opacity:.7">${f.key==='all'?cases.length:cases.filter(c=>c.status===f.key).length}</span></button>`
+          ).join('')}</div>
+        </div>
+        <div class="intake-list-body" id="intakeCaseList"></div>
       </div>
-      <div class="page-header-actions">
-        ${hasRole('principal','intake_staff','counselor') ? `
-          <button class="btn btn-primary btn-sm" onclick="showCreateIntakeModal()">
-            <i class="bi bi-plus-lg me-1"></i>新建案例</button>` : ''}
+      <!-- 右侧详情面板 -->
+      <div class="intake-detail-panel" id="intakeDetailPanel">
+        <div class="d-flex flex-column align-items-center justify-content-center h-100 text-muted" style="min-height:400px">
+          <i class="bi bi-arrow-left-circle" style="font-size:3rem;opacity:.2"></i>
+          <div class="mt-2" style="font-size:.9rem">选择一个案例查看详情</div>
+        </div>
       </div>
-    </div>
-    ${!isStudentAdminView ? `<div class="mb-2"><div class="input-group input-group-sm" style="max-width:300px"><span class="input-group-text"><i class="bi bi-search"></i></span><input type="text" class="form-control" id="intakeSearchInput" placeholder="搜索学生/课程…" oninput="window._intakeCaseRenderTable&&window._intakeCaseRenderTable()"></div></div>` : ''}
-    ${filterBarHtml}
-    <div class="table-responsive">
-      <table class="table table-hover align-middle">
-        <thead class="table-light"><tr>${tableHeaders}</tr></thead>
-        <tbody id="intakeCaseTbody"></tbody>
-      </table>
     </div>
   `;
-  window._intakeCaseRenderTable = renderTable;
-  renderTable();
+  window._intakeCaseRenderTable = renderCardList;
+  renderCardList();
 
   window._intakeCaseFilter = (key) => {
     _intakeFilter = key;
-    document.querySelectorAll('#intakeFilterBar button').forEach(b => {
+    document.querySelectorAll('.intake-list-header button[data-fkey]').forEach(b => {
       const fk = b.dataset.fkey;
       const grp = filterGroups.find(g => g.key === fk);
       b.className = `btn btn-sm ${fk === key ? 'btn-' + (grp?.color||'secondary') : 'btn-outline-' + (grp?.color||'secondary')}`;
+      b.style.fontSize = '.72rem';
+      b.style.padding = '2px 8px';
     });
-    renderTable();
+    renderCardList();
   };
 
+  // 如果之前有选中的案例，自动加载
+  if (State.currentCaseId) showCaseDetail(State.currentCaseId);
 }
 
 function toggleProgramOther(el) {
@@ -7984,7 +8018,26 @@ async function submitCreateIntake() {
 
 async function showCaseDetail(caseId) {
   State.currentCaseId = caseId;
-  showPage('intake-case-detail');
+  // Master-Detail 模式：渲染到右侧面板
+  const detailPanel = document.getElementById('intakeDetailPanel');
+  if (detailPanel) {
+    detailPanel.innerHTML = '<div class="text-center py-5"><span class="spinner-border spinner-border-sm"></span> 加载中...</div>';
+    // 高亮左侧卡片
+    document.querySelectorAll('.case-card').forEach(el => el.classList.toggle('active', el.dataset.caseId === caseId));
+    try {
+      await _renderCaseDetailInto(detailPanel, caseId);
+    } catch(e) { detailPanel.innerHTML = '<div class="text-center text-danger py-5">加载失败</div>'; }
+  } else {
+    showPage('intake-case-detail');
+  }
+}
+
+async function _renderCaseDetailInto(container, caseId) {
+  // 临时替换 main-content 的引用，让 renderIntakeCaseDetail 渲染到 container 中
+  State.currentCaseId = caseId;
+  State._caseDetailTarget = container;
+  await renderIntakeCaseDetail();
+  State._caseDetailTarget = null;
 }
 
 // ══════════════════════════════════════════════════════
@@ -8498,7 +8551,7 @@ async function renderIntakeCaseDetail() {
   document.body.classList.remove('modal-open');
   document.body.style.removeProperty('overflow');
   document.body.style.removeProperty('padding-right');
-  const main = document.getElementById('main-content');
+  const main = State._caseDetailTarget || document.getElementById('main-content');
   // 兼容直接传参和 State 两种方式
   if (!State.currentCaseId) {
     // 尝试从 URL hash 恢复

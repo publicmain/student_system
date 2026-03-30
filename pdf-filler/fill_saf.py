@@ -267,26 +267,32 @@ def fill_saf(data, template_path, output_path, upload_dir=None, font_path=None):
     if _is_scpr('father'):
         ob.text(95, 494.5, _fn(_fm('father')), 6, max_width=95)                         # S9 Father name
         ob.text(245, 492.5, safe_str(_ppr('father').get('marital_status')), 6, max_width=55)  # S9 Father marital
-        ob.text(307.5, 493.5, safe_str(_ppr('father').get('marriage_certificate_no')), 5, max_width=55)  # S9 Father marriage cert
-        ob.text(405.5, 495, fmt_date(_ppr('father').get('marriage_date')), 5)            # S9 Father marriage date
-        ob.text(475.5, 494, safe_str(_ppr('father').get('divorce_certificate_no')), 5, max_width=45)  # S9 Father divorce cert
-        ob.text(479, 426, fmt_date(_ppr('father').get('divorce_date')), 5)             # S9 Father divorce date
+        # Marriage/Divorce Certificate No. — 合并到一个格子
+        _fc = safe_str(_ppr('father').get('marriage_certificate_no') or _ppr('father').get('divorce_certificate_no') or '')
+        ob.text(307.5, 493.5, _fc, 5, max_width=100)
+        # Marriage/Divorce Date — 合并到一个格子
+        _fd = _ppr('father').get('marriage_date') or _ppr('father').get('divorce_date') or ''
+        ob.text(405.5, 495, fmt_date(_fd), 5, max_width=80)
+        # Custody of Applicant
+        ob.text(490, 494, 'Yes' if _ppr('father').get('custody_of_applicant') else '', 5)
 
     if _is_scpr('mother'):
         ob.text(95.5, 508, _fn(_fm('mother')), 6, max_width=95)                         # S9 Mother name
         ob.text(245, 508.5, safe_str(_ppr('mother').get('marital_status')), 6, max_width=55)  # S9 Mother marital
-        ob.text(308, 510.5, safe_str(_ppr('mother').get('marriage_certificate_no')), 5, max_width=55)  # S9 Mother marriage cert
-        ob.text(403.5, 508, fmt_date(_ppr('mother').get('marriage_date')), 5)            # S9 Mother marriage date
-        ob.text(476.5, 510, safe_str(_ppr('mother').get('divorce_certificate_no')), 5, max_width=45)  # S9 Mother divorce cert
-        ob.text(432.5, 428, fmt_date(_ppr('mother').get('divorce_date')), 5)             # S9 Mother divorce date
+        _mc = safe_str(_ppr('mother').get('marriage_certificate_no') or _ppr('mother').get('divorce_certificate_no') or '')
+        ob.text(308, 510.5, _mc, 5, max_width=100)
+        _md = _ppr('mother').get('marriage_date') or _ppr('mother').get('divorce_date') or ''
+        ob.text(403.5, 508, fmt_date(_md), 5, max_width=80)
+        ob.text(490, 510, 'Yes' if _ppr('mother').get('custody_of_applicant') else '', 5)
 
     if _is_scpr('step_father'):
         ob.text(95.5, 522, _fn(_fm('step_father')), 6, max_width=95)                    # S9 Step name
         ob.text(243, 522, safe_str(_ppr('step_father').get('marital_status')), 6, max_width=55)  # S9 Step marital
-        ob.text(307, 525, safe_str(_ppr('step_father').get('marriage_certificate_no')), 5, max_width=55)  # S9 Step marriage cert
-        ob.text(403.5, 524, fmt_date(_ppr('step_father').get('marriage_date')), 5)       # S9 Step marriage date
-        ob.text(473.5, 524, safe_str(_ppr('step_father').get('divorce_certificate_no')), 5, max_width=45)  # S9 Step divorce cert
-        ob.text(368, 427, fmt_date(_ppr('step_father').get('divorce_date')), 5)        # S9 Step divorce date
+        _sc = safe_str(_ppr('step_father').get('marriage_certificate_no') or _ppr('step_father').get('divorce_certificate_no') or '')
+        ob.text(307, 525, _sc, 5, max_width=100)
+        _sd = _ppr('step_father').get('marriage_date') or _ppr('step_father').get('divorce_date') or ''
+        ob.text(403.5, 524, fmt_date(_sd), 5, max_width=80)
+        ob.text(490, 524, 'Yes' if _ppr('step_father').get('custody_of_applicant') else '', 5)
 
     # 下半部 学历/工作表: Father y=623, Mother y=638, Step y=653
     if _is_scpr('father'):

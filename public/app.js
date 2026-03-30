@@ -7974,7 +7974,7 @@ async function submitCreateIntake() {
       const ref = await api('POST', '/api/referrals', { source_type, agent_id: agent_id || null });
       referral_id = ref.id;
     }
-    await api('POST', '/api/intake-cases', { student_name: studentName, intake_year, program_name, notes, referral_id });
+    await api('POST', '/api/intake-cases', { student_name: studentName, intake_year, program_name, notes, referral_id, case_owner_staff_id: State.user?.linked_id || null });
     bootstrap.Modal.getOrCreateInstance(document.getElementById('createIntakeModal')).hide();
     showSuccess('案例已创建');
     renderIntakeCases();

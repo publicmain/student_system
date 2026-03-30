@@ -1105,7 +1105,7 @@ function renderApp(){
               const fieldLabel=_fieldLabelMap[k]||k;
               const step=_fieldStepMap[k]??-1;
               return '<div style="font-size:.83rem;color:#991b1b;padding:3px 0">'
-                +(step>=0?'<a href="#" onclick="event.preventDefault();goStep('+step+');setTimeout(()=>{const el=document.querySelector(\'[name='+k+']\');if(el){el.scrollIntoView({behavior:\'smooth\',block:\'center\'});el.focus()}else{window.scrollTo({top:0,behavior:\'smooth\'})}},300)" style="color:#dc2626;text-decoration:underline;cursor:pointer">':'')
+                +(step>=0?'<a href="#" onclick="event.preventDefault();goStep('+step+');setTimeout(()=>{const el=document.querySelector(\'[name='+k+']\');if(el){el.scrollIntoView({behavior:\'smooth\',block:\'center\'});el.style.borderColor=\'#dc2626\';el.style.boxShadow=\'0 0 0 3px rgba(220,38,38,.2)\';el.focus()}else{document.getElementById(\'stepContent\')?.scrollIntoView({behavior:\'smooth\'})}},400)" style="color:#dc2626;text-decoration:underline;cursor:pointer" title="跳转到第'+(step+1)+'步">':'')
                 +'<b>'+fieldLabel+'</b>'
                 +(step>=0?'</a>':'')
                 +' — '+v.replace(/</g,'&lt;')+'</div>'

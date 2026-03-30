@@ -10706,7 +10706,7 @@ async function matCancelRequest(id) {
 function addMatCaseItem() {
   const html = '<div class="d-flex gap-2 mb-2 align-items-center mat-case-item-row">' +
     '<input type="text" class="form-control form-control-sm" placeholder="材料名称" data-role="item-name">' +
-    '<div class="form-check mb-0 text-nowrap"><input class="form-check-input" type="checkbox" data-role="item-required"><label class="form-check-label small">必填</label></div>' +
+    '<div class="form-check mb-0 text-nowrap"><input class="form-check-input" type="checkbox" checked data-role="item-required"><label class="form-check-label small">必填</label></div>' +
     '<button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="this.closest(\'.mat-case-item-row\').remove()"><i class="bi bi-x"></i></button></div>';
   document.getElementById('matCaseItemsList').insertAdjacentHTML('beforeend', html);
 }

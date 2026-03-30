@@ -5336,6 +5336,12 @@ app.post('/api/agent/uif/submit', (req, res) => {
     console.log('[SUBMIT] ALLOWED: uif not SUBMITTED, proceeding to fix');
   }
 
+  // 检查是否有被退回但未重传的文件
+  const rejectedItems = db.all(`SELECT name FROM mat_request_items WHERE request_id=? AND status='REJECTED'`, [v.rec.request_id]);
+  if (rejectedItems.length) {
+    return res.status(400).json({ error: '以下文件已被退回，请重新上传后再提交：' + rejectedItems.map(i => i.name).join('、') });
+  }
+
   const { data } = req.body;
   const dataStr = JSON.stringify(data);
   const newVersion = (mr?.current_version || 0) + 1;

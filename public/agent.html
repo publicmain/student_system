@@ -1028,9 +1028,15 @@ async function submitAll(){
   }
   // Check required materials uploaded
   const missingFiles = (S.materials||[]).filter(m => m.is_required && m.status === 'PENDING');
+  const rejectedFiles = (S.materials||[]).filter(m => m.status === 'REJECTED');
   if(missingFiles.length){
     const names = missingFiles.map(m => m.name).join('、');
     toast(lang==='zh' ? `以下必须材料尚未上传：${names}` : `Required files not uploaded: ${names}`, 'warning');
+    return;
+  }
+  if(rejectedFiles.length){
+    const names = rejectedFiles.map(m => m.name).join('、');
+    toast(lang==='zh' ? `以下材料已被退回，请重新上传后再提交：${names}` : `These files were rejected, please re-upload: ${names}`, 'warning');
     return;
   }
   if(!confirm(t('submit_confirm')))return;

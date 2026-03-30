@@ -10703,6 +10703,14 @@ async function matCancelRequest(id) {
 }
 
 // ── 从 intake case 创建材料收集请求 ──
+function addMatCaseItem() {
+  const html = '<div class="d-flex gap-2 mb-2 align-items-center mat-case-item-row">' +
+    '<input type="text" class="form-control form-control-sm" placeholder="材料名称" data-role="item-name">' +
+    '<div class="form-check mb-0 text-nowrap"><input class="form-check-input" type="checkbox" data-role="item-required"><label class="form-check-label small">必填</label></div>' +
+    '<button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="this.closest(\'.mat-case-item-row\').remove()"><i class="bi bi-x"></i></button></div>';
+  document.getElementById('matCaseItemsList').insertAdjacentHTML('beforeend', html);
+}
+
 async function showCreateMatRequestForCase(caseId) {
   // 获取中介公司列表
   let companies = [];
@@ -10728,6 +10736,21 @@ async function showCreateMatRequestForCase(caseId) {
     <div class="mb-3">
       <label class="form-label fw-semibold">截止日期</label>
       <input type="date" id="matCaseDeadline" class="form-control" value="${new Date(Date.now()+14*86400000).toISOString().slice(0,10)}">
+    </div>
+    <div class="mb-3">
+      <label class="form-label fw-semibold">需要上传的材料 <span class="text-danger">*</span></label>
+      <div id="matCaseItemsList">
+        ${['护照首页','在读证明','成绩单'].map((n, i) => `
+          <div class="d-flex gap-2 mb-2 align-items-center mat-case-item-row">
+            <input type="text" class="form-control form-control-sm" value="${n}" data-role="item-name">
+            <div class="form-check mb-0 text-nowrap">
+              <input class="form-check-input" type="checkbox" checked data-role="item-required" id="mcr${i}">
+              <label class="form-check-label small" for="mcr${i}">必填</label>
+            </div>
+            <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="this.closest('.mat-case-item-row').remove()"><i class="bi bi-x"></i></button>
+          </div>`).join('')}
+      </div>
+      <button class="btn btn-sm btn-outline-primary" onclick="addMatCaseItem()"><i class="bi bi-plus me-1"></i>添加材料项</button>
     </div>
     <div class="mb-3">
       <label class="form-label fw-semibold">备注</label>
@@ -10771,10 +10794,19 @@ async function showCreateMatRequestForCase(caseId) {
     const notes = document.getElementById('matCaseNotes').value;
     if (!company_id || !contact_id) { showToast('请选择公司和联系人', 'warning'); return; }
 
+    // 收集材料项
+    const items = [];
+    document.querySelectorAll('.mat-case-item-row').forEach(row => {
+      const name = row.querySelector('[data-role="item-name"]')?.value?.trim();
+      const required = row.querySelector('[data-role="item-required"]')?.checked;
+      if (name) items.push({ name, is_required: !!required });
+    });
+    if (!items.length) { showToast('请至少添加一项需要上传的材料', 'warning'); return; }
+
     this.disabled = true;
     this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>创建中...';
     try {
-      const res = await POST(`/api/intake-cases/${caseId}/mat-request`, { company_id, contact_id, deadline, notes });
+      const res = await POST(`/api/intake-cases/${caseId}/mat-request`, { company_id, contact_id, deadline, notes, items });
       modal.hide();
       showToast('材料收集请求已创建，Magic Link 已生成', 'success');
       // 刷新当前 case 页面

@@ -5386,7 +5386,7 @@ app.post('/api/agent/uif/submit', (req, res) => {
 app.post('/api/mat-requests/:id/approve', requireAuth, requireRole('principal','counselor','intake_staff'), (req, res) => {
   const mr = db.get(`SELECT * FROM mat_requests WHERE id=?`, [req.params.id]);
   if (!mr) return res.status(404).json({ error: '请求不存在' });
-  if (!['SUBMITTED','REVISION_NEEDED'].includes(mr.status)) return res.status(400).json({ error: '当前状态不允许审核通过: ' + mr.status });
+  if (!['SUBMITTED','REVISION_NEEDED','APPROVED','MERGED'].includes(mr.status)) return res.status(400).json({ error: '当前状态不允许审核通过: ' + mr.status });
 
   db.run(`UPDATE mat_requests SET status='APPROVED',approved_at=datetime('now'),return_reason=NULL,updated_at=datetime('now') WHERE id=?`, [req.params.id]);
   db.run(`UPDATE mat_uif_submissions SET status='APPROVED',return_reason=NULL,field_notes=NULL,reviewed_by=?,reviewed_at=datetime('now') WHERE request_id=?`,

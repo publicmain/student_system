@@ -181,20 +181,16 @@ class OverlayBuilder:
         self.c.setFillColor(black)
 
         if max_width:
-            # 先尝试缩小字号（最小 5pt），再截断
-            original_text = text
-            while self.c.stringWidth(text, fn, font_size) > max_width and font_size > 5:
+            # 先尝试缩小字号（最小 5.5pt）
+            while self.c.stringWidth(text, fn, font_size) > max_width and font_size > 5.5:
                 font_size -= 0.5
                 self.c.setFont(fn, font_size)
-            # 如果缩到 5pt 还超宽，截断并加省略号
+            # 如果缩到最小还超宽，自动换行而不是截断
             if self.c.stringWidth(text, fn, font_size) > max_width:
-                while self.c.stringWidth(text + '…', fn, font_size) > max_width and len(text) > 1:
-                    text = text[:-1]
-                text = text + '…'
+                self.multiline_text(x, y, text, font_size=font_size, line_height=font_size + 2, max_width=max_width, max_lines=3, font_name=fn)
+                return
 
         # ReportLab drawString y = baseline = 页面底部往上
-        # 传入的 y = 文字顶部 (pymupdf 坐标)
-        # baseline = H - y - font_size * 0.8 (ascent ≈ 80% of font_size)
         self.c.drawString(x, self._rl_y(y) - font_size * 0.8, text)
 
     def text_centered(self, x, y, text, font_size=9, width=None, font_name=None):
@@ -211,7 +207,7 @@ class OverlayBuilder:
         self.c.drawString(x, self._rl_y(y) - font_size * 0.8, text)
 
     def multiline_text(self, x, y, text, font_size=8, line_height=12, max_width=480, max_lines=5, font_name=None):
-        """多行文字，自动换行"""
+        """多行文字，自动换行（支持中英文混合）"""
         if not text:
             return
         text = str(text)
@@ -219,15 +215,15 @@ class OverlayBuilder:
         self.c.setFont(fn, font_size)
         self.c.setFillColor(black)
 
-        words = text.split(' ')
+        # 按字符逐个测量，支持中文（无空格）换行
         lines = []
         current_line = ''
-        for word in words:
-            test = current_line + (' ' if current_line else '') + word
+        for ch in text:
+            test = current_line + ch
             if self.c.stringWidth(test, fn, font_size) > max_width:
                 if current_line:
                     lines.append(current_line)
-                current_line = word
+                current_line = ch
             else:
                 current_line = test
         if current_line:

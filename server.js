@@ -2446,8 +2446,13 @@ app.put('/api/auth/password', requireAuth, (req, res) => {
   }
   pwdChangeAttempts.delete(userId);
   db.run('UPDATE users SET password=?,must_change_password=0 WHERE id=?', [bcrypt.hashSync(new_password, BCRYPT_COST), user.id]);
-  // Invalidate current session after password change for security
-  req.session.destroy(() => {});
+  // 注销该用户所有 session（包括其他设备）
+  try {
+    const allSessions = db.all('SELECT sid, sess FROM sessions');
+    for (const s of allSessions) {
+      try { const d = JSON.parse(s.sess); if (d.user?.id === user.id) db.run('DELETE FROM sessions WHERE sid=?', [s.sid]); } catch(e) {}
+    }
+  } catch(e) {}
   res.json({ ok: true, message: '密码已修改，请重新登录' });
 });
 
@@ -5939,6 +5944,21 @@ function _admTriggerGeneration(profileId) {
     db.run(`UPDATE intake_cases SET review_status='pending_review' WHERE adm_profile_id=?`, [profileId]);
     return;
   }
+  // P1-2: 生成前校验关键字段
+  const p = db.get('SELECT surname,given_name,passport_no,dob,nationality,course_name FROM adm_profiles WHERE id=?', [profileId]);
+  if (p) {
+    const missing = [];
+    if (!p.surname && !p.given_name) missing.push('姓名');
+    if (!p.passport_no) missing.push('护照号');
+    if (!p.dob) missing.push('出生日期');
+    if (!p.nationality) missing.push('国籍');
+    if (!p.course_name) missing.push('课程名称');
+    if (missing.length > 0) {
+      console.warn(`[ADM] PDF 生成跳过：缺少关键字段 [${missing.join(',')}]，profile=${profileId}`);
+      db.run(`UPDATE intake_cases SET review_status='generation_failed' WHERE adm_profile_id=?`, [profileId]);
+      return;
+    }
+  }
   // Prevent duplicate concurrent generation
   if (_generatingProfiles.has(profileId)) {
     console.log(`[ADM] Generation already in progress for ${profileId}, skipping`);
@@ -6168,7 +6188,7 @@ app.post('/api/adm-profiles/:id/create-case', requireAuth, requireRole('principa
   if (!ic) return res.status(400).json({ error: '未找到关联案例，请先提交申请表' });
   if (ic.review_status !== 'approved') return res.status(400).json({ error: '案例未审核通过，无法创建入学案例' });
 
-  db.run(`UPDATE intake_cases SET review_status='case_created', status='processing', updated_at=datetime('now') WHERE id=?`,
+  db.run(`UPDATE intake_cases SET review_status='case_created', status='registered', updated_at=datetime('now') WHERE id=?`,
     [ic.id]);
   audit(req, 'ADM_CASE_CREATED', 'intake_cases', ic.id, {});
   res.json({ ok: true, intake_case_id: ic.id });

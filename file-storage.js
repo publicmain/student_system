@@ -39,6 +39,8 @@ function initDirs() {
  */
 function getFilePath(fileId) {
   if (!fileId) return null;
+  // 防止路径遍历：只取文件名部分
+  fileId = path.basename(fileId);
 
   // 新路径：检查子目录
   for (const sub of Object.values(SUBDIRS)) {

@@ -246,6 +246,23 @@ function escapeHtml(str) {
   if (str == null) return '';
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+// 安全 ID：用于 onclick 属性中的动态值，确保只含安全字符
+function safeId(id) { return String(id||'').replace(/[^a-zA-Z0-9_\-]/g, ''); }
+
+// 清理所有案例相关的全局变量，防止跨案例/跨页面数据泄漏
+function _cleanupCaseGlobals() {
+  window._currentCaseDetail = null;
+  window._pendingFieldNotes = null;
+  window._uifFlaggedFields = null;
+  window._fxFilter_state = null;
+  window._fcActiveTab = null;
+  window._matCurrentCompanyId = null;
+  window._allPrograms = null;
+  window._canEditPrograms = null;
+  window._allBenchmarks = null;
+  window._canEditBenchmarks = null;
+  window._aiPlanModalCtx = null;
+}
 
 function fmtDate(d) {
   if (!d) return '—';
@@ -463,7 +480,7 @@ function _doNavigate(page, params = {}) {
   }
   // 离开案例详情时清除 case-level 全局缓存
   if ((State.currentPage === 'intake-case-detail' || document.getElementById('intakeDetailPanel')) && page !== 'intake-case-detail' && page !== 'intake-cases') {
-    window._currentCaseDetail = null;
+    _cleanupCaseGlobals();
   }
   State.currentPage = page;
   if (params.studentId) State.currentStudentId = params.studentId;

@@ -7399,7 +7399,7 @@ async function renderIntakeCases(params = {}) {
       <div class="intake-list-panel">
         <div class="intake-list-header">
           <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0" style="font-size:1rem"><i class="bi bi-person-lines-fill me-2"></i>${isStudentAdminView ? '我的学生' : '入学案例'}</h5>
+            <h5 class="mb-0" style="font-size:1rem"><i class="bi bi-person-lines-fill me-2"></i>${isStudentAdminView ? '我的学生' : '入学案例'}${arrivedCount>0?` <span class="badge bg-primary rounded-pill" style="font-size:.65rem;vertical-align:middle">${arrivedCount} 到校</span>`:''}</h5>
             ${hasRole('principal','intake_staff','counselor') ? `
               <button class="btn btn-primary btn-sm" onclick="showCreateIntakeModal()"><i class="bi bi-plus-lg"></i></button>` : ''}
           </div>
@@ -8022,8 +8022,12 @@ async function showCaseDetail(caseId) {
   const detailPanel = document.getElementById('intakeDetailPanel');
   if (detailPanel) {
     detailPanel.innerHTML = '<div class="text-center py-5"><span class="spinner-border spinner-border-sm"></span> 加载中...</div>';
-    // 高亮左侧卡片
-    document.querySelectorAll('.case-card').forEach(el => el.classList.toggle('active', el.dataset.caseId === caseId));
+    // 高亮左侧卡片并滚动到可见
+    document.querySelectorAll('.case-card').forEach(el => {
+      const isActive = el.dataset.caseId === caseId;
+      el.classList.toggle('active', isActive);
+      if (isActive) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
     try {
       await _renderCaseDetailInto(detailPanel, caseId);
     } catch(e) { detailPanel.innerHTML = '<div class="text-center text-danger py-5">加载失败</div>'; }
@@ -8033,11 +8037,23 @@ async function showCaseDetail(caseId) {
 }
 
 async function _renderCaseDetailInto(container, caseId) {
-  // 临时替换 main-content 的引用，让 renderIntakeCaseDetail 渲染到 container 中
   State.currentCaseId = caseId;
   State._caseDetailTarget = container;
   await renderIntakeCaseDetail();
   State._caseDetailTarget = null;
+}
+
+function closeCaseDetailPanel() {
+  State.currentCaseId = null;
+  const panel = document.getElementById('intakeDetailPanel');
+  if (panel) {
+    panel.innerHTML = `
+      <div class="d-flex flex-column align-items-center justify-content-center h-100 text-muted" style="min-height:400px">
+        <i class="bi bi-arrow-left-circle" style="font-size:3rem;opacity:.2"></i>
+        <div class="mt-2" style="font-size:.9rem">选择一个案例查看详情</div>
+      </div>`;
+  }
+  document.querySelectorAll('.case-card').forEach(el => el.classList.remove('active'));
 }
 
 // ══════════════════════════════════════════════════════
@@ -9044,17 +9060,20 @@ async function renderIntakeCaseDetail() {
   // Locked cards: eligible=false (not yet reached stage)
   const _lockedCards = Object.keys(_CASE_CARD_META).filter(id => !_eligible[id]);
 
+  const _inPanel = !!State._caseDetailTarget;
   main.innerHTML = `
-    <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
-      <button class="btn btn-outline-secondary btn-sm" onclick="showPage('intake-cases')"><i class="bi bi-arrow-left"></i> 返回列表</button>
-      <h3 class="mb-0 flex-grow-1">
+    <div class="d-flex align-items-center ${_inPanel?'mb-2':'mb-3'} gap-2 flex-wrap">
+      ${_inPanel
+        ? `<button class="btn btn-outline-secondary btn-sm" onclick="closeCaseDetailPanel()"><i class="bi bi-x-lg"></i></button>`
+        : `<button class="btn btn-outline-secondary btn-sm" onclick="showPage('intake-cases')"><i class="bi bi-arrow-left"></i> 返回列表</button>`}
+      <${_inPanel?'h5':'h3'} class="mb-0 flex-grow-1">
         ${!hasRole('intake_staff','student_admin')
           ? `<a href="#" class="student-name-link" onclick="navigate('student-detail',{studentId:'${c.student_id}'})" title="查看学生档案">${escapeHtml(c.student_name||'')}</a>`
           : `<span>${escapeHtml(c.student_name||'')}</span>`}
-        <span class="text-muted"> · ${escapeHtml(c.program_name||'')} (${c.intake_year})</span>
-      </h3>
-      ${!hasRole('intake_staff','student_admin') ? `<button class="btn btn-outline-primary btn-sm" onclick="navigate('student-detail',{studentId:'${c.student_id}'})"><i class="bi bi-person-fill me-1"></i>查看学生</button>` : ''}
-      <span class="badge fs-6 bg-${statusColor[c.status]||'secondary'}">${statusMap[c.status]||c.status}</span>
+        <span class="text-muted" style="font-size:${_inPanel?'.8rem':''}">${_inPanel?' · ':'  · '}${escapeHtml(c.program_name||'')} (${c.intake_year})</span>
+      </${_inPanel?'h5':'h3'}>
+      ${!hasRole('intake_staff','student_admin') && !_inPanel ? `<button class="btn btn-outline-primary btn-sm" onclick="navigate('student-detail',{studentId:'${c.student_id}'})"><i class="bi bi-person-fill me-1"></i>查看学生</button>` : ''}
+      <span class="badge ${_inPanel?'':'fs-6'} bg-${statusColor[c.status]||'secondary'}">${statusMap[c.status]||c.status}</span>
     </div>
 
     <!-- 角色交接横幅 -->
@@ -9186,10 +9205,10 @@ async function renderIntakeCaseDetail() {
     </div>
 
     <!-- 新布局：左栏摘要 + 右栏文件中心 -->
-    <div class="d-flex gap-3 align-items-start" style="min-height:60vh">
+    <div class="case-detail-inner ${_inPanel?'case-detail-inner--panel':''}" style="${_inPanel?'':'min-height:60vh'}">
       <!-- 左栏：案例摘要面板 -->
-      <div style="width:320px;flex-shrink:0" id="caseSidePanel">
-        <div class="card" style="position:sticky;top:70px;max-height:calc(100vh - 90px);overflow-y:auto">
+      <div id="caseSidePanel" style="${_inPanel?'width:100%':'width:320px;flex-shrink:0'}">
+        <div class="card" ${_inPanel?'':'style="position:sticky;top:70px;max-height:calc(100vh - 90px);overflow-y:auto"'}>
           <!-- 签证 -->
           ${_eligible.visa ? `
           <div class="card-body py-2 px-3 border-bottom">

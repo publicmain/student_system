@@ -83,9 +83,9 @@ def fill_v36(data, template_path, output_path, upload_dir=None, font_path=None):
     ob.text(145, 217, 'Spouse' if spouse else '', 6)                       # V36B Spouse rel
     ob.text(208, 217, safe_str((spouse or {}).get('sex','')), 7)            # V36B Spouse sex
     ob.text(235, 217, fmt_date((spouse or {}).get('dob')), 6)               # V36B Spouse dob
-    ob.text(290, 217, safe_str((spouse or {}).get('nationality')), 6, max_width=65)  # V36B Spouse nat
+    ob.text(88.5, 439.5, safe_str((spouse or {}).get('nationality')), 6, max_width=65)  # V36B Spouse nat
     ob.text(370, 217, safe_str((spouse or {}).get('sg_status')), 6, max_width=50)    # V36B Spouse sg
-    ob.text(433, 217, safe_str((spouse or {}).get('occupation')), 6, max_width=50)   # V36B Spouse occ
+    ob.text(87.5, 451.5, safe_str((spouse or {}).get('occupation')), 6, max_width=50)   # V36B Spouse occ
     ob.text(490, 217, safe_str((spouse or {}).get('sg_mobile','')), 6, max_width=75) # V36B Spouse mobile
 
     # ── Part C: Siblings（展开12行）──
@@ -201,7 +201,7 @@ def fill_v36(data, template_path, output_path, upload_dir=None, font_path=None):
     # 学历表: 5 行 (行线: 289,299,310,320,330)
     sc_pr_parents = [m for m in family if m.get('member_type') in ('father','mother','step_father','step_mother') and m.get('sg_status') in ('SC','PR')]
     if len(sc_pr_parents) == 0:
-        ob.checkbox(246, 252, True, size=7)                                    # V36G Edu N.A. ✓
+        ob.checkbox(245, 250, True, size=7)                                    # V36G Edu N.A. ✓
     g_edu_rows = [290, 300, 311, 321, 331]
     for i, ry in enumerate(g_edu_rows):
         mt = g_mar_types[i] if i < len(g_mar_types) else None
@@ -239,7 +239,7 @@ def fill_v36(data, template_path, output_path, upload_dir=None, font_path=None):
 
     # Spouse Edu: 2 行 (行线: 521, 531)
     if not sp.get('school_name'):
-        ob.checkbox(193, 488.5, True, size=7)                                    # V36H Edu N.A. ✓
+        ob.checkbox(195, 490, True, size=7)                                    # V36H Edu N.A. ✓
     ob.text(70, 522, safe_str(sp.get('school_name')), 6, max_width=120)       # V36H Edu1 school
     ob.text(218, 522, safe_str(sp.get('school_country')), 6, max_width=80)    # V36H Edu1 country
     ob.text(316, 522, safe_str(sp.get('highest_qualification')), 5, max_width=110) # V36H Edu1 qual
@@ -252,7 +252,7 @@ def fill_v36(data, template_path, output_path, upload_dir=None, font_path=None):
 
     # Spouse Employment: 2 行 (行线: 586, 597)
     if not sp.get('company_name'):
-        ob.checkbox(193, 550, True, size=7)                                    # V36H Emp N.A. ✓
+        ob.checkbox(192.5, 547, True, size=7)                                    # V36H Emp N.A. ✓
     ob.text(75, 587, safe_str(sp.get('company_name')), 6, max_width=110)      # V36H Emp1 company
     ob.text(218, 587, fmt_amount(sp.get('monthly_income')), 6)                 # V36H Emp1 monthly
     ob.text(328, 587, fmt_amount(sp.get('annual_income')), 6)                  # V36H Emp1 annual
@@ -266,7 +266,7 @@ def fill_v36(data, template_path, output_path, upload_dir=None, font_path=None):
     # ── Part I: Declaration ──
     # Date + Signature at bottom (y≈710)
     app_sig = sigs.get('applicant', {})
-    ob.text(57.5, 659.5, fmt_date(app_sig.get('sig_date')), 9)
+    ob.text(236, 492.5, fmt_date(app_sig.get('sig_date')), 9)
 
     fn = f"{safe_str(p.get('surname',''))} {safe_str(p.get('given_name',''))}".strip()
     ob.text(298.5, 659, fn, 9)
@@ -274,7 +274,7 @@ def fill_v36(data, template_path, output_path, upload_dir=None, font_path=None):
     if app_sig.get('file_id') and upload_dir:
         sig_path = _find_file(upload_dir, app_sig['file_id'])
         if sig_path and os.path.exists(sig_path):
-            ob.image(392.5, 643.5, sig_path, 150, 35)
+            ob.image(490, 494, sig_path, 150, 35)
 
     # ── 保存并合并 ──
     overlay_buf = ob.save()

@@ -1825,23 +1825,45 @@ body.dark-mode .timeline-node.done { background: #14532d; border-color: #22c55e;
   align-items: flex-start;
   min-height: 60vh;
 }
-.case-detail-inner--panel {
-  flex-direction: column;
-  gap: .5rem;
-  min-height: auto;
-}
+/* Full-page mode: side panel */
 .case-side-fixed { width: 300px; flex-shrink: 0; }
 .case-side-card {
   position: sticky; top: 70px;
   max-height: calc(100vh - 90px);
   overflow-y: auto;
 }
-.case-detail-inner--panel .case-side-fixed { width: 100%; }
-.case-detail-inner--panel .case-side-card {
-  max-height: none; position: static;
-}
 
-/* ── Panel-mode: 所有内容适配窄宽 ── */
+/* ── Panel-mode: summary strip (replaces side panel) ── */
+.case-summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.css-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  font-size: .78rem;
+  white-space: nowrap;
+  color: #334155;
+}
+.css-chip .badge { font-size: .62rem; padding: 2px 5px; }
+.css-chip-btn {
+  background: none; border: none; padding: 0 2px;
+  color: #94a3b8; cursor: pointer; font-size: .72rem;
+}
+.css-chip-btn:hover { color: var(--primary); }
+
+/* ── Panel-mode: 全宽内容适配 ── */
 .intake-detail-panel .card { border-radius: 8px; }
 .intake-detail-panel .alert { font-size: .82rem; padding: .5rem .75rem; }
 .intake-detail-panel .alert .fs-4 { font-size: 1.1rem !important; }
@@ -1890,6 +1912,9 @@ body.dark-mode .intake-list-panel { background: #1e1e2e; border-color: var(--bor
 body.dark-mode .intake-list-header { background: #252538; border-color: var(--border); }
 body.dark-mode .intake-detail-panel { background: #1a1a2e; }
 body.dark-mode .case-detail-header--panel { border-color: var(--border); }
+body.dark-mode .case-summary-strip { background: #1e1e2e; border-color: var(--border); }
+body.dark-mode .css-chip { background: #252538; border-color: #3a3a5a; color: #e2e8f0; }
+body.dark-mode .css-chip-btn { color: #64748b; }
 body.dark-mode .case-card:hover { background: #2a2a4a; border-color: #4a4a6a; }
 body.dark-mode .case-card.active {
   background: #2e2e5a; border-color: var(--primary);

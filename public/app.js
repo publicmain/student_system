@@ -9229,11 +9229,60 @@ async function renderIntakeCaseDetail() {
       </div>
     </div>
 
-    <!-- 新布局：左栏摘要 + 右栏文件中心 -->
-    <div class="case-detail-inner ${_inPanel?'case-detail-inner--panel':''}">
+    ${_inPanel ? `
+    <!-- ═══ 面板模式：横向摘要条 + 全宽 Tabs ═══ -->
+    <div class="case-summary-strip">
+      ${_eligible.visa ? `<div class="css-chip">
+        <i class="bi bi-passport text-warning"></i>
+        <span>签证</span>
+        <span class="badge bg-${c.visa?.status==='approved'?'success':c.visa?.status==='rejected'?'danger':'info'}">${visaStatusMap[c.visa?.status]||'未开始'}</span>
+        ${hasRole('principal','intake_staff') ? `<button class="css-chip-btn" onclick="openVisaEditPanel('${c.id}')"><i class="bi bi-pencil"></i></button>` : ''}
+      </div>` : ''}
+      <div class="css-chip">
+        <i class="bi bi-check2-square text-primary"></i>
+        <span>待办</span>
+        <span class="badge bg-primary">${(c.tasks||[]).filter(t=>t.status!=='done').length}</span>
+        <button class="css-chip-btn" onclick="document.getElementById('quickTaskInput')?.classList.toggle('d-none')"><i class="bi bi-plus-lg"></i></button>
+      </div>
+      ${_eligible.arrival ? `<div class="css-chip">
+        <i class="bi bi-airplane text-info"></i>
+        <span>${c.arrival?.actual_arrival ? '已到校 '+c.arrival.actual_arrival : c.arrival?.expected_arrival ? '预计 '+c.arrival.expected_arrival : '到校'}</span>
+        ${hasRole('principal','intake_staff') ? `<button class="css-chip-btn" onclick="openArrivalEditPanel('${c.id}')"><i class="bi bi-pencil"></i></button>` : ''}
+      </div>` : ''}
+      ${_eligible.survey ? `<div class="css-chip">
+        <i class="bi bi-clipboard-check text-success"></i>
+        <span>${c.survey ? '调查 '+c.survey.overall_score+'/5' : '调查未发'}</span>
+      </div>` : ''}
+      <div class="css-chip">
+        <i class="bi bi-info-circle text-secondary"></i>
+        <span>${escapeHtml(c.owner_name||'未分配')}</span>
+        <span class="text-muted">${c.created_at?.slice(0,10)||''}</span>
+      </div>
+    </div>
+    <!-- 待办快速添加（展开时显示在摘要条下方） -->
+    <div id="quickTaskInput" class="d-none mb-2">
+      <div class="input-group input-group-sm">
+        <input type="text" class="form-control" id="sideTaskTitle" placeholder="新任务标题...">
+        <button class="btn btn-primary" onclick="addQuickTask('${c.id}')"><i class="bi bi-check"></i></button>
+      </div>
+    </div>
+    <!-- 全宽主工作区 -->
+    <div class="card" style="flex:1;min-width:0">
+      <div class="card-header p-0" style="background:none;border-bottom:none">
+        <ul class="nav nav-tabs" id="fcTabs" role="tablist" style="border-bottom:2px solid #e5e7eb;font-size:.85rem">
+          <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#fcAgent" role="tab" style="padding:.5rem .75rem"><i class="bi bi-person-badge me-1"></i>代理</a></li>
+          ${hasRole('principal','intake_staff') ? `<li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#fcStudent" role="tab" style="padding:.5rem .75rem"><i class="bi bi-person me-1"></i>学生</a></li>` : ''}
+          <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#fcAll" role="tab" style="padding:.5rem .75rem"><i class="bi bi-archive me-1"></i>文件</a></li>
+          <li class="nav-item ms-auto"><a class="nav-link" data-bs-toggle="tab" href="#fcTasks" role="tab" style="padding:.5rem .75rem"><i class="bi bi-check2-square me-1"></i>待办 <span class="badge bg-primary" style="font-size:.65rem">${(c.tasks||[]).filter(t=>t.status!=='done').length}</span></a></li>
+        </ul>
+      </div>
+      <div class="card-body tab-content p-2">
+    ` : `
+    <!-- ═══ 全屏模式：左栏摘要 + 右栏文件中心 ═══ -->
+    <div class="case-detail-inner">
       <!-- 左栏：案例摘要面板 -->
-      <div id="caseSidePanel" class="${_inPanel?'w-100':'case-side-fixed'}">
-        <div class="card ${_inPanel?'':'case-side-card'}">
+      <div id="caseSidePanel" class="case-side-fixed">
+        <div class="card case-side-card">
           <!-- 签证 -->
           ${_eligible.visa ? `
           <div class="card-body py-2 px-3 border-bottom">
@@ -9257,7 +9306,6 @@ async function renderIntakeCaseDetail() {
                 <button class="btn btn-outline-primary py-0 px-1" style="font-size:.7rem" onclick="document.getElementById('quickTaskInput').classList.toggle('d-none')"><i class="bi bi-plus-lg"></i></button>
               </div>
             </div>
-            <!-- 快速添加任务 -->
             <div id="quickTaskInput" class="d-none mb-2">
               <div class="input-group input-group-sm">
                 <input type="text" class="form-control" id="sideTaskTitle" placeholder="新任务标题...">
@@ -9288,7 +9336,7 @@ async function renderIntakeCaseDetail() {
                 ? `<div class="small text-muted">预计: ${c.arrival.expected_arrival}</div>`
                 : `<div class="small text-muted">暂无到校信息</div>`}
           </div>` : ''}
-          <!-- 满意度调查（仅 student_admin） -->
+          <!-- 满意度调查 -->
           ${_eligible.survey ? `
           <div class="card-body py-2 px-3 border-bottom">
             <div class="d-flex justify-content-between align-items-center mb-1">
@@ -9313,13 +9361,13 @@ async function renderIntakeCaseDetail() {
       <div class="flex-grow-1" style="min-width:0">
         <div class="card">
           <div class="card-header p-0" style="background:none;border-bottom:none">
-            <ul class="nav nav-tabs" id="fcTabs" role="tablist" style="border-bottom:2px solid #e5e7eb;${_inPanel?'font-size:.85rem':''}">
-              <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#fcAgent" role="tab" style="${_inPanel?'padding:.5rem .75rem':''}"><i class="bi bi-person-badge me-1"></i>${_inPanel?'代理':'代理协作'}</a></li>
-              ${hasRole('principal','intake_staff') ? `<li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#fcStudent" role="tab" style="${_inPanel?'padding:.5rem .75rem':''}"><i class="bi bi-person me-1"></i>${_inPanel?'学生':'学生协作'}</a></li>` : ''}
-              <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#fcAll" role="tab" style="${_inPanel?'padding:.5rem .75rem':''}"><i class="bi bi-archive me-1"></i>${_inPanel?'文件':'全部文件'}</a></li>
+            <ul class="nav nav-tabs" id="fcTabs" role="tablist" style="border-bottom:2px solid #e5e7eb">
+              <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#fcAgent" role="tab"><i class="bi bi-person-badge me-1"></i>代理协作</a></li>
+              ${hasRole('principal','intake_staff') ? `<li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#fcStudent" role="tab"><i class="bi bi-person me-1"></i>学生协作</a></li>` : ''}
+              <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#fcAll" role="tab"><i class="bi bi-archive me-1"></i>全部文件</a></li>
             </ul>
           </div>
-          <div class="card-body tab-content ${_inPanel?'p-2':'p-3'}">
+          <div class="card-body tab-content p-3">
 
             <!-- Tab 1: 代理协作 -->
             <div class="tab-pane fade show active" id="fcAgent" role="tabpanel">
@@ -9340,6 +9388,43 @@ async function renderIntakeCaseDetail() {
         </div>
       </div>
     </div>
+    `}
+
+    ${_inPanel ? `
+            <!-- Tab 1: 代理协作 -->
+            <div class="tab-pane fade show active" id="fcAgent" role="tabpanel">
+              ${_renderAgentTab(c)}
+            </div>
+
+            <!-- Tab 2: 学生协作 -->
+            <div class="tab-pane fade" id="fcStudent" role="tabpanel">
+              ${_renderStudentTab(c)}
+            </div>
+
+            <!-- Tab 3: 全部文件 -->
+            <div class="tab-pane fade" id="fcAll" role="tabpanel">
+              ${_renderAllFilesTab(c)}
+            </div>
+
+            <!-- Tab 4: 待办任务 -->
+            <div class="tab-pane fade" id="fcTasks" role="tabpanel">
+              <div id="quickTaskInput2" class="mb-2">
+                <div class="input-group input-group-sm">
+                  <input type="text" class="form-control" id="sideTaskTitle2" placeholder="新任务标题...">
+                  <button class="btn btn-primary" onclick="addQuickTask('${c.id}','sideTaskTitle2')"><i class="bi bi-check"></i></button>
+                </div>
+              </div>
+              ${(c.tasks||[]).map(t => `
+                <div class="d-flex align-items-center gap-2 py-1 border-bottom">
+                  <input type="checkbox" class="form-check-input" style="min-width:14px" ${t.status==='done'?'checked':''} onchange="toggleTaskComplete('${t.id}','${c.id}')">
+                  <span class="small flex-grow-1 ${t.status==='done'?'text-decoration-line-through text-muted':''}">${escapeHtml(t.title)}</span>
+                  <span class="text-muted flex-shrink-0" style="font-size:.7rem">${t.due_date?.slice(5)||''}</span>
+                </div>`).join('')}
+              ${(c.tasks||[]).length === 0 ? '<div class="text-muted small py-2">暂无待办</div>' : ''}
+            </div>
+      </div>
+    </div>
+    ` : ''}
 
     <!-- 保留旧卡片网格（隐藏，供旧代码引用不报错） -->
     <div class="case-grid d-none">
@@ -11963,8 +12048,8 @@ function _admRenderDocuments(latestDocs, p) {
 }
 
 // ── 左栏摘要操作函数 ──
-async function addQuickTask(caseId) {
-  const input = document.getElementById('sideTaskTitle');
+async function addQuickTask(caseId, inputId) {
+  const input = document.getElementById(inputId || 'sideTaskTitle');
   const title = input?.value?.trim();
   if (!title) return;
   try {

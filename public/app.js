@@ -321,7 +321,14 @@ const PAGES = {
   'admission-programs': renderAdmissionPrograms,
   'intake-dashboard': renderIntakeDashboard,
   'intake-cases': renderIntakeCases,
-  'intake-case-detail': renderIntakeCaseDetail,
+  'intake-case-detail': (params) => {
+    // 重定向到 master-detail 模式：先渲染列表页，再在面板中打开详情
+    const caseId = params?.caseId || State.currentCaseId;
+    if (caseId) State.currentCaseId = caseId;
+    renderIntakeCases().then(() => {
+      if (caseId) showCaseDetail(caseId);
+    });
+  },
   'agents-management': renderAgentsManagement,
   'task-detail': renderTaskDetail,
   // MAT/ADM 独立页面已整合到入学案例详情 → 重定向
@@ -455,7 +462,7 @@ function _doNavigate(page, params = {}) {
     State.previousPage = State.currentPage;
   }
   // 离开案例详情时清除 case-level 全局缓存
-  if (State.currentPage === 'intake-case-detail' && page !== 'intake-case-detail') {
+  if ((State.currentPage === 'intake-case-detail' || document.getElementById('intakeDetailPanel')) && page !== 'intake-case-detail' && page !== 'intake-cases') {
     window._currentCaseDetail = null;
   }
   State.currentPage = page;
@@ -7501,7 +7508,7 @@ function showUploadCaseFileModal(caseId, defaultType, defaultName) {
     try {
       await apiFd('POST', `/api/intake-cases/${caseId}/case-files`, fd);
       showSuccess('文件已上传');
-      setTimeout(() => navigate('intake-case-detail', { caseId }), 400);
+      setTimeout(() => _refreshCaseDetail(caseId), 400);
     } catch(e) { showError(e.message); return false; }
   }, '上传');
 }
@@ -7532,7 +7539,7 @@ function sendCaseFile(fileId, caseId, withWatermark = false, watermarkText = '�
       if (res.url) {
         try { await navigator.clipboard.writeText(res.url); showSuccess('链接已复制到剪贴板'); } catch(e) {}
       }
-      setTimeout(() => navigate('intake-case-detail', { caseId }), 600);
+      setTimeout(() => _refreshCaseDetail(caseId), 600);
     } catch(e) { showError(e.message); return false; }
   }, '确认发送');
 }
@@ -7543,7 +7550,7 @@ function deleteCaseFile(fileId, caseId) {
     try {
       await api('DELETE', `/api/case-files/${fileId}`);
       showSuccess('文件已删除');
-      navigate('intake-case-detail', { caseId });
+      _refreshCaseDetail(caseId);
     } catch(e) { showError(e.message); }
   });
 }
@@ -7625,7 +7632,7 @@ function showCreateSignatureModal(caseId) {
       if (res.url) {
         try { await navigator.clipboard.writeText(res.url); showSuccess('签字链接已复制到剪贴板'); } catch(e) {}
       }
-      setTimeout(() => navigate('intake-case-detail', { caseId }), 600);
+      setTimeout(() => _refreshCaseDetail(caseId), 600);
     } catch(e) { showError(e.message); return false; }
   }, '发送');
 }
@@ -8038,9 +8045,17 @@ async function showCaseDetail(caseId) {
 
 async function _renderCaseDetailInto(container, caseId) {
   State.currentCaseId = caseId;
-  State._caseDetailTarget = container;
   await renderIntakeCaseDetail();
-  State._caseDetailTarget = null;
+}
+
+// 刷新案例详情：如果在 master-detail 面板中就直接刷新面板，否则导航
+function _refreshCaseDetail(caseId) {
+  if (caseId) State.currentCaseId = caseId;
+  if (document.getElementById('intakeDetailPanel')) {
+    renderIntakeCaseDetail();
+  } else {
+    navigate('intake-case-detail', { caseId: caseId || State.currentCaseId });
+  }
 }
 
 function closeCaseDetailPanel() {
@@ -8567,7 +8582,10 @@ async function renderIntakeCaseDetail() {
   document.body.classList.remove('modal-open');
   document.body.style.removeProperty('overflow');
   document.body.style.removeProperty('padding-right');
-  const main = State._caseDetailTarget || document.getElementById('main-content');
+  // 自动检测 master-detail 模式：如果 #intakeDetailPanel 在 DOM 中，渲染到面板内
+  const _detailPanel = document.getElementById('intakeDetailPanel');
+  const _inPanel = !!_detailPanel;
+  const main = _detailPanel || document.getElementById('main-content');
   // 兼容直接传参和 State 两种方式
   if (!State.currentCaseId) {
     // 尝试从 URL hash 恢复
@@ -9060,20 +9078,27 @@ async function renderIntakeCaseDetail() {
   // Locked cards: eligible=false (not yet reached stage)
   const _lockedCards = Object.keys(_CASE_CARD_META).filter(id => !_eligible[id]);
 
-  const _inPanel = !!State._caseDetailTarget;
+  // 面板模式下重新高亮左侧卡片
+  if (_inPanel) {
+    document.querySelectorAll('.case-card').forEach(el => el.classList.toggle('active', el.dataset.caseId === c.id));
+  }
   main.innerHTML = `
-    <div class="d-flex align-items-center ${_inPanel?'mb-2':'mb-3'} gap-2 flex-wrap">
+    <div class="case-detail-header ${_inPanel?'case-detail-header--panel':''}">
       ${_inPanel
-        ? `<button class="btn btn-outline-secondary btn-sm" onclick="closeCaseDetailPanel()"><i class="bi bi-x-lg"></i></button>`
-        : `<button class="btn btn-outline-secondary btn-sm" onclick="showPage('intake-cases')"><i class="bi bi-arrow-left"></i> 返回列表</button>`}
-      <${_inPanel?'h5':'h3'} class="mb-0 flex-grow-1">
-        ${!hasRole('intake_staff','student_admin')
-          ? `<a href="#" class="student-name-link" onclick="navigate('student-detail',{studentId:'${c.student_id}'})" title="查看学生档案">${escapeHtml(c.student_name||'')}</a>`
-          : `<span>${escapeHtml(c.student_name||'')}</span>`}
-        <span class="text-muted" style="font-size:${_inPanel?'.8rem':''}">${_inPanel?' · ':'  · '}${escapeHtml(c.program_name||'')} (${c.intake_year})</span>
-      </${_inPanel?'h5':'h3'}>
-      ${!hasRole('intake_staff','student_admin') && !_inPanel ? `<button class="btn btn-outline-primary btn-sm" onclick="navigate('student-detail',{studentId:'${c.student_id}'})"><i class="bi bi-person-fill me-1"></i>查看学生</button>` : ''}
-      <span class="badge ${_inPanel?'':'fs-6'} bg-${statusColor[c.status]||'secondary'}">${statusMap[c.status]||c.status}</span>
+        ? `<button class="btn btn-outline-secondary btn-sm flex-shrink-0" onclick="closeCaseDetailPanel()" title="关闭"><i class="bi bi-x-lg"></i></button>`
+        : `<button class="btn btn-outline-secondary btn-sm flex-shrink-0" onclick="showPage('intake-cases')"><i class="bi bi-arrow-left"></i> 返回列表</button>`}
+      <div class="flex-grow-1 min-width-0">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          ${_inPanel?'<h5':'<h4'} class="mb-0 text-truncate">
+            ${!hasRole('intake_staff','student_admin')
+              ? `<a href="#" class="student-name-link" onclick="navigate('student-detail',{studentId:'${c.student_id}'})" title="查看学生档案">${escapeHtml(c.student_name||'')}</a>`
+              : `<span>${escapeHtml(c.student_name||'')}</span>`}
+          ${_inPanel?'</h5>':'</h4>'}
+          <span class="badge bg-${statusColor[c.status]||'secondary'}">${statusMap[c.status]||c.status}</span>
+        </div>
+        <div class="text-muted" style="font-size:.8rem">${escapeHtml(c.program_name||'')} · ${c.intake_year}${c.owner_name ? ' · '+escapeHtml(c.owner_name) : ''}</div>
+      </div>
+      ${!hasRole('intake_staff','student_admin') ? `<button class="btn btn-outline-primary btn-sm flex-shrink-0" onclick="navigate('student-detail',{studentId:'${c.student_id}'})"><i class="bi bi-person-fill${_inPanel?'':' me-1'}"></i>${_inPanel?'':'查看学生'}</button>` : ''}
     </div>
 
     <!-- 角色交接横幅 -->
@@ -9185,10 +9210,10 @@ async function renderIntakeCaseDetail() {
     </div>
 
     <!-- 卡片系统工具栏 -->
-    <div class="d-flex justify-content-between align-items-center mb-2">
+    <div class="d-flex justify-content-between align-items-center mb-2" style="font-size:.8rem">
       <div class="d-flex gap-2 flex-wrap align-items-center">
         <button class="btn btn-outline-secondary btn-sm py-0 px-2" data-bs-toggle="tooltip" data-bs-placement="top" title="卡片随流程进度解锁 · 拖动左上角 ⣿ 排序 · 点标题折叠"><i class="bi bi-question-circle"></i></button>
-        ${_lockedCards.length > 0 ? _lockedCards.map(id => { const m = _CASE_CARD_META[id]; const tip = m.unlockHint ? ` title="${m.unlockHint}"` : ''; return `<span class="case-locked-hint" style="cursor:default"${tip}><i class="bi bi-lock me-1"></i>${m.label}${m.unlockHint ? `<span class="ms-1 text-muted small fw-normal">（${m.unlockHint}）</span>` : ''}</span>`; }).join('') : ''}
+        ${!_inPanel && _lockedCards.length > 0 ? _lockedCards.map(id => { const m = _CASE_CARD_META[id]; const tip = m.unlockHint ? ` title="${m.unlockHint}"` : ''; return `<span class="case-locked-hint" style="cursor:default"${tip}><i class="bi bi-lock me-1"></i>${m.label}${m.unlockHint ? `<span class="ms-1 text-muted small fw-normal">（${m.unlockHint}）</span>` : ''}</span>`; }).join('') : ''}
       </div>
       <button class="btn btn-sm btn-link text-secondary p-0 text-decoration-none" onclick="resetCaseLayout('${c.id}')"><i class="bi bi-layout-sidebar me-1"></i>重置布局</button>
     </div>
@@ -9205,10 +9230,10 @@ async function renderIntakeCaseDetail() {
     </div>
 
     <!-- 新布局：左栏摘要 + 右栏文件中心 -->
-    <div class="case-detail-inner ${_inPanel?'case-detail-inner--panel':''}" style="${_inPanel?'':'min-height:60vh'}">
+    <div class="case-detail-inner ${_inPanel?'case-detail-inner--panel':''}">
       <!-- 左栏：案例摘要面板 -->
-      <div id="caseSidePanel" style="${_inPanel?'width:100%':'width:320px;flex-shrink:0'}">
-        <div class="card" ${_inPanel?'':'style="position:sticky;top:70px;max-height:calc(100vh - 90px);overflow-y:auto"'}>
+      <div id="caseSidePanel" class="${_inPanel?'w-100':'case-side-fixed'}">
+        <div class="card ${_inPanel?'':'case-side-card'}">
           <!-- 签证 -->
           ${_eligible.visa ? `
           <div class="card-body py-2 px-3 border-bottom">
@@ -9288,13 +9313,13 @@ async function renderIntakeCaseDetail() {
       <div class="flex-grow-1" style="min-width:0">
         <div class="card">
           <div class="card-header p-0" style="background:none;border-bottom:none">
-            <ul class="nav nav-tabs" id="fcTabs" role="tablist" style="border-bottom:2px solid #e5e7eb">
-              <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#fcAgent" role="tab"><i class="bi bi-person-badge me-1"></i>代理协作</a></li>
-              ${hasRole('principal','intake_staff') ? `<li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#fcStudent" role="tab"><i class="bi bi-person me-1"></i>学生协作</a></li>` : ''}
-              <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#fcAll" role="tab"><i class="bi bi-archive me-1"></i>全部文件</a></li>
+            <ul class="nav nav-tabs" id="fcTabs" role="tablist" style="border-bottom:2px solid #e5e7eb;${_inPanel?'font-size:.85rem':''}">
+              <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#fcAgent" role="tab" style="${_inPanel?'padding:.5rem .75rem':''}"><i class="bi bi-person-badge me-1"></i>${_inPanel?'代理':'代理协作'}</a></li>
+              ${hasRole('principal','intake_staff') ? `<li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#fcStudent" role="tab" style="${_inPanel?'padding:.5rem .75rem':''}"><i class="bi bi-person me-1"></i>${_inPanel?'学生':'学生协作'}</a></li>` : ''}
+              <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#fcAll" role="tab" style="${_inPanel?'padding:.5rem .75rem':''}"><i class="bi bi-archive me-1"></i>${_inPanel?'文件':'全部文件'}</a></li>
             </ul>
           </div>
-          <div class="card-body tab-content p-3">
+          <div class="card-body tab-content ${_inPanel?'p-2':'p-3'}">
 
             <!-- Tab 1: 代理协作 -->
             <div class="tab-pane fade show active" id="fcAgent" role="tabpanel">
@@ -9888,7 +9913,7 @@ function deleteInvoice(invoiceId, invoiceNo) {
       try {
         await api('DELETE', `/api/invoices/${invoiceId}`);
         showSuccess('账单已删除');
-        if (State.currentPage === 'intake-case-detail') renderIntakeCaseDetail();
+        if ((State.currentPage === 'intake-case-detail' || document.getElementById('intakeDetailPanel'))) renderIntakeCaseDetail();
         else renderFinanceWorkbench();
       } catch(e) { showError(e.message); }
     },
@@ -10871,7 +10896,7 @@ async function reviewMatItem(itemId, action, directReason) {
     await PUT(`/api/mat-request-items/${itemId}/review`, { action, reason });
     showSuccess(action === 'approve' ? '文件已通过' : '已标记为不通过');
     // 刷新：优先刷新 intake case detail（如果当前在 case 页面），否则刷新 MAT 页面
-    if (State.currentPage === 'intake-case-detail' && State.currentCaseId) {
+    if ((State.currentPage === 'intake-case-detail' || document.getElementById('intakeDetailPanel')) && State.currentCaseId) {
       renderIntakeCaseDetail(State.currentCaseId);
     } else if (State.currentMatRequestId) {
       renderMatRequestDetail({ requestId: State.currentMatRequestId });
@@ -11387,7 +11412,7 @@ async function generateDocsFromUif(requestId) {
               showToast('生成超时，请手动刷新查看', 'warning');
             }
             // 刷新当前页面
-            if (State.currentPage === 'intake-case-detail' && State.currentCaseId) {
+            if ((State.currentPage === 'intake-case-detail' || document.getElementById('intakeDetailPanel')) && State.currentCaseId) {
               renderIntakeCaseDetail(State.currentCaseId);
             } else {
               renderMatRequestDetail({ requestId: State.currentMatRequestId || requestId });
@@ -11397,7 +11422,7 @@ async function generateDocsFromUif(requestId) {
       }, 2000);
     } else {
       setTimeout(() => {
-        if (State.currentPage === 'intake-case-detail' && State.currentCaseId) {
+        if ((State.currentPage === 'intake-case-detail' || document.getElementById('intakeDetailPanel')) && State.currentCaseId) {
           renderIntakeCaseDetail(State.currentCaseId);
         } else {
           renderMatRequestDetail({ requestId: State.currentMatRequestId || requestId });

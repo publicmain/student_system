@@ -1753,7 +1753,7 @@ body.dark-mode .timeline-node.done { background: #14532d; border-color: #22c55e;
   margin: -12px;
 }
 .intake-list-panel {
-  width: 320px;
+  width: 300px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -1761,126 +1761,142 @@ body.dark-mode .timeline-node.done { background: #14532d; border-color: #22c55e;
   background: #fafbfc;
 }
 .intake-list-header {
-  padding: 12px 14px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   background: #fff;
 }
 .intake-list-body {
   flex: 1;
   overflow-y: auto;
-  padding: 6px;
+  padding: 4px 6px;
 }
 .intake-detail-panel {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 20px;
+  padding: 12px 16px;
   background: #fff;
+  min-width: 0; /* 防止 flex 子元素撑破 */
 }
 
 /* Case card in list */
 .case-card {
-  padding: 10px 12px;
-  margin-bottom: 4px;
+  padding: 8px 10px;
+  margin-bottom: 3px;
   border-radius: 8px;
   cursor: pointer;
   transition: all .15s;
   border: 1px solid transparent;
 }
-.case-card:hover {
-  background: #eef2ff;
-  border-color: #c7d2fe;
-}
+.case-card:hover { background: #eef2ff; border-color: #c7d2fe; }
 .case-card.active {
   background: #e0e7ff;
   border-color: var(--primary);
   box-shadow: 0 0 0 1px var(--primary);
 }
 .case-card-name {
-  font-weight: 600;
-  font-size: .9rem;
-  color: #1e293b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 600; font-size: .85rem; color: #1e293b;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .case-card-sub {
-  font-size: .75rem;
-  color: #94a3b8;
-  margin-top: 1px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: .72rem; color: #94a3b8; margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.case-card-meta {
-  font-size: .7rem;
-  color: #94a3b8;
-  margin-top: 4px;
-}
+.case-card-meta { font-size: .68rem; color: #94a3b8; margin-top: 3px; }
 
-/* Case detail inner layout (full page: side-by-side; panel: stacked) */
+/* ── Detail header ── */
+.case-detail-header {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .75rem;
+  flex-wrap: nowrap;
+}
+.case-detail-header--panel {
+  margin-bottom: .5rem;
+  padding-bottom: .5rem;
+  border-bottom: 1px solid var(--border);
+}
+.case-detail-header .min-width-0 { min-width: 0; }
+
+/* ── Detail inner layout (side-by-side full page / stacked in panel) ── */
 .case-detail-inner {
   display: flex;
   gap: .75rem;
   align-items: flex-start;
+  min-height: 60vh;
 }
 .case-detail-inner--panel {
   flex-direction: column;
   gap: .5rem;
+  min-height: auto;
 }
-.case-detail-inner--panel #caseSidePanel { width: 100%; }
-.case-detail-inner--panel #caseSidePanel .card {
-  max-height: none !important;
-  position: static !important;
+.case-side-fixed { width: 300px; flex-shrink: 0; }
+.case-side-card {
+  position: sticky; top: 70px;
+  max-height: calc(100vh - 90px);
+  overflow-y: auto;
+}
+.case-detail-inner--panel .case-side-fixed { width: 100%; }
+.case-detail-inner--panel .case-side-card {
+  max-height: none; position: static;
 }
 
+/* ── Panel-mode: 所有内容适配窄宽 ── */
+.intake-detail-panel .card { border-radius: 8px; }
+.intake-detail-panel .alert { font-size: .82rem; padding: .5rem .75rem; }
+.intake-detail-panel .alert .fs-4 { font-size: 1.1rem !important; }
+.intake-detail-panel .border.rounded.p-3 { padding: .625rem !important; }
+.intake-detail-panel .card-body { padding: .625rem .75rem; }
+.intake-detail-panel .card-header { padding: .5rem .75rem; }
+
 /* Timeline: scrollable in narrow panels */
-.intake-detail-panel .card-body .d-flex[style*="gap:0"] {
+.intake-detail-panel .d-flex[style*="gap:0"] {
   flex-wrap: nowrap;
   overflow-x: auto;
   padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
 }
+/* Timeline scrollbar */
+.intake-detail-panel .d-flex[style*="gap:0"]::-webkit-scrollbar { height: 3px; }
+.intake-detail-panel .d-flex[style*="gap:0"]::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+/* ── Panel mode: 代理协作/学生协作内各区块适配 ── */
+.intake-detail-panel .border.rounded { font-size: .85rem; }
+.intake-detail-panel .progress { height: 5px !important; }
+.intake-detail-panel h6 { font-size: .85rem; }
+
+/* ── Panel: table 紧凑 ── */
+.intake-detail-panel table { font-size: .82rem; }
+.intake-detail-panel table th,
+.intake-detail-panel table td { padding: .35rem .5rem; }
+
+/* ── Panel: 按钮紧凑 ── */
+.intake-detail-panel .btn-sm { font-size: .78rem; padding: .2rem .5rem; }
+.intake-detail-panel .badge { font-size: .7rem; }
 
 /* 移动端：堆叠布局 */
 @media (max-width: 768px) {
-  .intake-master-detail {
-    flex-direction: column;
-    height: auto;
-  }
+  .intake-master-detail { flex-direction: column; height: auto; }
   .intake-list-panel {
-    width: 100%;
-    max-height: 40vh;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
+    width: 100%; max-height: 40vh;
+    border-right: none; border-bottom: 1px solid var(--border);
   }
-  .case-detail-inner {
-    flex-direction: column;
-  }
-  .case-detail-inner #caseSidePanel { width: 100% !important; }
+  .case-detail-inner { flex-direction: column; }
+  .case-side-fixed { width: 100% !important; }
 }
 
 /* ═══ Dark mode: Master-Detail ═══ */
-body.dark-mode .intake-list-panel {
-  background: #1e1e2e;
-  border-color: var(--border);
-}
-body.dark-mode .intake-list-header {
-  background: #252538;
-  border-color: var(--border);
-}
-body.dark-mode .intake-detail-panel {
-  background: #1a1a2e;
-}
-body.dark-mode .case-card:hover {
-  background: #2a2a4a;
-  border-color: #4a4a6a;
-}
+body.dark-mode .intake-list-panel { background: #1e1e2e; border-color: var(--border); }
+body.dark-mode .intake-list-header { background: #252538; border-color: var(--border); }
+body.dark-mode .intake-detail-panel { background: #1a1a2e; }
+body.dark-mode .case-detail-header--panel { border-color: var(--border); }
+body.dark-mode .case-card:hover { background: #2a2a4a; border-color: #4a4a6a; }
 body.dark-mode .case-card.active {
-  background: #2e2e5a;
-  border-color: var(--primary);
+  background: #2e2e5a; border-color: var(--primary);
   box-shadow: 0 0 0 1px var(--primary);
 }
 body.dark-mode .case-card-name { color: #e2e8f0; }
-body.dark-mode .case-card-sub { color: #64748b; }
+body.dark-mode .case-card-sub,
 body.dark-mode .case-card-meta { color: #64748b; }
 
 /* Scrollbar styling for list panel */
@@ -1888,6 +1904,11 @@ body.dark-mode .case-card-meta { color: #64748b; }
 .intake-list-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 .intake-list-body::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 body.dark-mode .intake-list-body::-webkit-scrollbar-thumb { background: #475569; }
+
+/* Detail panel: scrollbar */
+.intake-detail-panel::-webkit-scrollbar { width: 5px; }
+.intake-detail-panel::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+body.dark-mode .intake-detail-panel::-webkit-scrollbar-thumb { background: #475569; }
 
 /* Detail panel smooth transition */
 .intake-detail-panel > * { animation: fadeInDetail .2s ease; }

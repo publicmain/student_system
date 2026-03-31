@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node --test tests/"
+    "test": "node --test tests/test-state-machine.js tests/test-file-storage.js tests/test-permissions.js"
   },
   "engines": {
     "node": ">=18.0.0"

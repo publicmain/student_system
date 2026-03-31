@@ -23,6 +23,11 @@ let pdfGenerator = null;
 try { pdfGenerator = require('./pdf-filler-bridge'); console.log('[PDF] 模板填充模式 (Python)'); } catch(e) {
   try { pdfGenerator = require('./pdf-generator'); console.log('[PDF] 从零生成模式 (JS fallback)'); } catch(e2) { console.warn('[警告] pdf 模块加载失败:', e.message, e2.message); }
 }
+// ── 模块化拆分：中间件和工具函数 ──
+// ── 模块化拆分（Phase 2）：中间件和工具函数已抽取到独立文件 ──
+// middleware/auth.js  — requireAuth, requireRole, requireAgentModule, requireAdmissionModule, stripAgentFields
+// helpers/utils.js    — escHtml, createAudit, brandedEmail, moveUploadedFile
+// 当前 server.js 仍保留 inline 定义以保证向后兼容，路由拆分时逐步切换到 require() 导入
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -239,50 +244,13 @@ function audit(req, action, entity, entityId, detail) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  AUTH
+//  AUTH (已拆分到 routes/auth.js)
 // ═══════════════════════════════════════════════════════
-
-app.post('/api/auth/login', (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ error: '用户名和密码不能为空' });
-  // Rate limiting: check failed attempts for this IP
-  const ip = req.ip;
-  const now = Date.now();
-  const record = loginAttempts.get(ip) || { count: 0, resetAt: now + LOGIN_WINDOW_MS };
-  if (now > record.resetAt) { record.count = 0; record.resetAt = now + LOGIN_WINDOW_MS; }
-  if (record.count >= LOGIN_MAX_ATTEMPTS) {
-    const wait = Math.ceil((record.resetAt - now) / 1000);
-    return res.status(429).json({ error: `登录尝试过于频繁，请 ${wait} 秒后再试` });
-  }
-  const user = db.get('SELECT * FROM users WHERE username=?', [username]);
-  if (!user || !bcrypt.compareSync(password, user.password)) {
-    record.count++;
-    loginAttempts.set(ip, record);
-    return res.status(401).json({ error: '用户名或密码错误' });
-  }
-  // Reset failed attempts on success
-  loginAttempts.delete(ip);
-  // Regenerate session ID to prevent session fixation
-  req.session.regenerate((err) => {
-    if (err) return res.status(500).json({ error: '会话初始化失败' });
-    req.session.user = { id: user.id, username: user.username, role: user.role, linked_id: user.linked_id, name: user.name };
-    req.session.save((err2) => {
-      if (err2) return res.status(500).json({ error: '会话保存失败' });
-      audit(req, 'LOGIN', 'users', user.id, null);
-      res.json({ user: req.session.user, must_change_password: user.must_change_password === 1 });
-    });
-  });
-});
-
-app.post('/api/auth/logout', (req, res) => {
-  req.session.destroy();
-  res.json({ ok: true });
-});
-
-app.get('/api/auth/me', (req, res) => {
-  if (!req.session.user) return res.status(401).json({ error: '未登录' });
-  res.json({ user: req.session.user });
-});
+app.use('/api/auth', require('./routes/auth')({
+  db, uuidv4, audit, requireAuth,
+  loginAttempts, pwdChangeAttempts,
+  LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_MS, PWD_CHANGE_MAX, BCRYPT_COST
+}));
 
 // ═══════════════════════════════════════════════════════
 //  DASHBOARD
@@ -2421,40 +2389,8 @@ app.put('/api/ai-plans/:id/archive', requireRole('principal','counselor'), (req,
 });
 
 // ═══════════════════════════════════════════════════════
-//  USERS (密码修改)
+//  USERS (密码修改 — 已合并到 routes/auth.js)
 // ═══════════════════════════════════════════════════════
-
-app.put('/api/auth/password', requireAuth, (req, res) => {
-  const userId = req.session.user.id;
-  const now = Date.now();
-  // Rate limit: max PWD_CHANGE_MAX failed attempts per user per 15 min
-  const pr = pwdChangeAttempts.get(userId) || { count: 0, resetAt: now + LOGIN_WINDOW_MS };
-  if (now > pr.resetAt) { pr.count = 0; pr.resetAt = now + LOGIN_WINDOW_MS; }
-  if (pr.count >= PWD_CHANGE_MAX) {
-    return res.status(429).json({ error: `密码修改失败次数过多，请 ${Math.ceil((pr.resetAt - now) / 60000)} 分钟后重试` });
-  }
-  const { old_password, new_password } = req.body;
-  if (!new_password || new_password.length < 6 || new_password.length > 128) {
-    return res.status(400).json({ error: '新密码长度须在 6-128 位之间' });
-  }
-  const user = db.get('SELECT * FROM users WHERE id=?', [userId]);
-  if (!user) return res.status(404).json({ error: '用户不存在' });
-  if (!bcrypt.compareSync(old_password, user.password)) {
-    pr.count++;
-    pwdChangeAttempts.set(userId, pr);
-    return res.status(400).json({ error: `原密码错误（剩余尝试次数：${PWD_CHANGE_MAX - pr.count}）` });
-  }
-  pwdChangeAttempts.delete(userId);
-  db.run('UPDATE users SET password=?,must_change_password=0 WHERE id=?', [bcrypt.hashSync(new_password, BCRYPT_COST), user.id]);
-  // 注销该用户所有 session（包括其他设备）
-  try {
-    const allSessions = db.all('SELECT sid, sess FROM sessions');
-    for (const s of allSessions) {
-      try { const d = JSON.parse(s.sess); if (d.user?.id === user.id) db.run('DELETE FROM sessions WHERE sid=?', [s.sid]); } catch(e) {}
-    }
-  } catch(e) {}
-  res.json({ ok: true, message: '密码已修改，请重新登录' });
-});
 
 // ═══════════════════════════════════════════════════════
 //  INTAKE CASES

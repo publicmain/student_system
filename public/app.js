@@ -8148,9 +8148,10 @@ function _renderAgentTab(c) {
     <div class="border rounded p-3 mb-3" style="border-color:#e5e7eb !important">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <span style="font-size:.82rem;font-weight:600;color:#334155">上传文件 <span style="font-weight:400;color:#94a3b8">${approved}/${total}</span></span>
-        ${uploaded>0?`<span style="font-size:.75rem;color:#92400e">${uploaded} 待审核</span>`:''}
+        ${approved===total&&total>0?`<span style="font-size:.7rem;color:#166534;background:#dcfce7;padding:1px 6px;border-radius:3px">全部通过</span>`
+          :uploaded>0?`<span style="font-size:.7rem;color:#92400e;background:#fef3c7;padding:1px 6px;border-radius:3px">${uploaded} 待审核</span>`
+          :rejectedItems.length>0?`<span style="font-size:.7rem;color:#991b1b;background:#fee2e2;padding:1px 6px;border-radius:3px">${rejectedItems.length} 不通过</span>`:''}
       </div>
-      <div class="progress mb-2" style="height:3px"><div class="progress-bar" style="width:${pct}%;background:#86efac"></div></div>
       ${items.map(item => `
         <div class="py-2 border-bottom" style="font-size:.85rem">
           <div class="d-flex justify-content-between align-items-center">

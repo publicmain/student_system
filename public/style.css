@@ -1837,62 +1837,113 @@ body.dark-mode .timeline-node.done { background: #14532d; border-color: #22c55e;
 .case-summary-strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
   margin-bottom: 8px;
-  padding: 8px 10px;
-  background: #f8fafc;
-  border: 1px solid var(--border);
-  border-radius: 8px;
 }
 .css-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 3px 10px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 20px;
-  font-size: .78rem;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: .75rem;
   white-space: nowrap;
-  color: #334155;
+  color: #64748b;
 }
-.css-chip .badge { font-size: .62rem; padding: 2px 5px; }
+.css-chip .badge {
+  font-size: .6rem; padding: 2px 5px;
+  background: #e2e8f0 !important; color: #475569 !important;
+}
 .css-chip-btn {
   background: none; border: none; padding: 0 2px;
-  color: #94a3b8; cursor: pointer; font-size: .72rem;
+  color: #cbd5e1; cursor: pointer; font-size: .68rem;
 }
-.css-chip-btn:hover { color: var(--primary); }
+.css-chip-btn:hover { color: #4f46e5; }
 
-/* ── Panel-mode: 全宽内容适配 ── */
-.intake-detail-panel .card { border-radius: 8px; }
-.intake-detail-panel .alert { font-size: .82rem; padding: .5rem .75rem; }
-.intake-detail-panel .alert .fs-4 { font-size: 1.1rem !important; }
-.intake-detail-panel .border.rounded.p-3 { padding: .625rem !important; }
+/* ═══ Color System Override: Muted Palette ═══ */
+/* 所有 badge 在 detail panel 内降为低饱和 */
+.intake-detail-panel .badge.bg-primary   { background: #e0e7ff !important; color: #3730a3 !important; }
+.intake-detail-panel .badge.bg-success   { background: #dcfce7 !important; color: #166534 !important; }
+.intake-detail-panel .badge.bg-warning   { background: #fef3c7 !important; color: #92400e !important; }
+.intake-detail-panel .badge.bg-danger    { background: #fee2e2 !important; color: #991b1b !important; }
+.intake-detail-panel .badge.bg-info      { background: #e0f2fe !important; color: #075985 !important; }
+.intake-detail-panel .badge.bg-secondary { background: #f1f5f9 !important; color: #475569 !important; }
+.intake-detail-panel .badge.bg-dark      { background: #e2e8f0 !important; color: #1e293b !important; }
+/* 左侧列表 badge 同样降饱和 */
+.intake-list-panel .badge.bg-primary   { background: #e0e7ff !important; color: #3730a3 !important; }
+.intake-list-panel .badge.bg-success   { background: #dcfce7 !important; color: #166534 !important; }
+.intake-list-panel .badge.bg-warning   { background: #fef3c7 !important; color: #92400e !important; }
+.intake-list-panel .badge.bg-info      { background: #e0f2fe !important; color: #075985 !important; }
+.intake-list-panel .badge.bg-secondary { background: #f1f5f9 !important; color: #475569 !important; }
+.intake-list-panel .badge.bg-dark      { background: #e2e8f0 !important; color: #1e293b !important; }
+/* 左侧筛选按钮 - 全部中性化 */
+.intake-list-header .btn { font-size: .7rem !important; padding: 1px 7px !important;
+  background: #fff !important; color: #64748b !important;
+  border: 1px solid #e2e8f0 !important; }
+.intake-list-header .btn.active-filter {
+  background: #4f46e5 !important; color: #fff !important;
+  border-color: #4f46e5 !important; }
+/* Alert banners 降噪 */
+.intake-detail-panel .alert {
+  font-size: .8rem; padding: .5rem .75rem;
+  background: #f8fafc !important; border: 1px solid #e2e8f0 !important;
+  color: #475569 !important; }
+.intake-detail-panel .alert .fs-4,
+.intake-detail-panel .alert i { font-size: 1rem !important; color: #94a3b8 !important; }
+.intake-detail-panel .alert .fw-semibold { color: #334155 !important; }
+
+/* ── Panel-mode: 内容适配 ── */
+.intake-detail-panel .card { border-radius: 8px; border-color: #e5e7eb; }
+.intake-detail-panel .border.rounded.p-3 { padding: .625rem !important; border-color: #e5e7eb !important; }
 .intake-detail-panel .card-body { padding: .625rem .75rem; }
 .intake-detail-panel .card-header { padding: .5rem .75rem; }
 
-/* Timeline: scrollable in narrow panels */
-.intake-detail-panel .d-flex[style*="gap:0"] {
-  flex-wrap: nowrap;
+/* ═══ Lightweight Timeline ═══ */
+.tl-strip {
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
   overflow-x: auto;
-  padding-bottom: 4px;
-  -webkit-overflow-scrolling: touch;
 }
-/* Timeline scrollbar */
-.intake-detail-panel .d-flex[style*="gap:0"]::-webkit-scrollbar { height: 3px; }
-.intake-detail-panel .d-flex[style*="gap:0"]::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+.tl-step { display: flex; flex-direction: column; align-items: center; }
+.tl-dot {
+  width: 20px; height: 20px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .6rem; flex-shrink: 0; z-index: 1;
+  border: 2px solid #e2e8f0; background: #fff; color: #94a3b8;
+}
+.tl-done { background: #dcfce7; border-color: #86efac; color: #166534; }
+.tl-current { background: #4f46e5; border-color: #4f46e5; color: #fff;
+  box-shadow: 0 0 0 3px rgba(79,70,229,.15); }
+.tl-future { background: #fff; border-color: #e2e8f0; color: #cbd5e1; }
+.tl-clickable { cursor: pointer; border: none; padding: 0; }
+.tl-clickable:hover { transform: scale(1.15); box-shadow: 0 0 0 3px rgba(79,70,229,.2); }
+.tl-line { height: 2px; flex: 1; background: #e5e7eb; min-width: 8px; }
+.tl-line-done { background: #86efac; }
+.tl-label {
+  margin-top: 3px; color: #94a3b8; text-align: center;
+  white-space: nowrap; font-size: .65rem;
+}
+.tl-label-current { color: #4f46e5; font-weight: 600; }
+body.dark-mode .tl-strip { background: #1e1e2e; border-color: var(--border); }
+body.dark-mode .tl-dot { background: #252538; border-color: #3a3a5a; color: #64748b; }
+body.dark-mode .tl-done { background: #14532d; border-color: #22c55e; color: #86efac; }
+body.dark-mode .tl-current { background: #4f46e5; border-color: #4f46e5; }
+body.dark-mode .tl-line { background: #3a3a5a; }
+body.dark-mode .tl-line-done { background: #22c55e; }
+body.dark-mode .tl-label { color: #64748b; }
+body.dark-mode .tl-label-current { color: #818cf8; }
 
-/* ── Panel mode: 代理协作/学生协作内各区块适配 ── */
+/* ── 内容区 ── */
 .intake-detail-panel .border.rounded { font-size: .85rem; }
-.intake-detail-panel .progress { height: 5px !important; }
+.intake-detail-panel .progress { height: 4px !important; }
 .intake-detail-panel h6 { font-size: .85rem; }
-
-/* ── Panel: table 紧凑 ── */
 .intake-detail-panel table { font-size: .82rem; }
 .intake-detail-panel table th,
 .intake-detail-panel table td { padding: .35rem .5rem; }
-
-/* ── Panel: 按钮紧凑 ── */
 .intake-detail-panel .btn-sm { font-size: .78rem; padding: .2rem .5rem; }
 .intake-detail-panel .badge { font-size: .7rem; }
 

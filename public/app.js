@@ -7290,7 +7290,12 @@ async function renderIntakeCases(params = {}) {
   const isStudentAdminView = hasRole('student_admin');
 
   let _intakeFilter = 'all';
-  const filterCases = () => _intakeFilter === 'all' ? cases : cases.filter(c => c.status === _intakeFilter);
+  const filterCases = () => {
+    if (_intakeFilter === 'all') return cases;
+    const grp = filterGroups.find(g => g.key === _intakeFilter);
+    if (grp?.match) return cases.filter(c => grp.match.includes(c.status));
+    return cases.filter(c => c.status === _intakeFilter);
+  };
 
   // ── 学管视图：简化表格，聚焦到校后 ──
   const renderTableStudentAdmin = () => {
@@ -7348,29 +7353,30 @@ async function renderIntakeCases(params = {}) {
   const renderTable = isStudentAdminView ? renderTableStudentAdmin : renderTableFull;
 
   // 状态筛选chip组（角色差异化）
+  // 筛选组：合并相近状态为阶段组，减少按钮数量
   const filterGroups = isStudentAdminView
     ? [
-        { key:'all', label:'全部', color:'secondary' },
-        { key:'arrived', label:'已到校（待跟进）', color:'primary' },
-        { key:'oriented', label:'已入学', color:'success' },
-        { key:'closed', label:'已关闭', color:'dark' },
+        { key:'all', label:'全部' },
+        { key:'arrived', label:'待跟进' },
+        { key:'oriented', label:'已入学' },
+        { key:'closed', label:'已关闭' },
       ]
     : [
-        { key:'all', label:'全部', color:'secondary' },
-        { key:'registered', label:'已注册', color:'secondary' },
-        { key:'collecting_docs', label:'收集材料', color:'info' },
-        { key:'contract_signed', label:'合同已签', color:'primary' },
-        { key:'visa_in_progress', label:'签证办理', color:'warning' },
-        { key:'ipa_received', label:'已获IPA', color:'success' },
-        { key:'paid', label:'已付款', color:'success' },
-        { key:'arrived', label:'已到校', color:'primary' },
-        { key:'oriented', label:'已入学', color:'success' },
-        { key:'closed', label:'已关闭', color:'dark' },
+        { key:'all', label:'全部' },
+        { key:'_pre', label:'前期', match:['registered','collecting_docs','contract_signed'] },
+        { key:'_visa', label:'签证', match:['visa_in_progress','ipa_received'] },
+        { key:'_post', label:'付款到校', match:['paid','arrived'] },
+        { key:'oriented', label:'已入学' },
+        { key:'closed', label:'已关闭' },
       ];
 
-  const filterBarHtml = `<div class="d-flex gap-1 flex-wrap mb-3" id="intakeFilterBar">${filterGroups.map(f =>
-    `<button class="btn btn-sm ${f.key==='all'?'btn-secondary':'btn-outline-'+f.color}" data-fkey="${f.key}" onclick="_intakeCaseFilter('${f.key}')">${f.label}<span class="ms-1 badge bg-light text-dark" style="font-size:0.68rem">${f.key==='all'?cases.length:cases.filter(c=>c.status===f.key).length}</span></button>`
-  ).join('')}</div>`;
+  // 计算分组计数
+  const _filterCount = (f) => {
+    if (f.key==='all') return cases.length;
+    if (f.match) return cases.filter(c=>f.match.includes(c.status)).length;
+    return cases.filter(c=>c.status===f.key).length;
+  };
+  const filterBarHtml = '';
 
   const tableHeaders = isStudentAdminView
     ? '<th>学生</th><th>课程/项目</th><th>状态</th><th>最后更新</th><th>操作</th>'
@@ -7388,14 +7394,8 @@ async function renderIntakeCases(params = {}) {
     list.innerHTML = filtered.length ? filtered.map(c => {
       const isActive = State.currentCaseId === c.id;
       return `<div class="case-card ${isActive?'active':''}" onclick="showCaseDetail('${c.id}')" data-case-id="${c.id}">
-        <div class="d-flex justify-content-between align-items-start">
-          <div style="min-width:0">
-            <div class="case-card-name">${escapeHtml(c.student_name||'')}</div>
-            <div class="case-card-sub">${escapeHtml(c.program_name||'')} · ${c.intake_year||''}</div>
-          </div>
-          <span class="badge bg-${statusColor[c.status]||'secondary'}" style="font-size:.68rem;flex-shrink:0">${statusMap[c.status]||c.status}</span>
-        </div>
-        ${c.owner_name ? `<div class="case-card-meta"><i class="bi bi-person me-1"></i>${escapeHtml(c.owner_name)}</div>` : ''}
+        <div class="case-card-name">${escapeHtml(c.student_name||'')}</div>
+        <div class="case-card-sub">${escapeHtml(c.program_name||'')} · ${statusMap[c.status]||c.status}</div>
       </div>`;
     }).join('') : '<div class="text-center text-muted py-4" style="font-size:.85rem">暂无案例</div>';
   };
@@ -7406,16 +7406,16 @@ async function renderIntakeCases(params = {}) {
       <div class="intake-list-panel">
         <div class="intake-list-header">
           <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0" style="font-size:1rem"><i class="bi bi-person-lines-fill me-2"></i>${isStudentAdminView ? '我的学生' : '入学案例'}${arrivedCount>0?` <span class="badge bg-primary rounded-pill" style="font-size:.65rem;vertical-align:middle">${arrivedCount} 到校</span>`:''}</h5>
+            <span style="font-size:.85rem;font-weight:600;color:#334155">${isStudentAdminView ? '我的学生' : '入学案例'} <span style="color:#94a3b8;font-weight:400">${cases.length}</span></span>
             ${hasRole('principal','intake_staff','counselor') ? `
-              <button class="btn btn-primary btn-sm" onclick="showCreateIntakeModal()"><i class="bi bi-plus-lg"></i></button>` : ''}
+              <button class="btn btn-primary btn-sm" onclick="showCreateIntakeModal()" style="padding:2px 8px;font-size:.75rem"><i class="bi bi-plus-lg"></i></button>` : ''}
           </div>
           <div class="input-group input-group-sm mb-2">
-            <span class="input-group-text" style="background:#f8fafc;border-right:0"><i class="bi bi-search text-muted"></i></span>
-            <input type="text" class="form-control" id="intakeSearchInput" placeholder="搜索学生..." style="border-left:0" oninput="window._intakeCaseRenderTable&&window._intakeCaseRenderTable()">
+            <span class="input-group-text" style="background:#f8fafc;border-right:0"><i class="bi bi-search text-muted" style="font-size:.75rem"></i></span>
+            <input type="text" class="form-control" id="intakeSearchInput" placeholder="搜索..." style="border-left:0;font-size:.8rem" oninput="window._intakeCaseRenderTable&&window._intakeCaseRenderTable()">
           </div>
           <div class="d-flex gap-1 flex-wrap">${filterGroups.map(f =>
-            `<button class="btn btn-sm ${f.key==='all'?'btn-secondary':'btn-outline-'+f.color}" data-fkey="${f.key}" onclick="_intakeCaseFilter('${f.key}')" style="font-size:.72rem;padding:2px 8px">${f.label} <span style="opacity:.7">${f.key==='all'?cases.length:cases.filter(c=>c.status===f.key).length}</span></button>`
+            `<button class="btn btn-sm${f.key==='all'?' active-filter':''}" data-fkey="${f.key}" onclick="_intakeCaseFilter('${f.key}')" style="font-size:.7rem;padding:1px 7px">${f.label} <span style="opacity:.5">${_filterCount(f)}</span></button>`
           ).join('')}</div>
         </div>
         <div class="intake-list-body" id="intakeCaseList"></div>
@@ -7435,11 +7435,8 @@ async function renderIntakeCases(params = {}) {
   window._intakeCaseFilter = (key) => {
     _intakeFilter = key;
     document.querySelectorAll('.intake-list-header button[data-fkey]').forEach(b => {
-      const fk = b.dataset.fkey;
-      const grp = filterGroups.find(g => g.key === fk);
-      b.className = `btn btn-sm ${fk === key ? 'btn-' + (grp?.color||'secondary') : 'btn-outline-' + (grp?.color||'secondary')}`;
-      b.style.fontSize = '.72rem';
-      b.style.padding = '2px 8px';
+      // CSS 会自动处理 active 样式 — 此处只需切换 class
+      b.classList.toggle('active-filter', b.dataset.fkey === key);
     });
     renderCardList();
   };
@@ -8118,50 +8115,31 @@ function _renderAgentTab(c) {
   const bothApproved = filesAllApproved && (uifStatus === 'APPROVED' || uifStatus === 'MERGED');
   const hasOutdatedPdf = admDocs.some(d => d.is_outdated);
 
+  const rejectedItems = items.filter(i => i.status === 'REJECTED');
   return `
-    <!-- 综合状态概览 -->
-    <div class="border rounded p-3 mb-3" style="background:${bothApproved ? '#f0fdf4' : mr.status==='REVISION_NEEDED' ? '#fef2f2' : '#f8fafc'}">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <span class="fw-bold" style="font-size:.95rem"><i class="bi bi-clipboard2-check me-1"></i>审核总览</span>
-        <div class="d-flex gap-2">
-          <span class="badge bg-${fileStatusColor}" style="font-size:.75rem"><i class="bi bi-folder me-1"></i>文件: ${fileStatusLabel}</span>
-          <span class="badge bg-${uifStatusColor}" style="font-size:.75rem"><i class="bi bi-file-text me-1"></i>表单: ${uifStatusLabel}</span>
-        </div>
-      </div>
-      ${bothApproved ? `<div class="small text-success"><i class="bi bi-check-circle-fill me-1"></i>文件和表单均已审核通过${allDocsOk && !hasOutdatedPdf ? '，PDF 已生成' : '，可以生成正式 PDF'}</div>` : ''}
-      ${mr.status==='REVISION_NEEDED' ? `<div class="small text-danger"><i class="bi bi-exclamation-triangle me-1"></i>已打回修改，等待代理重新提交</div>` : ''}
-      ${mr.return_reason && mr.status==='REVISION_NEEDED' ? `<div class="small text-danger mt-1" style="background:#fff;border:1px solid #fca5a5;border-radius:6px;padding:6px 10px"><strong>退回原因：</strong>${escapeHtml(mr.return_reason)}</div>` : ''}
-      ${hasOutdatedPdf ? `<div class="small text-warning mt-1"><i class="bi bi-exclamation-triangle me-1"></i>已有 PDF 已过期（数据已变更），需重新生成</div>` : ''}
-      ${['SUBMITTED','APPROVED','MERGED'].includes(mr.status) ? (() => {
-        const rejectedItems = items.filter(i => i.status === 'REJECTED');
-        const hasIssues = rejectedItems.length > 0;
-        return `
-        ${hasIssues ? `<div class="mt-2 p-2 rounded" style="background:#fef2f2;border:1px solid #fca5a5;font-size:.82rem">
-          <div class="fw-semibold text-danger mb-1"><i class="bi bi-exclamation-circle me-1"></i>待退回项汇总 (${rejectedItems.length})</div>
-          ${rejectedItems.map(i => `<div class="text-danger"><i class="bi bi-file-earmark-x me-1"></i>${escapeHtml(i.name)}${i.reject_reason ? '：' + escapeHtml(i.reject_reason) : ''}</div>`).join('')}
-        </div>` : ''}
-        <div class="mt-2">
-          <button class="btn btn-sm btn-outline-danger" onclick="returnUif('${mr.id}')"><i class="bi bi-arrow-return-left me-1"></i>${hasIssues ? '确认退回修改 (' + rejectedItems.length + ' 项)' : '退回修改'}</button>
-        </div>`;
-      })() : ''}
+    <!-- 审核摘要 (一行) -->
+    <div class="d-flex align-items-center gap-3 flex-wrap mb-3 pb-2 border-bottom" style="font-size:.82rem">
+      <span class="text-muted">文件 <span style="color:${filesAllApproved?'#166534':filesHaveIssue?'#991b1b':'#475569'};font-weight:500">${fileStatusLabel}</span></span>
+      <span class="text-muted">表单 <span style="color:${uifStatusColor==='success'?'#166534':uifStatusColor==='danger'?'#991b1b':'#475569'};font-weight:500">${uifStatusLabel}</span></span>
+      ${bothApproved ? `<span style="color:#166534"><i class="bi bi-check-circle me-1"></i>全部通过</span>` : ''}
+      ${mr.status==='REVISION_NEEDED' ? `<span style="color:#991b1b"><i class="bi bi-arrow-return-left me-1"></i>已退回</span>` : ''}
+      ${rejectedItems.length>0 && ['SUBMITTED','APPROVED','MERGED'].includes(mr.status) ? `<button class="btn btn-sm btn-outline-secondary" style="font-size:.75rem" onclick="returnUif('${mr.id}')"><i class="bi bi-arrow-return-left me-1"></i>退回 (${rejectedItems.length})</button>` : ''}
+      ${['SUBMITTED','APPROVED','MERGED'].includes(mr.status) && !rejectedItems.length ? `<button class="btn btn-sm btn-outline-secondary" style="font-size:.75rem" onclick="returnUif('${mr.id}')">退回修改</button>` : ''}
     </div>
+    ${mr.return_reason && mr.status==='REVISION_NEEDED' ? `<div class="small mb-3" style="color:#991b1b;padding:5px 8px;background:#fef2f2;border-radius:4px;border:1px solid #fecaca">${escapeHtml(mr.return_reason)}</div>` : ''}
 
-    <!-- ① 文件审核 -->
-    <div class="border rounded p-3 mb-3">
+    <!-- 文件审核 -->
+    <div class="border rounded p-3 mb-3" style="border-color:#e5e7eb !important">
       <div class="d-flex justify-content-between align-items-center mb-2">
-        <h6 class="mb-0" style="font-size:.9rem"><i class="bi bi-folder-check text-primary me-1"></i>上传文件审核</h6>
-        <span class="badge bg-${fileStatusColor}" style="font-size:.75rem">${fileStatusLabel}</span>
+        <span style="font-size:.82rem;font-weight:600;color:#334155">上传文件 <span style="font-weight:400;color:#94a3b8">${approved}/${total}</span></span>
+        ${uploaded>0?`<span style="font-size:.75rem;color:#92400e">${uploaded} 待审核</span>`:''}
       </div>
-      <div class="d-flex justify-content-between small text-muted mb-1">
-        <span>已通过 ${approved} / ${total} 项</span>
-        ${uploaded>0?`<span class="text-warning fw-semibold">${uploaded} 待审核</span>`:''}
-      </div>
-      <div class="progress mb-2" style="height:5px"><div class="progress-bar bg-success" style="width:${pct}%"></div></div>
+      <div class="progress mb-2" style="height:3px"><div class="progress-bar" style="width:${pct}%;background:#86efac"></div></div>
       ${items.map(item => `
         <div class="py-2 border-bottom" style="font-size:.85rem">
           <div class="d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-1">
-              <i class="bi ${item.status==='APPROVED'?'bi-check-circle-fill text-success':item.status==='REJECTED'?'bi-x-circle-fill text-danger':item.status==='UPLOADED'?'bi-clock text-warning':'bi-circle text-secondary'}" style="font-size:.9rem"></i>
+              <i class="bi ${item.status==='APPROVED'?'bi-check-circle-fill':item.status==='REJECTED'?'bi-x-circle-fill':item.status==='UPLOADED'?'bi-clock':'bi-circle'}" style="font-size:.8rem;color:${item.status==='APPROVED'?'#86efac':item.status==='REJECTED'?'#fca5a5':item.status==='UPLOADED'?'#fbbf24':'#d1d5db'}"></i>
               <span>${escapeHtml(item.name)}</span>
               ${item.is_required?'<span class="text-danger" style="font-size:.65rem">必须</span>':''}
             </div>
@@ -8184,11 +8162,10 @@ function _renderAgentTab(c) {
         </div>`).join('')}
     </div>
 
-    <!-- ② 表单内容审核 -->
-    <div class="border rounded p-3 mb-3">
+    <!-- 表单内容审核 -->
+    <div class="border rounded p-3 mb-3" style="border-color:#e5e7eb !important">
       <div class="d-flex justify-content-between align-items-center mb-2">
-        <h6 class="mb-0" style="font-size:.9rem"><i class="bi bi-file-text text-info me-1"></i>表单内容审核 ${mr.current_version ? `<span class="text-muted fw-normal small">v${mr.current_version}</span>` : ''}</h6>
-        <span class="badge bg-${uifStatusColor}" style="font-size:.75rem">${uifStatusLabel}</span>
+        <span style="font-size:.82rem;font-weight:600;color:#334155">表单 ${mr.current_version ? `<span style="font-weight:400;color:#94a3b8">v${mr.current_version}</span>` : ''}</span>
       </div>
       ${uifStatus==='SUBMITTED' ? `
         <div class="small text-muted mb-2">代理已提交表单，请点击查看并逐项审核。</div>
@@ -8207,27 +8184,18 @@ function _renderAgentTab(c) {
       ${mr.current_version > 1 ? `<div class="mt-2"><button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="showVersionHistory('${mr.id}')"><i class="bi bi-clock-history me-1"></i>版本历史 (${mr.current_version})</button></div>` : ''}
     </div>
 
-    <!-- ═══ 辅助功能区（默认折叠）═══ -->
-    <div class="mt-3 mb-2">
-      <div class="d-flex gap-2 flex-wrap">
-        <!-- PDF 生成按钮（直接显示，不折叠） -->
-        ${(uifStatus==='APPROVED' || uifStatus==='MERGED') && !allDocsOk ? `
-          <button class="btn btn-sm btn-primary" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-file-earmark-pdf me-1"></i>生成 3 份申请文件</button>` : ''}
-        ${allDocsOk && hasOutdatedPdf ? `
-          <button class="btn btn-sm btn-warning" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-arrow-clockwise me-1"></i>PDF 需更新</button>` : ''}
-        ${allDocsOk && !hasOutdatedPdf ? `
-          <button class="btn btn-sm btn-outline-success" onclick="event.preventDefault();document.querySelector('[href=\\'#fcAll\\']')?.click()"><i class="bi bi-file-earmark-pdf me-1"></i>PDF 已就绪</button>
-          <button class="btn btn-sm btn-outline-secondary" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-arrow-clockwise me-1"></i>重新生成</button>` : ''}
-
-        <!-- Agent 链接 -->
-        ${agentLink ? `<button class="btn btn-sm btn-outline-primary" onclick="navigator.clipboard.writeText('${agentLink}');showToast('链接已复制')"><i class="bi bi-link-45deg me-1"></i>复制代理链接</button>` : ''}
-
-        <!-- 折叠触发按钮 -->
-        ${(mr.reviewActions||[]).length ? `
-          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#matReviewHistory"><i class="bi bi-clock-history me-1"></i>审核记录 (${mr.reviewActions.length})</button>` : ''}
-        ${mr.current_version > 1 ? `
-          <button class="btn btn-sm btn-outline-secondary" onclick="showVersionHistory('${mr.id}')"><i class="bi bi-git me-1"></i>版本 v${mr.current_version}</button>` : ''}
-      </div>
+    <!-- 操作 -->
+    <div class="d-flex gap-2 flex-wrap align-items-center pt-2 mt-2 border-top" style="font-size:.8rem">
+      ${(uifStatus==='APPROVED' || uifStatus==='MERGED') && !allDocsOk ? `
+        <button class="btn btn-sm btn-primary" style="font-size:.78rem" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-file-earmark-pdf me-1"></i>生成 PDF</button>` : ''}
+      ${allDocsOk && hasOutdatedPdf ? `
+        <button class="btn btn-sm btn-outline-secondary" style="font-size:.78rem" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-arrow-clockwise me-1"></i>PDF 需更新</button>` : ''}
+      ${allDocsOk && !hasOutdatedPdf ? `
+        <span style="color:#166534;font-size:.78rem"><i class="bi bi-check-circle me-1"></i>PDF 就绪</span>
+        <button class="btn btn-sm btn-outline-secondary" style="font-size:.75rem" onclick="generateDocsFromUif('${mr.id}')">重新生成</button>` : ''}
+      ${agentLink ? `<button class="btn btn-sm btn-outline-secondary" style="font-size:.75rem" onclick="navigator.clipboard.writeText('${agentLink}');showToast('链接已复制')"><i class="bi bi-link-45deg me-1"></i>复制链接</button>` : ''}
+      ${(mr.reviewActions||[]).length ? `<button class="btn btn-sm btn-outline-secondary" style="font-size:.75rem" type="button" data-bs-toggle="collapse" data-bs-target="#matReviewHistory">记录 (${mr.reviewActions.length})</button>` : ''}
+      ${mr.current_version > 1 ? `<button class="btn btn-sm btn-outline-secondary" style="font-size:.75rem" onclick="showVersionHistory('${mr.id}')">v${mr.current_version}</button>` : ''}
     </div>
 
     <!-- 审核记录（折叠） -->
@@ -9101,131 +9069,35 @@ async function renderIntakeCaseDetail() {
       ${!hasRole('intake_staff','student_admin') ? `<button class="btn btn-outline-primary btn-sm flex-shrink-0" onclick="navigate('student-detail',{studentId:'${c.student_id}'})"><i class="bi bi-person-fill${_inPanel?'':' me-1'}"></i>${_inPanel?'':'查看学生'}</button>` : ''}
     </div>
 
-    <!-- 角色交接横幅 -->
-    ${_handedOff && _isIntakeStaff ? `
-    <div class="alert alert-success d-flex align-items-center gap-3 mb-3 py-2">
-      <i class="bi bi-patch-check-fill fs-4 text-success flex-shrink-0"></i>
-      <div>
-        <div class="fw-semibold">案例已顺利移交学管</div>
-        <div class="small text-muted">该学生已进入入学阶段，由学管老师负责后续跟进。你的前期工作已完成，此页面为只读进度视图。</div>
-      </div>
-    </div>` : ''}
-    ${_isStudentAdmin && _si < 6 ? `
-    <div class="alert alert-info d-flex align-items-center gap-3 mb-3 py-2">
-      <i class="bi bi-hourglass-split fs-4 text-info flex-shrink-0"></i>
-      <div>
-        <div class="fw-semibold">学生尚未到校</div>
-        <div class="small text-muted">该学生仍在入学前流程中，到校后系统会通知你接手跟进。</div>
-      </div>
-    </div>` : ''}
-    ${_isStudentAdmin && _si >= 6 && _si < 7 ? `
-    <div class="alert alert-primary d-flex align-items-center gap-3 mb-3 py-2">
-      <i class="bi bi-person-check-fill fs-4 text-primary flex-shrink-0"></i>
-      <div>
-        <div class="fw-semibold">学生已到校 — 你的跟进阶段开始</div>
-        <div class="small text-muted">请完成 Orientation 登记，并将案例推进至「已入学」。</div>
-      </div>
-    </div>` : ''}
+    ${_handedOff && _isIntakeStaff ? `<div class="text-muted small mb-2" style="padding:6px 10px;background:#f8fafc;border-radius:6px;border:1px solid #e5e7eb"><i class="bi bi-check-circle me-1"></i>已移交学管，当前为只读视图</div>` : ''}
+    ${_isStudentAdmin && _si < 6 ? `<div class="text-muted small mb-2" style="padding:6px 10px;background:#f8fafc;border-radius:6px;border:1px solid #e5e7eb"><i class="bi bi-hourglass me-1"></i>学生尚未到校，到校后系统会通知你</div>` : ''}
+    ${_isStudentAdmin && _si >= 6 && _si < 7 ? `<div class="small mb-2" style="padding:6px 10px;background:#eef2ff;border-radius:6px;border:1px solid #c7d2fe;color:#4338ca"><i class="bi bi-person-check me-1"></i>学生已到校，请完成 Orientation</div>` : ''}
 
-    <!-- 来源代理信息条：仅 principal 可见 -->
-    ${State.user.role === 'principal' ? `
-    <div class="card mb-3">
-      <div class="card-body py-2 px-3 d-flex align-items-center gap-3 flex-wrap">
-        <i class="bi bi-person-badge text-info fs-4"></i>
-        <div class="flex-grow-1">
-          <span class="fw-semibold me-2">来源代理：</span>
-          ${c.agent_name
-            ? `<span class="badge bg-info text-dark fs-6 me-2"><i class="bi bi-person-badge me-1"></i>${escapeHtml(c.agent_name)}</span><span class="text-muted small">已关联</span>`
-            : `<span class="text-muted small">尚未关联代理</span>`}
-        </div>
-        <button class="btn btn-sm ${c.agent_name ? 'btn-outline-secondary' : 'btn-info'}" onclick="openAssignAgentModal('${c.student_id}','${c.agent_id||''}','${c.id}')">
-          <i class="bi bi-pencil me-1"></i>${c.agent_name ? '更改代理' : '关联代理'}
-        </button>
-        ${c.agent_name ? `<button class="btn btn-sm btn-outline-primary" onclick="navigate('agents-management')"><i class="bi bi-arrow-right me-1"></i>查看代理</button>` : ''}
-      </div>
-    </div>` : ''}
-
-    <!-- 时间线进度 -->
-    <div class="card mb-3">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <span class="fw-semibold"><i class="bi bi-clock-history me-1"></i>流程时间线</span>
-        ${(hasRole('principal','intake_staff') || (hasRole('student_admin') && curIdx >= allStatuses.indexOf('arrived'))) ? `<span class="text-muted small">点击节点可切换状态</span>` : ''}
-      </div>
-      <div class="card-body py-3">
-        <div class="d-flex align-items-start overflow-auto pb-1" style="gap:0">
-          ${(() => {
-            // U-03: 计算哪些节点是当前状态的合法下一步
-            const _ALLOWED = {
-              'registered':       ['collecting_docs'],
-              'collecting_docs':  ['registered','contract_signed'],
-              'contract_signed':  ['collecting_docs','visa_in_progress'],
-              'visa_in_progress': ['contract_signed','ipa_received'],
-              'ipa_received':     ['visa_in_progress','paid'],
-              'paid':             ['ipa_received','arrived'],
-              'arrived':          ['paid','oriented'],
-              'oriented':         ['arrived','closed'],
-              'closed':           [],
-            };
-            const validNext = new Set(_ALLOWED[c.status] || []);
-            // intake_staff 交接后不再操作；student_admin 仅在 arrived 之后可操作
-            const canOperate = hasRole('principal')
-              || (_isIntakeStaff && !_handedOff)
-              || (_isStudentAdmin && curIdx >= allStatuses.indexOf('arrived'));
-            const arrivedIdx = allStatuses.indexOf('arrived');
-            return allStatuses.map((s, i) => {
-              const done = i < curIdx;
-              const current = i === curIdx;
-              const isValidNext = canOperate && validNext.has(s);
-              // student_admin 视角：到校之前的节点视觉弱化
-              const dimmed = _isStudentAdmin && i < arrivedIdx;
-              const nodeColor = done ? (dimmed ? 'bg-secondary' : 'bg-success') : current ? 'bg-primary' : 'bg-light border';
-              const textColor = dimmed ? 'text-muted' : done ? 'text-success' : current ? 'text-primary fw-bold' : isValidNext ? 'text-primary' : 'text-muted';
-              const dateStr = statusDateMap[s] || '';
-              // student_admin "你的阶段从这里开始" 标记
-              const myStartBadge = _isStudentAdmin && i === arrivedIdx
-                ? `<div style="font-size:0.6rem;color:var(--bs-primary);margin-top:2px">▲ 你的阶段</div>` : '';
-              const nodeOpacity = dimmed ? 'opacity:0.4;' : '';
-              const nodeInner = `<div class="rounded-circle d-flex align-items-center justify-content-center ${nodeColor}${isValidNext && !done && !current?' border border-primary border-2':''}" style="width:36px;height:36px;font-size:13px;flex-shrink:0;${nodeOpacity}color:${done?'white':current?'white':isValidNext?'var(--bs-primary)':'#6c757d'}">${done?'<i class="bi bi-check-lg"></i>':i+1}</div>`;
-              const tooltip = isValidNext ? `点击切换至：${statusMap[s]}` : current ? `当前状态` : done ? `已完成` : `需先完成前序步骤`;
-              return `<div class="d-flex flex-column align-items-center" style="min-width:90px;flex:1">
-                <div class="d-flex align-items-center w-100">
-                  ${i>0?`<div style="height:2px;flex:1;background:${done||current?(dimmed?'#adb5bd':'#198754'):'#dee2e6'}"></div>`:'<div style="flex:1"></div>'}
-                  ${isValidNext
-                    ? `<button class="btn p-0 border-0" onclick="updateCaseStatus('${c.id}','${s}','${statusMap[s]}')" title="${tooltip}" style="z-index:1;cursor:pointer">${nodeInner}</button>`
-                    : canOperate && !done && !current
-                      ? `<span title="${tooltip}" style="cursor:not-allowed;opacity:0.5">${nodeInner}</span>`
-                      : nodeInner}
-                  ${i<allStatuses.length-1?`<div style="height:2px;flex:1;background:${done?(dimmed?'#adb5bd':'#198754'):'#dee2e6'}"></div>`:'<div style="flex:1"></div>'}
-                </div>
-                <div class="text-center mt-1" style="max-width:85px">
-                  <div class="${textColor}" style="font-size:0.7rem;line-height:1.2">${statusMap[s]}${isValidNext?'<i class="bi bi-caret-up-fill ms-1" style="font-size:0.55rem;vertical-align:middle;color:var(--bs-primary)"></i>':''}</div>
-                  ${dateStr?`<div class="text-muted" style="font-size:0.65rem">${dateStr}</div>`:''}
-                  ${myStartBadge}
-                </div>
-              </div>`;
-            }).join('');
-          })()}
-        </div>
-      </div>
-    </div>
-
-    <!-- 卡片系统工具栏 -->
-    <div class="d-flex justify-content-between align-items-center mb-2" style="font-size:.8rem">
-      <div class="d-flex gap-2 flex-wrap align-items-center">
-        <button class="btn btn-outline-secondary btn-sm py-0 px-2" data-bs-toggle="tooltip" data-bs-placement="top" title="卡片随流程进度解锁 · 拖动左上角 ⣿ 排序 · 点标题折叠"><i class="bi bi-question-circle"></i></button>
-        ${!_inPanel && _lockedCards.length > 0 ? _lockedCards.map(id => { const m = _CASE_CARD_META[id]; const tip = m.unlockHint ? ` title="${m.unlockHint}"` : ''; return `<span class="case-locked-hint" style="cursor:default"${tip}><i class="bi bi-lock me-1"></i>${m.label}${m.unlockHint ? `<span class="ms-1 text-muted small fw-normal">（${m.unlockHint}）</span>` : ''}</span>`; }).join('') : ''}
-      </div>
-      <button class="btn btn-sm btn-link text-secondary p-0 text-decoration-none" onclick="resetCaseLayout('${c.id}')"><i class="bi bi-layout-sidebar me-1"></i>重置布局</button>
-    </div>
-
-    <!-- 已隐藏卡片恢复栏 -->
-    <div id="case-restore-bar" class="mb-3${_hiddenEligible.length===0?' d-none':''}">
-      <div class="d-flex align-items-center gap-2 p-2 rounded border bg-light">
-        <i class="bi bi-eye-slash text-muted"></i>
-        <span class="text-muted small fw-semibold">已隐藏：</span>
-        <div id="case-restore-btns" class="d-flex gap-2 flex-wrap">
-          ${_hiddenEligible.map(id => `<button class="btn btn-sm btn-outline-secondary py-0" data-card-id="${id}" onclick="restoreCaseCard('${id}','${c.id}',this)"><i class="bi ${_CASE_CARD_META[id].icon} me-1"></i>${_CASE_CARD_META[id].label}</button>`).join('')}
-        </div>
+    <!-- 流程进度 (轻量线性) -->
+    <div class="tl-strip mb-3">
+      <div class="d-flex align-items-center overflow-auto" style="gap:0">
+        ${(() => {
+          const _ALLOWED = {
+            'registered':['collecting_docs'],'collecting_docs':['registered','contract_signed'],
+            'contract_signed':['collecting_docs','visa_in_progress'],'visa_in_progress':['contract_signed','ipa_received'],
+            'ipa_received':['visa_in_progress','paid'],'paid':['ipa_received','arrived'],
+            'arrived':['paid','oriented'],'oriented':['arrived','closed'],'closed':[]
+          };
+          const validNext = new Set(_ALLOWED[c.status]||[]);
+          const canOperate = hasRole('principal')||(_isIntakeStaff&&!_handedOff)||(_isStudentAdmin&&curIdx>=allStatuses.indexOf('arrived'));
+          return allStatuses.map((s,i) => {
+            const done=i<curIdx, current=i===curIdx, isNext=canOperate&&validNext.has(s);
+            const dot = done?'tl-done':current?'tl-current':'tl-future';
+            const line = i>0?`<div class="tl-line ${done||current?'tl-line-done':''}"></div>`:'';
+            const node = isNext
+              ? `<button class="tl-dot ${dot} tl-clickable" onclick="updateCaseStatus('${c.id}','${s}','${statusMap[s]}')" title="切换至${statusMap[s]}">${done?'✓':''}</button>`
+              : `<div class="tl-dot ${dot}">${done?'✓':''}</div>`;
+            return `<div class="tl-step" style="flex:1;min-width:${_inPanel?'60':'80'}px">
+              <div class="d-flex align-items-center">${line}${node}${i<allStatuses.length-1?`<div class="tl-line ${done?'tl-line-done':''}"></div>`:''}</div>
+              <div class="tl-label ${current?'tl-label-current':''}" style="font-size:${_inPanel?'.6':'.65'}rem">${statusMap[s]}</div>
+            </div>`;
+          }).join('');
+        })()}
       </div>
     </div>
 

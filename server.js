@@ -5984,20 +5984,39 @@ function _admTriggerGeneration(profileId) {
     return;
   }
   _generatingProfiles.add(profileId);
-  // Fire-and-forget
-  pdfGenerator.generateAllDocuments(profileId, db, UPLOAD_DIR)
-    .then(results => {
-      _generatingProfiles.delete(profileId);
-      const allOk = results.every(r => r.status === 'done');
-      const newStatus = allOk ? 'pending_review' : 'generation_failed';
-      db.run(`UPDATE intake_cases SET review_status=? WHERE adm_profile_id=?`, [newStatus, profileId]);
-      console.log(`[ADM] Document generation ${newStatus} for profile ${profileId}`);
-    })
-    .catch(err => {
-      _generatingProfiles.delete(profileId);
-      db.run(`UPDATE intake_cases SET review_status='generation_failed' WHERE adm_profile_id=?`, [profileId]);
-      console.error('[ADM] Document generation error:', err.message);
-    });
+  // 带重试的 PDF 生成
+  const _doGenerate = (attempt) => {
+    pdfGenerator.generateAllDocuments(profileId, db, UPLOAD_DIR)
+      .then(results => {
+        _generatingProfiles.delete(profileId);
+        // 校验生成的文件完整性（非空）
+        const validResults = results.filter(r => {
+          if (r.status !== 'done' || !r.file_id) return false;
+          const size = fileStorage.getFileSize(r.file_id);
+          if (size < 1000) { // PDF 小于 1KB 视为损坏
+            console.warn(`[ADM] 损坏的 PDF 已清理: ${r.file_id} (${size} bytes)`);
+            fileStorage.deleteFile(r.file_id);
+            return false;
+          }
+          return true;
+        });
+        const allOk = validResults.length === results.length && results.length > 0;
+        const newStatus = allOk ? 'pending_review' : 'generation_failed';
+        db.run(`UPDATE intake_cases SET review_status=? WHERE adm_profile_id=?`, [newStatus, profileId]);
+        console.log(`[ADM] Document generation ${newStatus} for profile ${profileId} (${validResults.length}/${results.length} OK)`);
+      })
+      .catch(err => {
+        console.error(`[ADM] Document generation error (attempt ${attempt}):`, err.message);
+        if (attempt < 2) {
+          console.log(`[ADM] Retrying in 3s... (attempt ${attempt + 1})`);
+          setTimeout(() => _doGenerate(attempt + 1), 3000);
+        } else {
+          _generatingProfiles.delete(profileId);
+          db.run(`UPDATE intake_cases SET review_status='generation_failed' WHERE adm_profile_id=?`, [profileId]);
+        }
+      });
+  };
+  _doGenerate(1);
 }
 
 // ── POST /api/adm-profiles — 创建草稿 ────────────────────────────────────

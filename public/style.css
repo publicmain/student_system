@@ -1852,10 +1852,8 @@ body.dark-mode .timeline-node.done { background: #14532d; border-color: #22c55e;
   white-space: nowrap;
   color: #64748b;
 }
-.css-chip .badge {
-  font-size: .6rem; padding: 2px 5px;
-  background: #e2e8f0 !important; color: #475569 !important;
-}
+.css-chip .badge { font-size: .6rem; padding: 2px 5px; }
+/* chip 内 badge 保持原有语义色但降饱和 */
 .css-chip-btn {
   background: none; border: none; padding: 0 2px;
   color: #cbd5e1; cursor: pointer; font-size: .68rem;
@@ -1900,6 +1898,42 @@ body.dark-mode .timeline-node.done { background: #14532d; border-color: #22c55e;
 .intake-detail-panel .card-body { padding: .625rem .75rem; }
 .intake-detail-panel .card-header { padding: .5rem .75rem; }
 
+/* ═══ Next Action Bar ═══ */
+.next-action-bar {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: .85rem;
+  font-weight: 500;
+  transition: all .15s;
+}
+.next-action-action {
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  color: #4338ca;
+}
+.next-action-action:hover { background: #e0e7ff; }
+.next-action-warn {
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+.next-action-done {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+.next-action-muted {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  color: #64748b;
+}
+body.dark-mode .next-action-action { background: #1e1b4b; border-color: #4338ca; color: #a5b4fc; }
+body.dark-mode .next-action-warn { background: #451a03; border-color: #92400e; color: #fcd34d; }
+body.dark-mode .next-action-done { background: #052e16; border-color: #166534; color: #86efac; }
+body.dark-mode .next-action-muted { background: #1e1e2e; border-color: var(--border); color: #64748b; }
+
 /* ═══ Lightweight Timeline ═══ */
 .tl-strip {
   padding: 8px 12px;
@@ -1937,8 +1971,12 @@ body.dark-mode .tl-line-done { background: #22c55e; }
 body.dark-mode .tl-label { color: #64748b; }
 body.dark-mode .tl-label-current { color: #818cf8; }
 
-/* ── 内容区 ── */
-.intake-detail-panel .border.rounded { font-size: .85rem; }
+/* ── 内容区：增强区块结构 ── */
+.intake-detail-panel .border.rounded {
+  font-size: .85rem;
+  background: #fafbfc;
+  border-color: #e5e7eb !important;
+}
 .intake-detail-panel .progress { height: 4px !important; }
 .intake-detail-panel h6 { font-size: .85rem; }
 .intake-detail-panel table { font-size: .82rem; }

@@ -8116,7 +8116,23 @@ function _renderAgentTab(c) {
   const hasOutdatedPdf = admDocs.some(d => d.is_outdated);
 
   const rejectedItems = items.filter(i => i.status === 'REJECTED');
+  // 智能推荐下一步动作
+  const _nextAction = (() => {
+    if (mr.status==='REVISION_NEEDED') return { text:'等待代理重新提交', icon:'bi-hourglass', style:'muted' };
+    if (uploaded>0) return { text:'审核待处理文件', icon:'bi-folder-check', style:'action', onclick:`document.querySelector('.py-2.border-bottom .btn-outline-success')?.scrollIntoView({behavior:'smooth',block:'center'})` };
+    if (uifStatus==='SUBMITTED' && !filesHaveIssue) return { text:'审核表单内容', icon:'bi-file-text', style:'action', onclick:`viewUifDetail('${mr.id}')` };
+    if (rejectedItems.length>0) return { text:'退回 '+rejectedItems.length+' 项待修改', icon:'bi-arrow-return-left', style:'warn', onclick:`returnUif('${mr.id}')` };
+    if ((uifStatus==='APPROVED'||uifStatus==='MERGED') && !allDocsOk) return { text:'生成 PDF 申请文件', icon:'bi-file-earmark-pdf', style:'action', onclick:`generateDocsFromUif('${mr.id}')` };
+    if (allDocsOk && hasOutdatedPdf) return { text:'PDF 需要更新', icon:'bi-arrow-clockwise', style:'warn', onclick:`generateDocsFromUif('${mr.id}')` };
+    if (allDocsOk && !hasOutdatedPdf && bothApproved) return { text:'审核完成，PDF 已就绪', icon:'bi-check-circle', style:'done' };
+    return null;
+  })();
   return `
+    ${_nextAction ? `<div class="next-action-bar next-action-${_nextAction.style} mb-3"${_nextAction.onclick?` onclick="${_nextAction.onclick}" style="cursor:pointer"`:''}>
+      <i class="bi ${_nextAction.icon} me-2"></i>
+      <span>${_nextAction.text}</span>
+      ${_nextAction.style==='action'?'<i class="bi bi-chevron-right ms-auto"></i>':''}
+    </div>` : ''}
     <!-- 审核摘要 (一行) -->
     <div class="d-flex align-items-center gap-3 flex-wrap mb-3 pb-2 border-bottom" style="font-size:.82rem">
       <span class="text-muted">文件 <span style="color:${filesAllApproved?'#166534':filesHaveIssue?'#991b1b':'#475569'};font-weight:500">${fileStatusLabel}</span></span>
@@ -8184,18 +8200,22 @@ function _renderAgentTab(c) {
       ${mr.current_version > 1 ? `<div class="mt-2"><button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="showVersionHistory('${mr.id}')"><i class="bi bi-clock-history me-1"></i>版本历史 (${mr.current_version})</button></div>` : ''}
     </div>
 
-    <!-- 操作 -->
+    <!-- 操作栏 -->
     <div class="d-flex gap-2 flex-wrap align-items-center pt-2 mt-2 border-top" style="font-size:.8rem">
+      <!-- 主操作（视觉突出） -->
       ${(uifStatus==='APPROVED' || uifStatus==='MERGED') && !allDocsOk ? `
-        <button class="btn btn-sm btn-primary" style="font-size:.78rem" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-file-earmark-pdf me-1"></i>生成 PDF</button>` : ''}
+        <button class="btn btn-sm btn-primary" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-file-earmark-pdf me-1"></i>生成 PDF</button>` : ''}
       ${allDocsOk && hasOutdatedPdf ? `
-        <button class="btn btn-sm btn-outline-secondary" style="font-size:.78rem" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-arrow-clockwise me-1"></i>PDF 需更新</button>` : ''}
+        <button class="btn btn-sm" style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;font-size:.78rem" onclick="generateDocsFromUif('${mr.id}')"><i class="bi bi-arrow-clockwise me-1"></i>更新 PDF</button>` : ''}
       ${allDocsOk && !hasOutdatedPdf ? `
-        <span style="color:#166534;font-size:.78rem"><i class="bi bi-check-circle me-1"></i>PDF 就绪</span>
-        <button class="btn btn-sm btn-outline-secondary" style="font-size:.75rem" onclick="generateDocsFromUif('${mr.id}')">重新生成</button>` : ''}
-      ${agentLink ? `<button class="btn btn-sm btn-outline-secondary" style="font-size:.75rem" onclick="navigator.clipboard.writeText('${agentLink}');showToast('链接已复制')"><i class="bi bi-link-45deg me-1"></i>复制链接</button>` : ''}
-      ${(mr.reviewActions||[]).length ? `<button class="btn btn-sm btn-outline-secondary" style="font-size:.75rem" type="button" data-bs-toggle="collapse" data-bs-target="#matReviewHistory">记录 (${mr.reviewActions.length})</button>` : ''}
-      ${mr.current_version > 1 ? `<button class="btn btn-sm btn-outline-secondary" style="font-size:.75rem" onclick="showVersionHistory('${mr.id}')">v${mr.current_version}</button>` : ''}
+        <span style="color:#166534;font-size:.78rem"><i class="bi bi-check-circle-fill me-1"></i>PDF 就绪</span>` : ''}
+      <!-- 分隔 -->
+      <span style="color:#e2e8f0">|</span>
+      <!-- 次要操作（统一灰调） -->
+      ${allDocsOk && !hasOutdatedPdf ? `<button class="btn btn-sm btn-outline-secondary" style="font-size:.72rem" onclick="generateDocsFromUif('${mr.id}')">重新生成</button>` : ''}
+      ${agentLink ? `<button class="btn btn-sm btn-outline-secondary" style="font-size:.72rem" onclick="navigator.clipboard.writeText('${agentLink}');showToast('链接已复制')"><i class="bi bi-link-45deg me-1"></i>复制链接</button>` : ''}
+      ${(mr.reviewActions||[]).length ? `<button class="btn btn-sm btn-outline-secondary" style="font-size:.72rem" type="button" data-bs-toggle="collapse" data-bs-target="#matReviewHistory">记录 (${mr.reviewActions.length})</button>` : ''}
+      ${mr.current_version > 1 ? `<button class="btn btn-sm btn-outline-secondary" style="font-size:.72rem" onclick="showVersionHistory('${mr.id}')">v${mr.current_version}</button>` : ''}
     </div>
 
     <!-- 审核记录（折叠） -->
@@ -9088,13 +9108,19 @@ async function renderIntakeCaseDetail() {
           return allStatuses.map((s,i) => {
             const done=i<curIdx, current=i===curIdx, isNext=canOperate&&validNext.has(s);
             const dot = done?'tl-done':current?'tl-current':'tl-future';
+            const dateStr = statusDateMap[s]||'';
+            const tipParts = [statusMap[s]];
+            if (dateStr) tipParts.push(dateStr);
+            if (isNext) tipParts.push('点击切换');
+            else if (current) tipParts.push('当前');
+            const tip = tipParts.join(' · ');
             const line = i>0?`<div class="tl-line ${done||current?'tl-line-done':''}"></div>`:'';
             const node = isNext
-              ? `<button class="tl-dot ${dot} tl-clickable" onclick="updateCaseStatus('${c.id}','${s}','${statusMap[s]}')" title="切换至${statusMap[s]}">${done?'✓':''}</button>`
-              : `<div class="tl-dot ${dot}">${done?'✓':''}</div>`;
+              ? `<button class="tl-dot ${dot} tl-clickable" onclick="updateCaseStatus('${c.id}','${s}','${statusMap[s]}')" title="${tip}">${done?'✓':''}</button>`
+              : `<div class="tl-dot ${dot}" title="${tip}">${done?'✓':''}</div>`;
             return `<div class="tl-step" style="flex:1;min-width:${_inPanel?'60':'80'}px">
               <div class="d-flex align-items-center">${line}${node}${i<allStatuses.length-1?`<div class="tl-line ${done?'tl-line-done':''}"></div>`:''}</div>
-              <div class="tl-label ${current?'tl-label-current':''}" style="font-size:${_inPanel?'.6':'.65'}rem">${statusMap[s]}</div>
+              <div class="tl-label ${current?'tl-label-current':''}" style="font-size:${_inPanel?'.6':'.65'}rem">${statusMap[s]}${current&&dateStr?`<div style="font-size:.55rem;color:#94a3b8">${dateStr}</div>`:''}</div>
             </div>`;
           }).join('');
         })()}

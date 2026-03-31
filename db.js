@@ -726,6 +726,19 @@ function createSchema() {
     updated_at           TEXT DEFAULT (datetime('now'))
   )`);
 
+  // ── 案例状态变更审计日志 ──────────────────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS case_status_log (
+    id            TEXT PRIMARY KEY,
+    case_id       TEXT NOT NULL,
+    from_status   TEXT,
+    to_status     TEXT NOT NULL,
+    changed_by    TEXT,
+    changed_by_name TEXT,
+    reason        TEXT,
+    created_at    TEXT DEFAULT (datetime('now'))
+  )`);
+  try { db.run(`CREATE INDEX IF NOT EXISTS idx_case_status_log_case ON case_status_log(case_id)`); } catch(e) {}
+
   db.run(`CREATE TABLE IF NOT EXISTS passport_profiles (
     id             TEXT PRIMARY KEY,
     student_id     TEXT NOT NULL,

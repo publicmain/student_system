@@ -2697,6 +2697,9 @@ app.put('/api/intake-cases/:id/status', requireRole('principal','intake_staff','
     return res.status(400).json({ error: `状态流转不合法：${prev.status} → ${status}，允许跳转至：${allowed.join('、') || '（终态，不可变更）'}` });
   }
   db.run(`UPDATE intake_cases SET status=?,updated_at=datetime('now') WHERE id=?`, [status, req.params.id]);
+  // 写入状态审计日志
+  db.run(`INSERT INTO case_status_log (id,case_id,from_status,to_status,changed_by,changed_by_name) VALUES (?,?,?,?,?,?)`,
+    [uuidv4(), req.params.id, prev.status, status, req.session.user?.id, req.session.user?.name||'']);
   audit(req, 'UPDATE_STATUS', 'intake_cases', req.params.id, { from: prev.status, to: status });
   // 自动创建任务
   const autoTasks = [];
@@ -3223,6 +3226,8 @@ app.put('/api/visa-cases/:id/ipa', requireRole('principal','intake_staff'), (req
       // BUG-002b: 只在合法前驱状态下推进案例状态，避免跳过中间流程
       if (['visa_in_progress','paid'].includes(ic.status)) {
         db.run(`UPDATE intake_cases SET status='ipa_received',updated_at=datetime('now') WHERE id=?`, [vc.case_id]);
+        db.run(`INSERT INTO case_status_log (id,case_id,from_status,to_status,changed_by,changed_by_name,reason) VALUES (?,?,?,?,?,?,?)`,
+          [uuidv4(), vc.case_id, ic.status, 'ipa_received', req.session.user?.id, req.session.user?.name||'', 'IPA received']);
       }
     }
   }
@@ -3276,11 +3281,25 @@ app.put('/api/arrival-records/:id', requireRole('principal','intake_staff','stud
   // BUG-002a: 到校记录变更只在合法前驱状态下推进案例状态，避免绕过状态机
   if (actual_arrival) {
     const ar = db.get('SELECT case_id FROM arrival_records WHERE id=?', [req.params.id]);
-    if (ar) db.run(`UPDATE intake_cases SET status='arrived',updated_at=datetime('now') WHERE id=? AND status IN ('ipa_received')`, [ar.case_id]);
+    if (ar) {
+      const ic = db.get('SELECT status FROM intake_cases WHERE id=?', [ar.case_id]);
+      if (ic && ic.status === 'ipa_received') {
+        db.run(`UPDATE intake_cases SET status='arrived',updated_at=datetime('now') WHERE id=?`, [ar.case_id]);
+        db.run(`INSERT INTO case_status_log (id,case_id,from_status,to_status,changed_by,changed_by_name,reason) VALUES (?,?,?,?,?,?,?)`,
+          [uuidv4(), ar.case_id, 'ipa_received', 'arrived', req.session.user?.id, req.session.user?.name||'', '到校记录更新']);
+      }
+    }
   }
   if (orientation_done) {
     const ar = db.get('SELECT case_id FROM arrival_records WHERE id=?', [req.params.id]);
-    if (ar) db.run(`UPDATE intake_cases SET status='oriented',updated_at=datetime('now') WHERE id=? AND status IN ('arrived')`, [ar.case_id]);
+    if (ar) {
+      const ic = db.get('SELECT status FROM intake_cases WHERE id=?', [ar.case_id]);
+      if (ic && ic.status === 'arrived') {
+        db.run(`UPDATE intake_cases SET status='oriented',updated_at=datetime('now') WHERE id=?`, [ar.case_id]);
+        db.run(`INSERT INTO case_status_log (id,case_id,from_status,to_status,changed_by,changed_by_name,reason) VALUES (?,?,?,?,?,?,?)`,
+          [uuidv4(), ar.case_id, 'arrived', 'oriented', req.session.user?.id, req.session.user?.name||'', 'Orientation 完成']);
+      }
+    }
   }
   audit(req, 'UPDATE', 'arrival_records', req.params.id, req.body);
   res.json({ ok: true });

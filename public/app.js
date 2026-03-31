@@ -9254,10 +9254,15 @@ async function renderIntakeCaseDetail() {
         <span>${c.survey ? '调查 '+c.survey.overall_score+'/5' : '调查未发'}</span>
       </div>` : ''}
       <div class="css-chip">
-        <i class="bi bi-info-circle text-secondary"></i>
+        <i class="bi bi-person-fill text-secondary"></i>
+        <span class="text-muted">负责人</span>
         <span>${escapeHtml(c.owner_name||'未分配')}</span>
-        <span class="text-muted">${c.created_at?.slice(0,10)||''}</span>
       </div>
+      ${c.agent_name ? `<div class="css-chip">
+        <i class="bi bi-person-badge text-info"></i>
+        <span class="text-muted">代理</span>
+        <span>${escapeHtml(c.agent_name)}</span>
+      </div>` : ''}
     </div>
     <!-- 待办快速添加（展开时显示在摘要条下方） -->
     <div id="quickTaskInput" class="d-none mb-2">

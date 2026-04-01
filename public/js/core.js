@@ -114,7 +114,11 @@ async function api(method, url, body) {
   if (res.status === 401 && !silentUrls.includes(url)) {
     State.user = null;
     showToast('会话已过期，请重新登录', 'warning');
-    setTimeout(() => { document.getElementById('main-content').innerHTML = ''; renderLogin(); }, 1200);
+    setTimeout(() => {
+      document.getElementById('main-content').innerHTML = '';
+      document.getElementById('app').classList.add('d-none');
+      document.getElementById('login-page').classList.remove('d-none');
+    }, 1200);
     throw new Error('会话已过期，请重新登录');
   }
   let data = {};

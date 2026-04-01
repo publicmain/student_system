@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node --test tests/test-state-machine.js tests/test-file-storage.js tests/test-permissions.js tests/test-route-wiring.js"
+    "test": "node --test tests/test-state-machine.js tests/test-file-storage.js tests/test-permissions.js tests/test-route-wiring.js",
+    "test:integration": "node --test tests/test-integration.js",
+    "test:all": "node --test tests/test-state-machine.js tests/test-file-storage.js tests/test-permissions.js tests/test-route-wiring.js && node --test tests/test-integration.js"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -237,7 +237,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
   });
 
   // ── POST /api/adm-profiles/:id/signature ──
-  router.post('/adm-profiles/:id/signature', requireAuth, upload.single('file'), (req, res) => {
+  router.post('/adm-profiles/:id/signature', requireAuth, requireRole(...ADM_ROLES), upload.single('file'), (req, res) => {
     const profile = db.get('SELECT id FROM adm_profiles WHERE id=?', [req.params.id]);
     if (!profile) return res.status(404).json({ error: 'Not found' });
     const { sig_type, signer_name, sig_date, stroke_json } = req.body;

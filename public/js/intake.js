@@ -1003,6 +1003,8 @@ async function submitCreateIntake() {
     const newCase = await api('POST', '/api/intake-cases', { student_name: studentName, intake_year, program_name, notes, referral_id, case_owner_staff_id: State.user?.linked_id || null });
     bootstrap.Modal.getOrCreateInstance(document.getElementById('createIntakeModal')).hide();
     showSuccess('案例已创建');
+    // 重置筛选器为"全部"，确保新案例可见
+    _intakeFilter = 'all';
     await renderIntakeCases();
     if (newCase?.id) showCaseDetail(newCase.id);
   } catch(e) { showError(e.message); }

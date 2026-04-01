@@ -244,10 +244,13 @@ async function renderCounselorWorkbench() {
             <span class="fw-semibold"><i class="bi bi-person-vcard me-1 text-primary"></i> 学生列表</span>
             <div class="d-flex gap-2">
               <input class="form-control form-control-sm" id="student-search" placeholder="搜索姓名..." style="width:150px">
-              <select class="form-select form-select-sm" id="grade-filter" style="width:100px">
+              <select class="form-select form-select-sm" id="grade-filter" style="width:120px">
                 <option value="">全部年级</option>
                 <option value="G9">G9</option><option value="G10">G10</option>
-                <option value="G11">G11</option><option value="G12">G12</option>
+                <option value="G11">G11</option><option value="G12">G12</option><option value="G13">G13</option>
+                <option value="Year 9">Year 9</option><option value="Year 10">Year 10</option>
+                <option value="Year 11">Year 11</option><option value="Year 12">Year 12</option><option value="Year 13">Year 13</option>
+                <option value="其他">其他</option>
               </select>
             </div>
           </div>
@@ -740,10 +743,13 @@ async function renderStudentList() {
       <h4><i class="bi bi-person-vcard me-2"></i>${isIntakeStaff ? '学生查询' : '学生管理'}</h4>
       <div class="d-flex gap-2 align-items-center">
         <input class="form-control form-control-sm" id="studentListSearch" placeholder="搜索姓名..." style="width:160px" oninput="window._stuListFilter(this.value)">
-        <select class="form-select form-select-sm" id="studentListGrade" style="width:100px" onchange="window._stuListFilter(document.getElementById('studentListSearch').value)">
+        <select class="form-select form-select-sm" id="studentListGrade" style="width:120px" onchange="window._stuListFilter(document.getElementById('studentListSearch').value)">
           <option value="">全部年级</option>
           <option value="G9">G9</option><option value="G10">G10</option>
-          <option value="G11">G11</option><option value="G12">G12</option>
+          <option value="G11">G11</option><option value="G12">G12</option><option value="G13">G13</option>
+          <option value="Year 9">Year 9</option><option value="Year 10">Year 10</option>
+          <option value="Year 11">Year 11</option><option value="Year 12">Year 12</option><option value="Year 13">Year 13</option>
+          <option value="其他">其他</option>
         </select>
         ${hasRole('principal','counselor') ? `<button class="btn btn-primary btn-sm" onclick="openStudentModal()"><i class="bi bi-plus-lg me-1"></i>新增学生</button>` : ''}
       </div>
@@ -2378,9 +2384,13 @@ function releaseSubmit(key) { _submitLocks.delete(key); }
 async function saveStudent() {
   if (!acquireSubmit('saveStudent')) return;
   const id = document.getElementById('s-id').value;
+  const name = document.getElementById('s-name').value.trim();
+  const grade_level = document.getElementById('s-grade').value;
+  if (!name) { releaseSubmit('saveStudent'); showError('请填写学生姓名'); return; }
+  if (!id && !grade_level) { releaseSubmit('saveStudent'); showError('请选择年级'); return; }
   const body = {
-    name: document.getElementById('s-name').value,
-    grade_level: document.getElementById('s-grade').value,
+    name,
+    grade_level,
     exam_board: document.getElementById('s-board').value,
     enrol_date: document.getElementById('s-enrol').value,
     date_of_birth: document.getElementById('s-dob').value || null,
@@ -2402,6 +2412,12 @@ async function saveStudent() {
 
 async function saveStaff() {
   if (!acquireSubmit('saveStaff')) return;
+  const stName = document.getElementById('st-name').value.trim();
+  const stRole = document.getElementById('st-role').value;
+  const stEmail = document.getElementById('st-email').value.trim();
+  if (!stName) { releaseSubmit('saveStaff'); showError('请填写教职工姓名'); return; }
+  if (!stRole) { releaseSubmit('saveStaff'); showError('请选择角色'); return; }
+  if (!stEmail) { releaseSubmit('saveStaff'); showError('请填写邮箱'); return; }
   const boards = [];
   if (document.getElementById('eb-edexcel').checked) boards.push('Edexcel');
   if (document.getElementById('eb-cie').checked) boards.push('CIE');
@@ -2409,9 +2425,9 @@ async function saveStaff() {
   const subjStr = document.getElementById('st-subjects').value;
   const subjects = subjStr ? subjStr.split(',').map(s=>s.trim()).filter(Boolean) : [];
   const body = {
-    name: document.getElementById('st-name').value,
-    role: document.getElementById('st-role').value,
-    email: document.getElementById('st-email').value,
+    name: stName,
+    role: stRole,
+    email: stEmail,
     phone: document.getElementById('st-phone').value,
     exam_board_exp: boards,
     subjects,

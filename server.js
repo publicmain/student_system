@@ -331,6 +331,10 @@ app.use('/api', agentPortalRouter);
 // ADM Profiles
 app.use('/api', require('./routes/adm-profiles')(deps));
 
+// P0 新模块：课外活动 + 文书管理
+app.use('/api', require('./routes/activities')(deps));
+app.use('/api', require('./routes/essays')(deps));
+
 // ═══════════════════════════════════════════════════════
 //  启动辅助
 // ═══════════════════════════════════════════════════════

@@ -136,28 +136,30 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
   // Expose _matSendInviteEmail for intake-cases.js to use
   router._matSendInviteEmail = _matSendInviteEmail;
 
-  // ── 中介公司管理 ──────────────────────────────────────
+  // ── 中介公司管理（已合并到 agents 表）──────────────────
   router.get('/mat-companies', requireAuth, requireRole('principal','counselor','intake_staff'), (req, res) => {
-    const rows = db.all(`SELECT mc.*,
-      (SELECT count(*) FROM mat_contacts WHERE company_id=mc.id AND is_active=1) as contact_count,
-      (SELECT count(*) FROM mat_requests WHERE company_id=mc.id AND status NOT IN ('CANCELLED','COMPLETED')) as active_requests
-      FROM mat_companies mc WHERE mc.is_active=1 ORDER BY mc.name`);
+    const rows = db.all(`SELECT a.*,
+      CASE WHEN a.status='active' THEN 1 ELSE 0 END as is_active,
+      (SELECT count(*) FROM mat_contacts WHERE company_id=a.id AND is_active=1) as contact_count,
+      (SELECT count(*) FROM mat_requests WHERE company_id=a.id AND status NOT IN ('CANCELLED','COMPLETED')) as active_requests
+      FROM agents a WHERE a.status='active' ORDER BY a.name`);
     res.json(rows);
   });
 
   router.post('/mat-companies', requireAuth, requireRole('principal','counselor','intake_staff'), (req, res) => {
-    const { name, city, country, agreement_date, notes } = req.body;
+    const { name, type, city, country, agreement_date, notes, email, phone, contact } = req.body;
     if (!name) return res.status(400).json({ error: '公司名称必填' });
     const id = uuidv4();
-    db.run(`INSERT INTO mat_companies (id,name,city,country,agreement_date,notes,created_by) VALUES (?,?,?,?,?,?,?)`,
-      [id, name, city||null, country||null, agreement_date||null, notes||null, req.session.user.id]);
+    db.run(`INSERT INTO agents (id,name,type,city,country,agreement_date,notes,email,phone,contact) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [id, name, type||'agency', city||null, country||null, agreement_date||null, notes||null, email||null, phone||null, contact||null]);
     res.json({ id });
   });
 
   router.put('/mat-companies/:id', requireAuth, requireRole('principal','counselor','intake_staff'), (req, res) => {
     const { name, city, country, agreement_date, notes, is_active } = req.body;
-    db.run(`UPDATE mat_companies SET name=?,city=?,country=?,agreement_date=?,notes=?,is_active=?,updated_at=datetime('now') WHERE id=?`,
-      [name, city||null, country||null, agreement_date||null, notes||null, is_active !== undefined ? is_active : 1, req.params.id]);
+    const status = is_active !== undefined ? (is_active ? 'active' : 'inactive') : undefined;
+    db.run(`UPDATE agents SET name=COALESCE(?,name),city=?,country=?,agreement_date=?,notes=COALESCE(?,notes),status=COALESCE(?,status),updated_at=datetime('now') WHERE id=?`,
+      [name||null, city||null, country||null, agreement_date||null, notes||null, status||null, req.params.id]);
     res.json({ ok: true });
   });
 
@@ -440,25 +442,32 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
 
     const fileId = req.file.filename;
     moveUploadedFile(fileId, 'material');
+
+    // 使用事务避免并发上传导致的版本号冲突和状态竞态
     const curFileVer = db.get(`SELECT MAX(version_no) as mv FROM mat_item_versions WHERE item_id=?`, [req.params.itemId]);
     const fileVersionNo = (curFileVer?.mv || 0) + 1;
-    db.run(`UPDATE mat_item_versions SET is_current=0 WHERE item_id=? AND is_current=1`, [req.params.itemId]);
-    db.run(`INSERT INTO mat_item_versions (id,item_id,request_id,version_no,file_id,file_name,file_size,status,uploaded_at,is_current) VALUES (?,?,?,?,?,?,?,?,datetime('now'),1)`,
-      [uuidv4(), req.params.itemId, v.rec.request_id, fileVersionNo, fileId, req.file.originalname, req.file.size, 'UPLOADED']);
-    db.run(`UPDATE mat_request_items SET status='UPLOADED',file_id=?,file_name=?,file_size=?,uploaded_at=datetime('now'),
-      reject_reason=NULL,version_no=? WHERE id=?`,
-      [fileId, req.file.originalname, req.file.size, fileVersionNo, req.params.itemId]);
+    const versionId = uuidv4();
+    const requestId = v.rec.request_id;
 
-    const r = db.get(`SELECT status FROM mat_requests WHERE id=?`, [v.rec.request_id]);
-    if (r && r.status === 'PENDING') {
-      db.run(`UPDATE mat_requests SET status='IN_PROGRESS',updated_at=datetime('now') WHERE id=?`, [v.rec.request_id]);
-    }
+    db.transaction((runInTx) => {
+      runInTx(`UPDATE mat_item_versions SET is_current=0 WHERE item_id=? AND is_current=1`, [req.params.itemId]);
+      runInTx(`INSERT INTO mat_item_versions (id,item_id,request_id,version_no,file_id,file_name,file_size,status,uploaded_at,is_current) VALUES (?,?,?,?,?,?,?,?,datetime('now'),1)`,
+        [versionId, req.params.itemId, requestId, fileVersionNo, fileId, req.file.originalname, req.file.size, 'UPLOADED']);
+      runInTx(`UPDATE mat_request_items SET status='UPLOADED',file_id=?,file_name=?,file_size=?,uploaded_at=datetime('now'),
+        reject_reason=NULL,version_no=? WHERE id=?`,
+        [fileId, req.file.originalname, req.file.size, fileVersionNo, req.params.itemId]);
 
-    const allItems = db.all(`SELECT * FROM mat_request_items WHERE request_id=?`, [v.rec.request_id]);
-    const requiredPending = allItems.filter(i => i.is_required && (i.id === req.params.itemId ? false : i.status === 'PENDING'));
-    if (requiredPending.length === 0) {
-      db.run(`UPDATE mat_requests SET status='SUBMITTED',updated_at=datetime('now') WHERE id=?`, [v.rec.request_id]);
-    }
+      const r = db.get(`SELECT status FROM mat_requests WHERE id=?`, [requestId]);
+      if (r && r.status === 'PENDING') {
+        runInTx(`UPDATE mat_requests SET status='IN_PROGRESS',updated_at=datetime('now') WHERE id=?`, [requestId]);
+      }
+
+      const allItems = db.all(`SELECT * FROM mat_request_items WHERE request_id=?`, [requestId]);
+      const requiredPending = allItems.filter(i => i.is_required && (i.id === req.params.itemId ? false : i.status === 'PENDING'));
+      if (requiredPending.length === 0) {
+        runInTx(`UPDATE mat_requests SET status='SUBMITTED',updated_at=datetime('now') WHERE id=?`, [requestId]);
+      }
+    });
 
     _matAudit(v.rec.request_id, 'agent', v.rec.contact_id, '', 'FILE_UPLOAD', { item: item.name, file: req.file.originalname }, req.ip);
     res.json({ ok: true, file_id: fileId, file_name: req.file.originalname, file_size: req.file.size });
@@ -1022,10 +1031,10 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     const item = db.get(`SELECT mi.* FROM mat_request_items mi
       JOIN mat_requests mr ON mi.request_id=mr.id
       WHERE mi.file_id=? AND mr.id=?`, [req.params.fileId, v.rec.request_id]);
+    if (!item) return res.status(403).json({ error: 'FORBIDDEN' });
     const filePath = fileStorage.getFilePath(req.params.fileId);
-    if (!item && !fs.existsSync(filePath)) return res.status(403).json({ error: 'FORBIDDEN' });
-    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
-    res.download(filePath, item?.file_name || req.params.fileId);
+    if (!filePath || !fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+    res.download(filePath, item.file_name || req.params.fileId);
   });
 
   router.get('/mat-request-items/:id/download', requireAuth, requireRole('principal','counselor','intake_staff'), (req, res) => {

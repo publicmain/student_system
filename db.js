@@ -1493,6 +1493,160 @@ function createSchema() {
     created_at    TEXT DEFAULT (datetime('now'))
   )`);
 
+  // ═══════════════════════════════════════════════════════════════════
+  //  P0 模块：学生多维画像 / 课外活动 / 文书管理
+  // ═══════════════════════════════════════════════════════════════════
+
+  // ── 学生扩展画像（兴趣/性格/职业方向）──
+  db.run(`CREATE TABLE IF NOT EXISTS student_profiles_ext (
+    id                TEXT PRIMARY KEY,
+    student_id        TEXT NOT NULL UNIQUE,
+    mbti              TEXT,
+    holland_code      TEXT,
+    academic_interests TEXT,
+    career_goals      TEXT,
+    major_preferences TEXT,
+    strengths         TEXT,
+    weaknesses        TEXT,
+    notes             TEXT,
+    created_at        TEXT DEFAULT (datetime('now')),
+    updated_at        TEXT DEFAULT (datetime('now'))
+  )`);
+
+  // ── 学术荣誉奖项 ──
+  db.run(`CREATE TABLE IF NOT EXISTS student_awards (
+    id          TEXT PRIMARY KEY,
+    student_id  TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    category    TEXT,
+    level       TEXT,
+    award_date  TEXT,
+    description TEXT,
+    sort_order  INTEGER DEFAULT 0,
+    created_at  TEXT DEFAULT (datetime('now')),
+    updated_at  TEXT DEFAULT (datetime('now'))
+  )`);
+
+  // ── 课外活动（CommonApp 格式）──
+  db.run(`CREATE TABLE IF NOT EXISTS student_activities (
+    id                TEXT PRIMARY KEY,
+    student_id        TEXT NOT NULL,
+    category          TEXT NOT NULL,
+    name              TEXT NOT NULL,
+    organization      TEXT,
+    role              TEXT,
+    start_date        TEXT,
+    end_date          TEXT,
+    hours_per_week    REAL,
+    weeks_per_year    INTEGER,
+    impact_level      TEXT,
+    description       TEXT,
+    achievements      TEXT,
+    related_major_tags TEXT,
+    sort_order        INTEGER DEFAULT 0,
+    created_at        TEXT DEFAULT (datetime('now')),
+    updated_at        TEXT DEFAULT (datetime('now'))
+  )`);
+
+  // ── 竞赛荣誉（可关联活动）──
+  db.run(`CREATE TABLE IF NOT EXISTS student_honors (
+    id                  TEXT PRIMARY KEY,
+    student_id          TEXT NOT NULL,
+    activity_id         TEXT,
+    name                TEXT NOT NULL,
+    level               TEXT,
+    award_rank          TEXT,
+    award_date          TEXT,
+    description         TEXT,
+    certificate_file_id TEXT,
+    sort_order          INTEGER DEFAULT 0,
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now'))
+  )`);
+
+  // ── 文书主表 ──
+  db.run(`CREATE TABLE IF NOT EXISTS essays (
+    id                    TEXT PRIMARY KEY,
+    student_id            TEXT NOT NULL,
+    application_id        TEXT,
+    essay_type            TEXT NOT NULL,
+    title                 TEXT,
+    prompt                TEXT,
+    word_limit            INTEGER,
+    status                TEXT DEFAULT 'collecting_material',
+    current_version       INTEGER DEFAULT 0,
+    assigned_reviewer_id  TEXT,
+    review_deadline       TEXT,
+    strategy_notes        TEXT,
+    created_at            TEXT DEFAULT (datetime('now')),
+    updated_at            TEXT DEFAULT (datetime('now'))
+  )`);
+
+  // ── 文书版本历史 ──
+  db.run(`CREATE TABLE IF NOT EXISTS essay_versions (
+    id              TEXT PRIMARY KEY,
+    essay_id        TEXT NOT NULL,
+    version_no      INTEGER NOT NULL,
+    content         TEXT,
+    word_count      INTEGER DEFAULT 0,
+    char_count      INTEGER DEFAULT 0,
+    created_by      TEXT,
+    created_at      TEXT DEFAULT (datetime('now')),
+    change_summary  TEXT
+  )`);
+
+  // ── 文书批注（行内+总评）──
+  db.run(`CREATE TABLE IF NOT EXISTS essay_annotations (
+    id              TEXT PRIMARY KEY,
+    essay_id        TEXT NOT NULL,
+    version_id      TEXT,
+    annotator_id    TEXT,
+    annotator_name  TEXT,
+    type            TEXT DEFAULT 'inline',
+    position_start  INTEGER,
+    position_end    INTEGER,
+    content         TEXT NOT NULL,
+    status          TEXT DEFAULT 'open',
+    created_at      TEXT DEFAULT (datetime('now'))
+  )`);
+
+  // ── 文书素材库 / 头脑风暴 ──
+  db.run(`CREATE TABLE IF NOT EXISTS essay_materials (
+    id                  TEXT PRIMARY KEY,
+    student_id          TEXT NOT NULL,
+    category            TEXT,
+    title               TEXT NOT NULL,
+    content             TEXT,
+    related_activity_id TEXT,
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now'))
+  )`);
+
+  // ── tryAlter: 扩展考试评估表 ──
+  tryAlter('ALTER TABLE admission_assessments ADD COLUMN sub_scores TEXT');
+  tryAlter('ALTER TABLE admission_assessments ADD COLUMN target_score REAL');
+  tryAlter('ALTER TABLE admission_assessments ADD COLUMN next_test_date TEXT');
+  tryAlter('ALTER TABLE admission_assessments ADD COLUMN next_target_score REAL');
+
+  // ── tryAlter: agents 表合并 mat_companies 字段 ──
+  tryAlter('ALTER TABLE agents ADD COLUMN city TEXT');
+  tryAlter('ALTER TABLE agents ADD COLUMN country TEXT');
+  tryAlter('ALTER TABLE agents ADD COLUMN agreement_date TEXT');
+
+  // ── 数据迁移: mat_companies → agents ──
+  try {
+    const existing = db.all('SELECT id FROM mat_companies');
+    existing.forEach(mc => {
+      const already = db.get('SELECT id FROM agents WHERE id=?', [mc.id]);
+      if (!already) {
+        const c = db.get('SELECT * FROM mat_companies WHERE id=?', [mc.id]);
+        db.run(`INSERT INTO agents (id, name, type, status, city, country, agreement_date, notes, created_at, updated_at)
+                VALUES (?, ?, 'agency', ?, ?, ?, ?, ?, ?, ?)`,
+          [c.id, c.name, c.is_active ? 'active' : 'inactive', c.city||null, c.country||null, c.agreement_date||null, c.notes||null, c.created_at, c.updated_at]);
+      }
+    });
+  } catch(e) { /* mat_companies may not exist yet or already migrated */ }
+
   // ── 性能索引 ──────────────────────────────────────────────────────
   const indexes = [
     'CREATE INDEX IF NOT EXISTS idx_mat_requests_case ON mat_requests(intake_case_id)',
@@ -1511,6 +1665,13 @@ function createSchema() {
     'CREATE INDEX IF NOT EXISTS idx_tasks_case ON milestone_tasks(intake_case_id)',
     'CREATE INDEX IF NOT EXISTS idx_fx_records_case ON file_exchange_records(case_id)',
     'CREATE INDEX IF NOT EXISTS idx_item_versions_item ON mat_item_versions(item_id)',
+    'CREATE INDEX IF NOT EXISTS idx_student_activities_student ON student_activities(student_id)',
+    'CREATE INDEX IF NOT EXISTS idx_student_honors_student ON student_honors(student_id)',
+    'CREATE INDEX IF NOT EXISTS idx_student_awards_student ON student_awards(student_id)',
+    'CREATE INDEX IF NOT EXISTS idx_essays_student ON essays(student_id)',
+    'CREATE INDEX IF NOT EXISTS idx_essay_versions_essay ON essay_versions(essay_id)',
+    'CREATE INDEX IF NOT EXISTS idx_essay_annotations_essay ON essay_annotations(essay_id)',
+    'CREATE INDEX IF NOT EXISTS idx_essay_materials_student ON essay_materials(student_id)',
   ];
   for (const sql of indexes) {
     try { db.run(sql); } catch(e) { /* ignore */ }

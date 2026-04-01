@@ -110,7 +110,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     if (status)      { sql += ' AND p.status=?';       params.push(status); }
     if (source_type) { sql += ' AND p.source_type=?';  params.push(source_type); }
     if (intake_year) { sql += ' AND p.intake_year=?';  params.push(intake_year); }
-    sql += ' ORDER BY p.created_at DESC';
+    sql += ' ORDER BY p.created_at DESC LIMIT 500';
     res.json(db.all(sql, params));
   });
 

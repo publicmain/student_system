@@ -1275,7 +1275,7 @@ async function showUifMergePanel(requestId) {
   }, '合并到档案', 'lg');
 }
 
-// ── 中介公司管理 ──────────────────────────────────────
+// ── 中介公司管理（已合并代理管理）──────────────────────
 async function renderMatCompanies() {
   const main = document.getElementById('main-content');
   main.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-primary"></div></div>';
@@ -1283,23 +1283,29 @@ async function renderMatCompanies() {
   try { companies = await GET('/api/mat-companies'); }
   catch(e) { main.innerHTML = `<div class="alert alert-danger m-4">加载失败: ${escapeHtml(e.message)}</div>`; return; }
 
+  const typeBadge = t => t === 'agency' ? '<span class="badge bg-primary">机构代理</span>'
+    : t === 'personal_referral' ? '<span class="badge bg-info">个人推荐</span>'
+    : `<span class="badge bg-secondary">${escapeHtml(t||'未分类')}</span>`;
+
   main.innerHTML = `
     <div class="page-header mb-4">
-      <h4><i class="bi bi-building me-2"></i>中介公司管理</h4>
+      <h4><i class="bi bi-building me-2"></i>中介 / 代理管理</h4>
       <div class="page-header-actions">
         <button class="btn btn-primary btn-sm" onclick="openAddMatCompanyModal()">
-          <i class="bi bi-plus-lg me-1"></i>新增公司
+          <i class="bi bi-plus-lg me-1"></i>新增
         </button>
       </div>
     </div>
     <div class="table-responsive">
       <table class="table table-hover align-middle">
         <thead class="table-light">
-          <tr><th>公司名称</th><th>城市</th><th>国家</th><th>合同日期</th><th>联系人数</th><th>活跃请求</th><th>操作</th></tr>
+          <tr><th>名称</th><th>类型</th><th>联系方式</th><th>城市</th><th>国家</th><th>合同日期</th><th>联系人</th><th>活跃请求</th><th>操作</th></tr>
         </thead>
         <tbody>
           ${companies.length ? companies.map(c => `<tr>
             <td class="fw-semibold">${escapeHtml(c.name)}</td>
+            <td>${typeBadge(c.type)}</td>
+            <td class="small">${escapeHtml(c.email || c.contact || '—')}</td>
             <td class="small">${escapeHtml(c.city || '—')}</td>
             <td class="small">${escapeHtml(c.country || '—')}</td>
             <td class="small">${c.agreement_date || '—'}</td>
@@ -1311,7 +1317,7 @@ async function renderMatCompanies() {
                 <i class="bi bi-person-lines-fill me-1"></i>联系人
               </button>
             </td>
-          </tr>`).join('') : '<tr><td colspan="7" class="text-center text-muted py-4">暂无中介公司</td></tr>'}
+          </tr>`).join('') : '<tr><td colspan="9" class="text-center text-muted py-4">暂无中介/代理</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -1332,17 +1338,32 @@ async function renderMatCompanies() {
       </div>
     </div>
 
-    <!-- 新增公司弹窗 -->
+    <!-- 新增公司/代理弹窗 -->
     <div class="modal fade" id="addMatCompanyModal" tabindex="-1">
-      <div class="modal-dialog">
+      <div class="modal-dialog modal-dialog-scrollable">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">新增中介公司</h5>
+            <h5 class="modal-title">新增中介 / 代理</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
-            <div class="mb-3"><label class="form-label fw-semibold">公司名称 *</label>
+            <div class="mb-3"><label class="form-label fw-semibold">名称 *</label>
               <input type="text" class="form-control" id="mcName"></div>
+            <div class="row g-2 mb-3">
+              <div class="col"><label class="form-label">类型</label>
+                <select class="form-select" id="mcType">
+                  <option value="agency">机构代理</option>
+                  <option value="personal_referral">个人推荐</option>
+                </select></div>
+              <div class="col"><label class="form-label">联系人</label>
+                <input type="text" class="form-control" id="mcContact"></div>
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col"><label class="form-label">邮箱</label>
+                <input type="email" class="form-control" id="mcEmail"></div>
+              <div class="col"><label class="form-label">电话</label>
+                <input type="text" class="form-control" id="mcPhone"></div>
+            </div>
             <div class="row g-2 mb-3">
               <div class="col"><label class="form-label">城市</label>
                 <input type="text" class="form-control" id="mcCity"></div>
@@ -1362,7 +1383,6 @@ async function renderMatCompanies() {
       </div>
     </div>
   `;
-  // Move modals to <body> so Bootstrap can manage them properly
   ['matCompanyDetailModal', 'addMatCompanyModal'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.dataset.renderedModal = '1'; document.body.appendChild(el); }
@@ -1370,24 +1390,30 @@ async function renderMatCompanies() {
 }
 
 function openAddMatCompanyModal() {
-  ['mcName','mcCity','mcCountry','mcNotes'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+  ['mcName','mcCity','mcCountry','mcNotes','mcContact','mcEmail','mcPhone'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+  const typeSel = document.getElementById('mcType'); if (typeSel) typeSel.value = 'agency';
+  const dateSel = document.getElementById('mcAgreementDate'); if (dateSel) dateSel.value = '';
   const el = document.getElementById('addMatCompanyModal');
   if (el) bootstrap.Modal.getOrCreateInstance(el).show();
 }
 
 async function submitAddMatCompany() {
   const name = document.getElementById('mcName')?.value?.trim();
-  if (!name) { showError('公司名称必填'); return; }
+  if (!name) { showError('名称必填'); return; }
   try {
     await POST('/api/mat-companies', {
       name,
+      type: document.getElementById('mcType')?.value || 'agency',
+      contact: document.getElementById('mcContact')?.value?.trim() || null,
+      email: document.getElementById('mcEmail')?.value?.trim() || null,
+      phone: document.getElementById('mcPhone')?.value?.trim() || null,
       city: document.getElementById('mcCity')?.value?.trim() || null,
       country: document.getElementById('mcCountry')?.value?.trim() || null,
       agreement_date: document.getElementById('mcAgreementDate')?.value || null,
       notes: document.getElementById('mcNotes')?.value?.trim() || null,
     });
     bootstrap.Modal.getInstance(document.getElementById('addMatCompanyModal'))?.hide();
-    showSuccess('公司已添加');
+    showSuccess('已添加');
     renderMatCompanies();
   } catch(e) { showError('添加失败: ' + e.message); }
 }

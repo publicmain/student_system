@@ -19,6 +19,7 @@ const State = {
   settings: {},        // 系统设置（从 /api/settings 加载）
   settingsDraft: {},   // 设置页面的临时编辑状态
   previousPage: null,  // 上一个访问的页面（用于返回按钮）
+  _navGeneration: 0,   // 导航代数计数器，用于检测过期的异步回调
 };
 
 // ════════════════════════════════════════════════════════
@@ -253,11 +254,14 @@ function escapeHtml(str) {
 // 安全 ID：用于 onclick 属性中的动态值，确保只含安全字符
 function safeId(id) { return String(id||'').replace(/[^a-zA-Z0-9_\-]/g, ''); }
 
+// 检查当前导航代数是否仍然有效（用于异步回调中判断是否已导航离开）
+function isNavStale(gen) { return gen !== State._navGeneration; }
+
 // 清理所有案例相关的全局变量，防止跨案例/跨页面数据泄漏
 function _cleanupCaseGlobals() {
   window._currentCaseDetail = null;
   window._pendingFieldNotes = null;
-  window._uifFlaggedFields = null;
+  window._uifFlaggedFields = {};
   window._fxFilter_state = null;
   window._fcActiveTab = null;
   window._matCurrentCompanyId = null;
@@ -387,6 +391,7 @@ function navigate(page, params = {}) {
 }
 
 function _doNavigate(page, params = {}) {
+  State._navGeneration++;
   // ── 前端路由守卫：角色无权访问则拦截 ──
   if (State.user && !canAccessPage(page)) {
     document.getElementById('main-content').innerHTML = `

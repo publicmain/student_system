@@ -30,7 +30,7 @@ const PAGES = {
       if (caseId) showCaseDetail(caseId);
     });
   },
-  'agents-management':  (p) => renderAgentsManagement(p),
+  'agents-management':  () => { navigate('mat-companies'); },
   'task-detail':        (p) => renderTaskDetail(p),
   'mat-requests':       () => { showToast('材料收集已整合到入学案例详情页','info'); navigate('intake-cases'); },
   'mat-request-detail': () => { navigate('intake-cases'); },
@@ -306,7 +306,9 @@ async function renderCounselorWorkbench() {
 
 async function loadUpcomingTasks() {
   try {
+    const navGen = State._navGeneration;
     const students = await GET('/api/students');
+    if (isNavStale(navGen)) return;
     const el = document.getElementById('upcoming-tasks');
     if (!el) return;
     // Fetch all students' tasks concurrently instead of sliced serial requests
@@ -316,6 +318,7 @@ async function loadUpcomingTasks() {
         .catch(() => [])
       )
     );
+    if (isNavStale(navGen)) return;
     const tasks = taskArrays.flat();
     tasks.sort((a,b) => new Date(a.due_date) - new Date(b.due_date));
     const upcoming = tasks.slice(0,8);
@@ -834,9 +837,11 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-timeline">任务 ${tasks.filter(t=>t.status!=='done').length?`<span class="badge bg-warning text-dark ms-1">${tasks.filter(t=>t.status!=='done').length}</span>`:''}</a></li>
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-apps">申请 ${applications.length?`<span class="badge bg-primary ms-1">${applications.length}</span>`:''}</a></li>
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-materials">材料 ${materials.length?`<span class="badge bg-info ms-1">${materials.length}</span>`:''}</a></li>
+      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-activities"><i class="bi bi-trophy me-1"></i>活动</a></li>
       <li class="nav-item dropdown">
         <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button">更多</a>
         <ul class="dropdown-menu">
+          <li><a class="dropdown-item" data-bs-toggle="tab" href="#tab-essays"><i class="bi bi-journal-text me-1"></i>文书</a></li>
           <li><a class="dropdown-item" data-bs-toggle="tab" href="#tab-ps">个人陈述</a></li>
           <li><a class="dropdown-item" data-bs-toggle="tab" href="#tab-comms">沟通记录 ${comms.length?`(${comms.length})`:''}</a></li>
           <li><a class="dropdown-item" data-bs-toggle="tab" href="#tab-feedback">反馈 ${feedback.length?`(${feedback.length})`:''}</a></li>
@@ -1019,6 +1024,49 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
             </div>
           </div>
 
+          <!-- 画像标签 -->
+          <div class="overview-card" data-card-id="profile-tags" data-span="1" draggable="true">
+            <div class="ov-card">
+              <div class="ov-card-header">
+                <i class="bi bi-grip-vertical ov-drag-handle" title="拖动排序"></i>
+                <span class="ov-card-title"><i class="bi bi-tags text-info"></i>画像标签</span>
+                <div class="ov-card-actions">
+                  ${canEdit ? `<button class="ov-card-btn" onclick="openProfileExtModal('${id}')" title="编辑画像"><i class="bi bi-pencil"></i></button>` : ''}
+                  <button class="ov-card-btn" onclick="toggleCardSpan('profile-tags')" title="切换宽度"><i class="bi bi-arrows-fullscreen"></i></button>
+                </div>
+              </div>
+              <div class="ov-card-body" id="profile-tags-card"><div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div></div>
+            </div>
+          </div>
+
+          <!-- 竞争力摘要 -->
+          <div class="overview-card" data-card-id="competitiveness" data-span="1" draggable="true">
+            <div class="ov-card">
+              <div class="ov-card-header">
+                <i class="bi bi-grip-vertical ov-drag-handle" title="拖动排序"></i>
+                <span class="ov-card-title"><i class="bi bi-graph-up text-success"></i>竞争力</span>
+                <div class="ov-card-actions">
+                  <button class="ov-card-btn" onclick="toggleCardSpan('competitiveness')" title="切换宽度"><i class="bi bi-arrows-fullscreen"></i></button>
+                </div>
+              </div>
+              <div class="ov-card-body" id="competitiveness-card"><div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div></div>
+            </div>
+          </div>
+
+          <!-- 荣誉亮点 -->
+          <div class="overview-card" data-card-id="awards" data-span="1" draggable="true">
+            <div class="ov-card">
+              <div class="ov-card-header">
+                <i class="bi bi-grip-vertical ov-drag-handle" title="拖动排序"></i>
+                <span class="ov-card-title"><i class="bi bi-award text-warning"></i>荣誉亮点</span>
+                <div class="ov-card-actions">
+                  <button class="ov-card-btn" onclick="toggleCardSpan('awards')" title="切换宽度"><i class="bi bi-arrows-fullscreen"></i></button>
+                </div>
+              </div>
+              <div class="ov-card-body" id="awards-card"><div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div></div>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -1093,6 +1141,16 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
         <div id="exam-sittings-container"><div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm"></div> 加载中...</div></div>
       </div>
 
+      <!-- 课外活动 Tab -->
+      <div class="tab-pane fade" id="tab-activities">
+        <div id="activities-container"><div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm"></div> 加载中...</div></div>
+      </div>
+
+      <!-- 文书管理 Tab -->
+      <div class="tab-pane fade" id="tab-essays">
+        <div id="essays-container"><div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm"></div> 加载中...</div></div>
+      </div>
+
       <!-- 录取评估 Tab -->
       <div class="tab-pane fade" id="tab-admission-eval">
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -1165,6 +1223,25 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
       aiPlanTabEl.addEventListener('shown.bs.tab', () => loadAIPlanTab(id));
       if (activeTab === 'tab-ai-plan') loadAIPlanTab(id);
     }
+
+    // 活动 tab：切换时加载
+    const actTabEl = document.querySelector('a[href="#tab-activities"]');
+    if (actTabEl) {
+      actTabEl.addEventListener('shown.bs.tab', () => loadActivitiesTab(id));
+      if (activeTab === 'tab-activities') loadActivitiesTab(id);
+    }
+
+    // 文书 tab：切换时加载
+    const essayTabEl = document.querySelector('a[href="#tab-essays"]');
+    if (essayTabEl) {
+      essayTabEl.addEventListener('shown.bs.tab', () => loadEssaysTab(id));
+      if (activeTab === 'tab-essays') loadEssaysTab(id);
+    }
+
+    // 概览新卡片异步加载
+    loadOverviewProfileTags(id);
+    loadOverviewCompetitiveness(id);
+    loadOverviewAwards(id);
 
   } catch(e) {
     mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
@@ -1245,6 +1322,116 @@ function toggleCardSpan(cardId) {
   card.dataset.span = next;
   card.style.gridColumn = `span ${next}`;
   saveOverviewLayout();
+}
+
+// ════════════════════════════════════════════════════════
+//  概览新卡片异步加载
+// ════════════════════════════════════════════════════════
+async function loadOverviewProfileTags(studentId) {
+  const el = document.getElementById('profile-tags-card');
+  if (!el) return;
+  try {
+    const p = await GET(`/api/students/${studentId}/profile-ext`);
+    if (!p || (!p.mbti && !p.holland_code && !p.academic_interests && !p.strengths)) {
+      el.innerHTML = `<div class="ov-empty" style="padding:.75rem"><i class="bi bi-tags"></i><span>暂无画像数据，点击编辑添加</span></div>`;
+      return;
+    }
+    let html = '';
+    if (p.mbti) html += `<span class="badge bg-primary me-1 mb-1">MBTI: ${escapeHtml(p.mbti)}</span>`;
+    if (p.holland_code) html += `<span class="badge bg-success me-1 mb-1">Holland: ${escapeHtml(p.holland_code)}</span>`;
+    if (p.academic_interests) {
+      try {
+        const tags = JSON.parse(p.academic_interests);
+        tags.forEach(t => { html += `<span class="badge bg-info me-1 mb-1">${escapeHtml(t)}</span>`; });
+      } catch(_) { html += `<span class="badge bg-info me-1 mb-1">${escapeHtml(p.academic_interests)}</span>`; }
+    }
+    if (p.strengths) {
+      try {
+        const tags = JSON.parse(p.strengths);
+        tags.forEach(t => { html += `<span class="badge bg-warning text-dark me-1 mb-1">${escapeHtml(t)}</span>`; });
+      } catch(_) { html += `<span class="badge bg-warning text-dark me-1 mb-1">${escapeHtml(p.strengths)}</span>`; }
+    }
+    if (p.career_goals) html += `<div class="mt-1 small text-muted"><i class="bi bi-bullseye me-1"></i>${escapeHtml(p.career_goals)}</div>`;
+    el.innerHTML = `<div style="padding:.5rem">${html}</div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="ov-empty" style="padding:.75rem"><i class="bi bi-tags"></i><span>暂无画像数据</span></div>`;
+  }
+}
+
+async function loadOverviewCompetitiveness(studentId) {
+  const el = document.getElementById('competitiveness-card');
+  if (!el) return;
+  try {
+    const c = await GET(`/api/students/${studentId}/competitiveness`);
+    if (!c || (c.academics === 0 && c.tests === 0 && c.activities === 0 && c.leadership === 0 && c.essays === 0)) {
+      el.innerHTML = `<div class="ov-empty" style="padding:.75rem"><i class="bi bi-graph-up"></i><span>暂无竞争力数据</span></div>`;
+      return;
+    }
+    const dimensions = { academics: c.academics, tests: c.tests, activities: c.activities, leadership: c.leadership, essays: c.essays };
+    const dimLabels = { academics: '学术', tests: '标化', activities: '活动', leadership: '领导力', essays: '文书' };
+    const dimColors = { academics: 'primary', tests: 'info', activities: 'success', leadership: 'warning', essays: 'danger' };
+    let bars = '';
+    for (const [k, v] of Object.entries(dimensions)) {
+      const pct = Math.round(v);
+      bars += `<div class="mb-1"><div class="d-flex justify-content-between small"><span>${dimLabels[k]||k}</span><span>${pct}%</span></div><div class="progress" style="height:6px"><div class="progress-bar bg-${dimColors[k]||'secondary'}" style="width:${pct}%"></div></div></div>`;
+    }
+    const overall = c.overall;
+    el.innerHTML = `<div style="padding:.5rem">${bars}<div class="mt-2 text-center"><span class="badge bg-dark">综合: ${overall}%</span></div></div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="ov-empty" style="padding:.75rem"><i class="bi bi-graph-up"></i><span>暂无竞争力数据</span></div>`;
+  }
+}
+
+async function loadOverviewAwards(studentId) {
+  const el = document.getElementById('awards-card');
+  if (!el) return;
+  try {
+    const awards = await GET(`/api/students/${studentId}/awards`);
+    if (!awards || awards.length === 0) {
+      el.innerHTML = `<div class="ov-empty" style="padding:.75rem"><i class="bi bi-award"></i><span>暂无荣誉记录</span></div>`;
+      return;
+    }
+    const top3 = awards.slice(0, 3);
+    const levelBadge = { international: 'danger', national: 'warning', province: 'info', city: 'secondary', school: 'light text-dark' };
+    let html = top3.map(a => `<div class="d-flex align-items-center mb-1"><i class="bi bi-award-fill text-warning me-1"></i><span class="small">${escapeHtml(a.name)}</span>${a.level ? `<span class="badge bg-${levelBadge[a.level]||'secondary'} ms-1" style="font-size:.65rem">${escapeHtml(a.level)}</span>` : ''}</div>`).join('');
+    if (awards.length > 3) html += `<div class="text-muted small mt-1">还有 ${awards.length - 3} 项...</div>`;
+    el.innerHTML = `<div style="padding:.5rem">${html}</div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="ov-empty" style="padding:.75rem"><i class="bi bi-award"></i><span>暂无荣誉记录</span></div>`;
+  }
+}
+
+// 编辑扩展画像弹窗
+async function openProfileExtModal(studentId) {
+  let p = {};
+  try { p = await GET(`/api/students/${studentId}/profile-ext`) || {}; } catch(_) {}
+  const interests = p.academic_interests ? (typeof p.academic_interests === 'string' ? p.academic_interests : JSON.stringify(p.academic_interests)) : '';
+  const strengths = p.strengths ? (typeof p.strengths === 'string' ? p.strengths : JSON.stringify(p.strengths)) : '';
+
+  const html = `<div class="modal fade" id="profileExtModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">编辑画像标签</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
+    <div class="mb-3"><label class="form-label">MBTI 类型</label><input class="form-control" id="pext-mbti" value="${escapeHtml(p.mbti||'')}" placeholder="如 INTJ"></div>
+    <div class="mb-3"><label class="form-label">Holland 代码</label><input class="form-control" id="pext-holland" value="${escapeHtml(p.holland_code||'')}" placeholder="如 RIA"></div>
+    <div class="mb-3"><label class="form-label">兴趣标签（逗号分隔）</label><input class="form-control" id="pext-interests" value="${escapeHtml(interests.replace(/[\[\]"]/g,''))}" placeholder="如 编程,音乐,数学"></div>
+    <div class="mb-3"><label class="form-label">个人优势（逗号分隔）</label><input class="form-control" id="pext-strengths" value="${escapeHtml(strengths.replace(/[\[\]"]/g,''))}" placeholder="如 批判性思维,团队协作"></div>
+    <div class="mb-3"><label class="form-label">职业目标</label><input class="form-control" id="pext-career" value="${escapeHtml(p.career_goals||'')}"></div>
+  </div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button class="btn btn-primary" onclick="saveProfileExt('${studentId}')">保存</button></div></div></div></div>`;
+  document.getElementById('profileExtModal')?.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  new bootstrap.Modal(document.getElementById('profileExtModal')).show();
+}
+
+async function saveProfileExt(studentId) {
+  const academic_interests = document.getElementById('pext-interests').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const strengths = document.getElementById('pext-strengths').value.split(',').map(s=>s.trim()).filter(Boolean);
+  await api('PUT', `/api/students/${studentId}/profile-ext`, {
+    mbti: document.getElementById('pext-mbti').value.trim() || null,
+    holland_code: document.getElementById('pext-holland').value.trim() || null,
+    academic_interests,
+    strengths,
+    career_goals: document.getElementById('pext-career').value.trim() || null,
+  });
+  bootstrap.Modal.getInstance(document.getElementById('profileExtModal'))?.hide();
+  loadOverviewProfileTags(studentId);
 }
 
 function renderTaskList(tasks, studentId, canEdit) {
@@ -1525,7 +1712,7 @@ async function _taskFileUpload(studentId, intakeCaseId, applicationId) {
     // 2. 上传文件
     const fd = new FormData();
     fd.append('file', file);
-    const resp = await fetch(`/api/materials/${created.id}/upload`, { method: 'POST', body: fd });
+    const resp = await fetch(`/api/materials/${created.id}/upload`, { method: 'POST', body: fd, credentials: 'include' });
     if (!resp.ok) { const err = await resp.json(); throw new Error(err.error || '上传失败'); }
 
     showSuccess('文件上传成功');
@@ -1586,8 +1773,8 @@ function renderApplicationList(applications, studentId, canEdit) {
           ${a.conditions ? `<div class="small text-muted mt-1">条件: ${escapeHtml(a.conditions)}</div>` : ''}
           ${canEdit ? `
           <div class="mt-2 d-flex gap-1">
-            <button class="btn btn-sm btn-outline-secondary" onclick="openApplicationModal('${studentId}','${a.id}')"><i class="bi bi-pencil"></i> 编辑</button>
-            ${hasRole('principal','counselor') ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteApplication('${a.id}','${studentId}','${escapeHtml(a.uni_name)}')"><i class="bi bi-trash"></i></button>` : ''}
+            <button class="btn btn-sm btn-outline-secondary" onclick="openApplicationModal('${safeId(studentId)}','${safeId(a.id)}')"><i class="bi bi-pencil"></i> 编辑</button>
+            ${hasRole('principal','counselor') ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteApplication('${safeId(a.id)}','${safeId(studentId)}','${escapeHtml(a.uni_name)}')"><i class="bi bi-trash"></i></button>` : ''}
           </div>` : ''}
         </div>
       </div>
@@ -2983,7 +3170,7 @@ function setupNavForRole(role) {
   });
   // 隐藏/显示导航分区标题（data-section-roles 控制）
   document.querySelectorAll('[data-section-roles]').forEach(el => {
-    const roles = el.dataset.sectionRoles.split(',').map(r => r.trim());
+    const roles = (el.dataset.sectionRoles || '').split(',').map(r => r.trim());
     el.style.display = roles.includes(role) ? '' : 'none';
   });
 }

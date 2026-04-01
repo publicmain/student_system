@@ -64,10 +64,18 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
   });
 
   router.put('/agents/:id', requireRole('principal'), (req, res) => {
-    const { name, status, contact, email, phone, commission_rule_id, notes } = req.body;
-    db.run(`UPDATE agents SET name=COALESCE(?,name),status=COALESCE(?,status),contact=COALESCE(?,contact),email=COALESCE(?,email),phone=COALESCE(?,phone),commission_rule_id=COALESCE(?,commission_rule_id),notes=COALESCE(?,notes),updated_at=datetime('now') WHERE id=?`,
-      [name||null, status||null, contact||null, email||null, phone||null, commission_rule_id||null, notes||null, req.params.id]);
+    const { name, type, status, contact, email, phone, commission_rule_id, notes } = req.body;
+    db.run(`UPDATE agents SET name=COALESCE(?,name),type=COALESCE(?,type),status=COALESCE(?,status),contact=COALESCE(?,contact),email=COALESCE(?,email),phone=COALESCE(?,phone),commission_rule_id=COALESCE(?,commission_rule_id),notes=COALESCE(?,notes),updated_at=datetime('now') WHERE id=?`,
+      [name||null, type||null, status||null, contact||null, email||null, phone||null, commission_rule_id||null, notes||null, req.params.id]);
     audit(req, 'UPDATE', 'agents', req.params.id, req.body);
+    res.json({ ok: true });
+  });
+
+  router.delete('/agents/:id', requireRole('principal'), (req, res) => {
+    const agent = db.get('SELECT * FROM agents WHERE id=?', [req.params.id]);
+    if (!agent) return res.status(404).json({ error: '代理不存在' });
+    db.run('DELETE FROM agents WHERE id=?', [req.params.id]);
+    audit(req, 'DELETE', 'agents', req.params.id, { name: agent.name });
     res.json({ ok: true });
   });
 

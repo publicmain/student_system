@@ -110,7 +110,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     if (end) { where.push("created_at <= ?"); params.push(end + 'T23:59:59'); }
     const whereStr = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const safeLimit = Math.min(Math.max(parseInt(limit) || 200, 1), 1000);
-    const rows = db.all(`SELECT al.*, u.username, u.name as user_name FROM audit_logs al LEFT JOIN users u ON u.id=al.user_id ${whereStr} ORDER BY al.created_at DESC LIMIT ${safeLimit}`, params);
+    params.push(safeLimit);
+    const rows = db.all(`SELECT al.*, u.username, u.name as user_name FROM audit_logs al LEFT JOIN users u ON u.id=al.user_id ${whereStr} ORDER BY al.created_at DESC LIMIT ?`, params);
     res.json(rows);
   });
 
@@ -122,7 +123,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     if (start) { where.push("al.created_at >= ?"); params.push(start); }
     if (end) { where.push("al.created_at <= ?"); params.push(end + 'T23:59:59'); }
     const whereStr = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    const rows = db.all(`SELECT al.*, u.username, u.name as user_name FROM audit_logs al LEFT JOIN users u ON u.id=al.user_id ${whereStr} ORDER BY al.created_at DESC LIMIT 5000`, params);
+    params.push(5000);
+    const rows = db.all(`SELECT al.*, u.username, u.name as user_name FROM audit_logs al LEFT JOIN users u ON u.id=al.user_id ${whereStr} ORDER BY al.created_at DESC LIMIT ?`, params);
     const csv = ['时间,操作者,操作,对象类型,对象ID,详情,IP'].concat(
       rows.map(r => [r.created_at, r.user_name||r.username||'', r.action, r.entity||'', r.entity_id||'', JSON.stringify(r.detail||'').replace(/,/g,'，'), r.ip||''].join(','))
     ).join('\n');

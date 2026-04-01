@@ -75,7 +75,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     const viewUrl = `${host}/s/fx/${accessToken}`;
     fxLog(req.params.id, rec.case_id, 'sent', 'admin', req.session.user.name||req.session.user.username, `发送给 ${sname||'—'} (${email||'无邮件'})`, req.ip);
     audit(req, 'FX_SEND', 'file_exchange_records', req.params.id, { email, request_reply: rec.request_reply });
-    res.json({ ok: true, access_token: accessToken, upload_token: uploadToken, view_url: viewUrl });
+    let emailSent = false;
     if (email) {
       const _em1 = brandedEmail(
         `<p style="font-size:15px;color:#333;">顾问老师已向您发送文件：<strong>${escHtml(rec.title)}</strong></p>
@@ -87,11 +87,13 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
         </div>` : ''}`,
         { greeting: `您好 ${escHtml(sname||'同学')}，`, buttonUrl: viewUrl, buttonText: rec.request_reply ? '打开链接上传文件 →' : '查看文件 →', footerExtra: '如有疑问请联系您的顾问老师' }
       );
-      sendMail(email, `文件通知：${rec.title} — ${ic?.student_name||''}`, _em1.html, _em1.attachments
-      ).then(() => {
+      try {
+        await sendMail(email, `文件通知：${rec.title} — ${ic?.student_name||''}`, _em1.html, _em1.attachments);
         fxLog(req.params.id, rec.case_id, 'email_sent', 'system', 'system', `邮件已发送至 ${email}`, null);
-      }).catch(e => { console.error('fx send mail failed:', e.message); });
+        emailSent = true;
+      } catch(e) { console.error('fx send mail failed:', e.message); }
     }
+    res.json({ ok: true, access_token: accessToken, upload_token: uploadToken, view_url: viewUrl, email_sent: emailSent });
     } catch(e) { console.error('fx send error:', e.message); res.status(500).json({ error: e.message }); }
   });
 
@@ -152,7 +154,6 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     const host = `${req.protocol}://${req.get('host')}`;
     const viewUrl = `${host}/s/fx/${rec.access_token}`;
     fxLog(req.params.id, rec.case_id, 'reminded', 'admin', req.session.user.name||req.session.user.username, `催办邮件已发至 ${email}`, req.ip);
-    res.json({ ok: true });
     const _em2 = brandedEmail(
       `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:14px;margin:0 0 16px;">
         <strong style="color:#dc2626;">⏰ 催办提醒</strong>
@@ -161,8 +162,12 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
       </div>`,
       { greeting: `您好 ${escHtml(rec.student_name||'同学')}，`, buttonUrl: viewUrl, buttonText: '打开链接处理 →', footerExtra: '请及时处理，如有疑问请联系顾问老师' }
     );
-    sendMail(email, `【催办】请查看/上传文件：${rec.title}`, _em2.html, _em2.attachments
-    ).catch(e => { console.error('fx remind mail failed:', e.message); });
+    let emailSent = false;
+    try {
+      await sendMail(email, `【催办】请查看/上传文件：${rec.title}`, _em2.html, _em2.attachments);
+      emailSent = true;
+    } catch(e) { console.error('fx remind mail failed:', e.message); }
+    res.json({ ok: true, email_sent: emailSent });
   });
 
   // 管理员下载文件

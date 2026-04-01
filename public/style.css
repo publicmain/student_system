@@ -270,12 +270,13 @@ body {
 .sidebar {
   width: var(--sidebar-width);
   background: var(--sidebar-bg);
-  min-height: calc(100vh - var(--topnav-height));
+  height: calc(100vh - var(--topnav-height));
   position: fixed;
   top: var(--topnav-height);
   left: 0;
   transition: width var(--ease-slow);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   z-index: 900;
   box-shadow: 2px 0 20px rgba(0,0,0,0.18);
 }

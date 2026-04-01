@@ -285,5 +285,147 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     }
   });
 
+  // ═══════════════════════════════════════════════════════════════════
+  //  学生扩展画像 (profile-ext) + 奖项 (awards) + 竞争力 + 趋势
+  // ═══════════════════════════════════════════════════════════════════
+
+  // 权限检查辅助
+  function _checkStudentAccess(req, sid) {
+    const u = req.session.user;
+    if (u.role === 'student' && u.linked_id !== sid) return '无权访问';
+    if (u.role === 'parent') {
+      const sp = db.get('SELECT student_id FROM student_parents WHERE student_id=? AND parent_id=?', [sid, u.linked_id]);
+      if (!sp) return '无权访问';
+    }
+    return null;
+  }
+
+  // ── GET /students/:id/profile-ext ──
+  router.get('/students/:id/profile-ext', requireAuth, (req, res) => {
+    const err = _checkStudentAccess(req, req.params.id);
+    if (err) return res.status(403).json({ error: err });
+    const profile = db.get('SELECT * FROM student_profiles_ext WHERE student_id=?', [req.params.id]);
+    res.json(profile || { student_id: req.params.id });
+  });
+
+  // ── PUT /students/:id/profile-ext ──
+  router.put('/students/:id/profile-ext', requireAuth, requireRole('principal','counselor','mentor'), (req, res) => {
+    const sid = req.params.id;
+    const { mbti, holland_code, academic_interests, career_goals, major_preferences, strengths, weaknesses, notes } = req.body;
+    const existing = db.get('SELECT id FROM student_profiles_ext WHERE student_id=?', [sid]);
+    if (existing) {
+      db.run(`UPDATE student_profiles_ext SET mbti=?, holland_code=?, academic_interests=?, career_goals=?, major_preferences=?, strengths=?, weaknesses=?, notes=?, updated_at=datetime('now') WHERE student_id=?`,
+        [mbti||null, holland_code||null, JSON.stringify(academic_interests||[]), career_goals||null, JSON.stringify(major_preferences||[]), JSON.stringify(strengths||[]), JSON.stringify(weaknesses||[]), notes||null, sid]);
+      audit(req, 'UPDATE', 'student_profiles_ext', existing.id, { mbti, holland_code });
+      res.json({ ok: true, id: existing.id });
+    } else {
+      const id = uuidv4();
+      db.run(`INSERT INTO student_profiles_ext (id, student_id, mbti, holland_code, academic_interests, career_goals, major_preferences, strengths, weaknesses, notes) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        [id, sid, mbti||null, holland_code||null, JSON.stringify(academic_interests||[]), career_goals||null, JSON.stringify(major_preferences||[]), JSON.stringify(strengths||[]), JSON.stringify(weaknesses||[]), notes||null]);
+      audit(req, 'CREATE', 'student_profiles_ext', id, { student_id: sid });
+      res.json({ ok: true, id });
+    }
+  });
+
+  // ── GET /students/:id/awards ──
+  router.get('/students/:id/awards', requireAuth, (req, res) => {
+    const err = _checkStudentAccess(req, req.params.id);
+    if (err) return res.status(403).json({ error: err });
+    res.json(db.all('SELECT * FROM student_awards WHERE student_id=? ORDER BY sort_order, award_date DESC', [req.params.id]));
+  });
+
+  // ── POST /students/:id/awards ──
+  router.post('/students/:id/awards', requireAuth, requireRole('principal','counselor','mentor'), (req, res) => {
+    const { name, category, level, award_date, description, sort_order } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: '奖项名称必填' });
+    const id = uuidv4();
+    db.run(`INSERT INTO student_awards (id, student_id, name, category, level, award_date, description, sort_order) VALUES (?,?,?,?,?,?,?,?)`,
+      [id, req.params.id, name.trim(), category||null, level||null, award_date||null, description||null, sort_order||0]);
+    audit(req, 'CREATE', 'student_awards', id, { name, student_id: req.params.id });
+    res.json({ id });
+  });
+
+  // ── PUT /awards/:id ──
+  router.put('/awards/:id', requireAuth, requireRole('principal','counselor','mentor'), (req, res) => {
+    const award = db.get('SELECT * FROM student_awards WHERE id=?', [req.params.id]);
+    if (!award) return res.status(404).json({ error: '奖项不存在' });
+    const { name, category, level, award_date, description, sort_order } = req.body;
+    db.run(`UPDATE student_awards SET name=?, category=?, level=?, award_date=?, description=?, sort_order=?, updated_at=datetime('now') WHERE id=?`,
+      [name||award.name, category??award.category, level??award.level, award_date??award.award_date, description??award.description, sort_order??award.sort_order, req.params.id]);
+    audit(req, 'UPDATE', 'student_awards', req.params.id, { name });
+    res.json({ ok: true });
+  });
+
+  // ── DELETE /awards/:id ──
+  router.delete('/awards/:id', requireAuth, requireRole('principal','counselor'), (req, res) => {
+    const award = db.get('SELECT * FROM student_awards WHERE id=?', [req.params.id]);
+    if (!award) return res.status(404).json({ error: '奖项不存在' });
+    db.run('DELETE FROM student_awards WHERE id=?', [req.params.id]);
+    audit(req, 'DELETE', 'student_awards', req.params.id, { name: award.name });
+    res.json({ ok: true });
+  });
+
+  // ── GET /students/:id/competitiveness ──
+  router.get('/students/:id/competitiveness', requireAuth, (req, res) => {
+    const err = _checkStudentAccess(req, req.params.id);
+    if (err) return res.status(403).json({ error: err });
+    const sid = req.params.id;
+
+    // 学术: 基于 exam_sittings 的预估/实际成绩
+    const exams = db.all('SELECT predicted_grade, actual_grade FROM exam_sittings WHERE student_id=?', [sid]);
+    const gradeRank = { 'A*': 100, 'A': 90, 'B': 75, 'C': 60, 'D': 45, 'E': 30, 'U': 10 };
+    let academicScore = 0;
+    if (exams.length) {
+      const grades = exams.map(e => gradeRank[(e.actual_grade || e.predicted_grade || '').toUpperCase()] || 0);
+      academicScore = Math.round(grades.reduce((a,b)=>a+b,0) / grades.length);
+    }
+
+    // 标化: 基于 admission_assessments
+    const assessments = db.all('SELECT score, max_score FROM admission_assessments WHERE student_id=?', [sid]);
+    let testScore = 0;
+    if (assessments.length) {
+      const pcts = assessments.filter(a => a.max_score > 0).map(a => (a.score / a.max_score) * 100);
+      testScore = pcts.length ? Math.round(pcts.reduce((a,b)=>a+b,0) / pcts.length) : 0;
+    }
+
+    // 活动: 数量 + 影响力
+    const activities = db.all('SELECT impact_level FROM student_activities WHERE student_id=?', [sid]);
+    const impactWeight = { international: 100, national: 80, province: 60, city: 40, school: 20 };
+    let activityScore = 0;
+    if (activities.length) {
+      const impactScores = activities.map(a => impactWeight[a.impact_level] || 20);
+      activityScore = Math.min(100, Math.round(impactScores.reduce((a,b)=>a+b,0) / Math.max(activities.length, 1) * (Math.min(activities.length, 10) / 10)));
+    }
+
+    // 领导力: 有 leadership 角色的活动
+    const leadership = db.all("SELECT id FROM student_activities WHERE student_id=? AND (category='club_leadership' OR role LIKE '%leader%' OR role LIKE '%president%' OR role LIKE '%captain%' OR role LIKE '%founder%' OR role LIKE '%主席%' OR role LIKE '%社长%' OR role LIKE '%队长%' OR role LIKE '%创始%')", [sid]);
+    const leadershipScore = Math.min(100, leadership.length * 25);
+
+    // 文书: 基于 essays 的完成率
+    const essays = db.all('SELECT status FROM essays WHERE student_id=?', [sid]);
+    const essayDone = essays.filter(e => ['final','submitted'].includes(e.status)).length;
+    const essayScore = essays.length ? Math.round((essayDone / essays.length) * 100) : 0;
+
+    const overall = Math.round((academicScore * 0.3 + testScore * 0.25 + activityScore * 0.2 + leadershipScore * 0.1 + essayScore * 0.15));
+
+    res.json({
+      academics: academicScore,
+      tests: testScore,
+      activities: activityScore,
+      leadership: leadershipScore,
+      essays: essayScore,
+      overall,
+      detail: { exam_count: exams.length, assessment_count: assessments.length, activity_count: activities.length, leadership_count: leadership.length, essay_count: essays.length, essay_done: essayDone }
+    });
+  });
+
+  // ── GET /students/:id/grade-trends ──
+  router.get('/students/:id/grade-trends', requireAuth, (req, res) => {
+    const err = _checkStudentAccess(req, req.params.id);
+    if (err) return res.status(403).json({ error: err });
+    const rows = db.all('SELECT subject, series, year, predicted_grade, actual_grade, ums_score FROM exam_sittings WHERE student_id=? ORDER BY year, series', [req.params.id]);
+    res.json(rows);
+  });
+
   return router;
 };

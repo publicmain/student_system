@@ -25,8 +25,9 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     const arId = uuidv4();
     try {
       db.transaction((runInTx) => {
-        runInTx(`INSERT INTO intake_cases (id,student_id,student_name,intake_year,program_name,status,case_owner_staff_id,referral_id,notes) VALUES (?,?,?,?,?,?,?,?,?)`,
-          [id, null, student_name.trim(), intake_year, program_name, 'registered', case_owner_staff_id||null, referral_id||null, notes||null]);
+        const now = new Date().toISOString();
+        runInTx(`INSERT INTO intake_cases (id,student_id,student_name,intake_year,program_name,status,case_owner_staff_id,referral_id,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+          [id, null, student_name.trim(), intake_year, program_name, 'registered', case_owner_staff_id||null, referral_id||null, notes||null, now, now]);
         runInTx(`INSERT INTO visa_cases (id,case_id,status) VALUES (?,?,?)`, [vcId, id, 'not_started']);
         runInTx(`INSERT INTO arrival_records (id,case_id) VALUES (?,?)`, [arId, id]);
       });

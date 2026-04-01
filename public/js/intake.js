@@ -269,6 +269,8 @@ async function renderIntakeCases(params = {}) {
   try {
     const qs = params.student_id ? `?student_id=${encodeURIComponent(params.student_id)}` : '';
     cases = await api('GET', '/api/intake-cases' + qs);
+    // 确保最新创建的排在前面
+    cases.sort((a, b) => (b.created_at||'').localeCompare(a.created_at||''));
   } catch(e) {
     main.innerHTML = `<div class="alert alert-danger m-4">案例数据加载失败: ${escapeHtml(e.message)}</div>`;
     return;
@@ -1003,8 +1005,6 @@ async function submitCreateIntake() {
     const newCase = await api('POST', '/api/intake-cases', { student_name: studentName, intake_year, program_name, notes, referral_id, case_owner_staff_id: State.user?.linked_id || null });
     bootstrap.Modal.getOrCreateInstance(document.getElementById('createIntakeModal')).hide();
     showSuccess('案例已创建');
-    // 重置筛选器为"全部"，确保新案例可见
-    _intakeFilter = 'all';
     await renderIntakeCases();
     if (newCase?.id) showCaseDetail(newCase.id);
   } catch(e) { showError(e.message); }

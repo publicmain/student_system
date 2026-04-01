@@ -2823,7 +2823,7 @@ function deleteStudent(id, name) {
 
 function deleteTask(id, studentId) {
   const lockKey = `deleteTask_${id}`;
-  confirmAction('确定删除此任务？', async () => {
+  confirmAction('确定删除此任务？删除后不可恢复。', async () => {
     if (!acquireSubmit(lockKey)) return;
     try {
       await DEL(`/api/tasks/${id}`);
@@ -2873,7 +2873,7 @@ function deleteTarget(id, studentId) {
 }
 
 function removeMentor(id, studentId) {
-  confirmAction('确定解除此导师分配？', async () => {
+  confirmAction('确定解除此导师分配？解除后该导师将不再负责此学生。', async () => {
     try {
       await DEL(`/api/students/${studentId}/mentors/${id}`);
       showSuccess('导师分配已解除');
@@ -4891,7 +4891,7 @@ async function addAnchorEvent() {
 }
 
 async function deleteAnchorEvent(id) {
-  confirmAction('确定删除此锚点事件？', async () => {
+  confirmAction('确定删除此锚点事件？相关联的任务不会被删除。', async () => {
     try {
       await DEL(`/api/anchor-events/${id}`);
       showSuccess('已删除');
@@ -5444,6 +5444,12 @@ async function saveUniProgram() {
     hist_avg_grade: document.getElementById('up-hist-avg-grade').value.trim() || null,
   };
   if (!body.uni_name || !body.program_name) { releaseSubmit('saveUniProgram'); showError('院校名和专业名必填'); return; }
+  const upWSum = body.weight_academic + body.weight_language + body.weight_extra;
+  if (upWSum < 0.95 || upWSum > 1.05) {
+    releaseSubmit('saveUniProgram');
+    showError(`权重之和为 ${upWSum.toFixed(2)}，须在 0.95-1.05 之间`);
+    return;
+  }
   try {
     if (id) { await PUT(`/api/uni-programs/${id}`, body); }
     else { await POST('/api/uni-programs', body); }
@@ -5909,10 +5915,53 @@ function openBenchmarkModal(bm) {
   document.getElementById('bm-w-language').value = bm?.weight_language ?? 0.25;
   document.getElementById('bm-w-extra').value = bm?.weight_extra ?? 0.15;
   document.getElementById('bm-pass-rate').value = bm?.benchmark_pass_rate || '';
-  document.getElementById('bm-grade-requirements').value = bm?.grade_requirements || '[]';
-  document.getElementById('bm-extra-tests').value = bm?.extra_tests || '[]';
+  document.getElementById('bm-grade-req-rows').innerHTML = '';
+  document.getElementById('bm-extra-test-rows').innerHTML = '';
+  try { const gradeReqs = JSON.parse(bm?.grade_requirements || '[]'); gradeReqs.forEach(r => addBmGradeRow(r)); } catch(e) {}
+  try { const extraTests = JSON.parse(bm?.extra_tests || '[]'); extraTests.forEach(r => addBmExtraTestRow(r)); } catch(e) {}
   document.getElementById('bm-notes').value = bm?.notes || '';
   bootstrap.Modal.getOrCreateInstance(document.getElementById('benchmark-modal')).show();
+}
+
+function addBmGradeRow(data) {
+  const container = document.getElementById('bm-grade-req-rows');
+  const d = data || {};
+  const row = document.createElement('div');
+  row.className = 'row g-2 mb-2 align-items-end';
+  row.innerHTML = `
+    <div class="col-4"><input class="form-control form-control-sm" placeholder="科目" value="${escapeHtml(d.subject||'')}"></div>
+    <div class="col-2"><input class="form-control form-control-sm" placeholder="最低成绩" value="${escapeHtml(d.min_grade||'')}"></div>
+    <div class="col-2"><select class="form-select form-select-sm"><option value="true" ${d.required!==false?'selected':''}>必修</option><option value="false" ${d.required===false?'selected':''}>选修</option></select></div>
+    <div class="col-3"><input class="form-control form-control-sm" placeholder="备注" value="${escapeHtml(d.notes||'')}"></div>
+    <div class="col-1"><button class="btn btn-sm btn-outline-danger py-0" onclick="this.closest('.row').remove()"><i class="bi bi-x"></i></button></div>`;
+  container.appendChild(row);
+}
+function addBmExtraTestRow(data) {
+  const container = document.getElementById('bm-extra-test-rows');
+  const d = data || {};
+  const row = document.createElement('div');
+  row.className = 'row g-2 mb-2 align-items-end';
+  row.innerHTML = `
+    <div class="col-3"><input class="form-control form-control-sm" placeholder="考试名称" value="${escapeHtml(d.test||'')}"></div>
+    <div class="col-2"><select class="form-select form-select-sm"><option value="true" ${d.required!==false?'selected':''}>必须</option><option value="false" ${d.required===false?'selected':''}>可选</option></select></div>
+    <div class="col-3"><input class="form-control form-control-sm" type="number" placeholder="最低分数" value="${d.min_score||''}"></div>
+    <div class="col-3"><input class="form-control form-control-sm" placeholder="备注" value="${escapeHtml(d.notes||'')}"></div>
+    <div class="col-1"><button class="btn btn-sm btn-outline-danger py-0" onclick="this.closest('.row').remove()"><i class="bi bi-x"></i></button></div>`;
+  container.appendChild(row);
+}
+function collectBmGradeRows() {
+  const rows = document.querySelectorAll('#bm-grade-req-rows .row');
+  return Array.from(rows).map(r => {
+    const inputs = r.querySelectorAll('input, select');
+    return { subject: inputs[0].value.trim(), min_grade: inputs[1].value.trim(), required: inputs[2].value === 'true', notes: inputs[3].value.trim() };
+  }).filter(r => r.subject);
+}
+function collectBmExtraTestRows() {
+  const rows = document.querySelectorAll('#bm-extra-test-rows .row');
+  return Array.from(rows).map(r => {
+    const inputs = r.querySelectorAll('input, select');
+    return { test: inputs[0].value.trim(), required: inputs[1].value === 'true', min_score: parseInt(inputs[2].value) || null, notes: inputs[3].value.trim() };
+  }).filter(r => r.test);
 }
 
 async function saveBenchmark() {
@@ -5923,10 +5972,15 @@ async function saveBenchmark() {
   const subject_area = document.getElementById('bm-subject-area').value;
   if (!country || !tier || !subject_area) { releaseSubmit('saveBenchmark'); showError('请选择地区、梯度和专业领域'); return; }
 
-  // Validate JSON fields
-  for (const fieldId of ['bm-grade-requirements', 'bm-extra-tests']) {
-    try { JSON.parse(document.getElementById(fieldId).value || '[]'); }
-    catch(e) { releaseSubmit('saveBenchmark'); showError(`${fieldId === 'bm-grade-requirements' ? '成绩要求' : '附加考试'}JSON格式错误: ${e.message}`); return; }
+  // Weight sum validation
+  const wAcademic = parseFloat(document.getElementById('bm-w-academic').value) || 0;
+  const wLanguage = parseFloat(document.getElementById('bm-w-language').value) || 0;
+  const wExtra = parseFloat(document.getElementById('bm-w-extra').value) || 0;
+  const wSum = wAcademic + wLanguage + wExtra;
+  if (wSum < 0.95 || wSum > 1.05) {
+    releaseSubmit('saveBenchmark');
+    showError(`权重之和为 ${wSum.toFixed(2)}，须在 0.95-1.05 之间`);
+    return;
   }
 
   const display_name = document.getElementById('bm-display-name').value.trim() ||
@@ -5941,8 +5995,8 @@ async function saveBenchmark() {
     weight_language: parseFloat(document.getElementById('bm-w-language').value) || 0.25,
     weight_extra: parseFloat(document.getElementById('bm-w-extra').value) || 0.15,
     benchmark_pass_rate: parseFloat(document.getElementById('bm-pass-rate').value) || null,
-    grade_requirements: document.getElementById('bm-grade-requirements').value || '[]',
-    extra_tests: document.getElementById('bm-extra-tests').value || '[]',
+    grade_requirements: JSON.stringify(collectBmGradeRows()),
+    extra_tests: JSON.stringify(collectBmExtraTestRows()),
     notes: document.getElementById('bm-notes').value.trim()
   };
 

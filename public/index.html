@@ -119,9 +119,6 @@
         <a href="#" class="nav-item" data-page="admission-programs" data-roles="principal,counselor">
           <i class="bi bi-mortarboard-fill"></i><span>录取评估库</span>
         </a>
-        <a href="#" class="nav-item" data-page="settings" data-roles="principal,counselor">
-          <i class="bi bi-gear"></i><span>系统设置</span>
-        </a>
 
         <div class="nav-section-title mt-3" data-section-roles="principal,intake_staff,student_admin">入学管理</div>
 
@@ -142,6 +139,9 @@
         </a>
         <a href="#" class="nav-item" data-page="audit" data-roles="principal">
           <i class="bi bi-clock-history"></i><span>操作审计</span>
+        </a>
+        <a href="#" class="nav-item" data-page="settings" data-roles="principal,counselor">
+          <i class="bi bi-gear"></i><span>系统设置</span>
         </a>
 
       </nav>
@@ -212,10 +212,13 @@
           <div class="col-md-3">
             <label class="form-label">考试局</label>
             <select class="form-select" id="s-board">
-              <option value="Edexcel">Edexcel</option>
-              <option value="CIE">CIE / Cambridge</option>
-              <option value="A-Level">A-Level (英国本土)</option>
               <option value="">未指定</option>
+              <option value="CIE">CIE / Cambridge</option>
+              <option value="Edexcel">Edexcel</option>
+              <option value="OCR">OCR</option>
+              <option value="AQA">AQA</option>
+              <option value="IB">IB</option>
+              <option value="其他">其他</option>
             </select>
           </div>
           <div class="col-md-4">
@@ -1435,15 +1438,14 @@
             <input type="number" class="form-control" id="bm-pass-rate" step="0.01" min="0" max="1" placeholder="如 0.22">
           </div>
           <div class="col-12">
-            <label class="form-label fw-semibold">成绩要求 (JSON 数组)</label>
-            <textarea class="form-control font-monospace" id="bm-grade-requirements" rows="5"
-              placeholder='[{"subject":"Mathematics","min_grade":"A","required":true,"notes":"必修"}]'></textarea>
-            <div class="form-text">每项含 subject / min_grade / required / notes</div>
+            <label class="form-label fw-semibold">成绩要求</label>
+            <div id="bm-grade-req-rows"></div>
+            <button type="button" class="btn btn-sm btn-outline-primary mt-1" onclick="addBmGradeRow()"><i class="bi bi-plus-lg me-1"></i>添加科目要求</button>
           </div>
           <div class="col-12">
-            <label class="form-label fw-semibold">附加考试要求 (JSON 数组，可为 [])</label>
-            <textarea class="form-control font-monospace" id="bm-extra-tests" rows="3"
-              placeholder='[{"test":"UCAT","required":true,"min_score":2700,"notes":""}]'></textarea>
+            <label class="form-label fw-semibold">附加考试要求</label>
+            <div id="bm-extra-test-rows"></div>
+            <button type="button" class="btn btn-sm btn-outline-secondary mt-1" onclick="addBmExtraTestRow()"><i class="bi bi-plus-lg me-1"></i>添加考试要求</button>
           </div>
           <div class="col-12">
             <label class="form-label fw-semibold">备注</label>

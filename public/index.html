@@ -84,7 +84,7 @@
     <!-- 侧边栏 -->
     <aside id="sidebar" class="sidebar">
       <nav class="sidebar-nav">
-        <div class="nav-section-title">主导航</div>
+        <div class="nav-section-title" data-section-roles="principal,counselor,mentor,student,parent">工作台</div>
 
         <a href="#" class="nav-item" data-page="dashboard" data-roles="principal,counselor">
           <i class="bi bi-speedometer2"></i><span>总览仪表盘</span>
@@ -102,36 +102,28 @@
           <i class="bi bi-people-fill"></i><span>家长门户</span>
         </a>
 
-        <div class="nav-section-title mt-3">管理</div>
+        <div class="nav-section-title mt-3" data-section-roles="principal,counselor,mentor,intake_staff">学生与教学</div>
 
-        <a href="#" class="nav-item" data-page="students" data-roles="principal,counselor,mentor">
+        <a href="#" class="nav-item" data-page="students" data-roles="principal,counselor,mentor,intake_staff">
           <i class="bi bi-person-vcard"></i><span>学生管理</span>
         </a>
         <a href="#" class="nav-item" data-page="staff" data-roles="principal,counselor">
           <i class="bi bi-people"></i><span>师资管理</span>
         </a>
-        <!-- 材料看板已整合到入学案例详情 -->
-        <!-- intake_staff 专用快捷入口（在管理分区显示学生列表供查询） -->
-        <a href="#" class="nav-item" data-page="students" data-roles="intake_staff">
-          <i class="bi bi-person-vcard"></i><span>学生查询</span>
-        </a>
         <a href="#" class="nav-item" data-page="feedback-list" data-roles="principal,counselor">
           <i class="bi bi-chat-dots"></i><span>反馈管理</span>
         </a>
+
+        <div class="nav-section-title mt-3" data-section-roles="principal,counselor">升学规划</div>
+
         <a href="#" class="nav-item" data-page="admission-programs" data-roles="principal,counselor">
           <i class="bi bi-mortarboard-fill"></i><span>录取评估库</span>
-        </a>
-        <a href="#" class="nav-item" data-page="analytics" data-roles="principal,counselor">
-          <i class="bi bi-bar-chart-line-fill"></i><span>数据分析</span>
-        </a>
-        <a href="#" class="nav-item" data-page="audit" data-roles="principal">
-          <i class="bi bi-clock-history"></i><span>操作审计</span>
         </a>
         <a href="#" class="nav-item" data-page="settings" data-roles="principal,counselor">
           <i class="bi bi-gear"></i><span>系统设置</span>
         </a>
 
-        <div class="nav-section-title mt-3">入学管理</div>
+        <div class="nav-section-title mt-3" data-section-roles="principal,intake_staff,student_admin">入学管理</div>
 
         <a href="#" class="nav-item" data-page="intake-dashboard" data-roles="principal,intake_staff,student_admin">
           <i class="bi bi-house-door"></i><span>入学总览</span>
@@ -139,9 +131,17 @@
         <a href="#" class="nav-item" data-page="intake-cases" data-roles="principal,intake_staff,student_admin">
           <i class="bi bi-person-lines-fill"></i><span>入学案例</span>
         </a>
-
         <a href="#" class="nav-item" data-page="mat-companies" data-roles="principal,intake_staff">
           <i class="bi bi-building"></i><span>中介公司</span>
+        </a>
+
+        <div class="nav-section-title mt-3" data-section-roles="principal">系统</div>
+
+        <a href="#" class="nav-item" data-page="analytics" data-roles="principal">
+          <i class="bi bi-bar-chart-line-fill"></i><span>数据分析</span>
+        </a>
+        <a href="#" class="nav-item" data-page="audit" data-roles="principal">
+          <i class="bi bi-clock-history"></i><span>操作审计</span>
         </a>
 
       </nav>

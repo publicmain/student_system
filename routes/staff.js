@@ -53,6 +53,18 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, bcrypt,
     res.json({ ok: true });
   });
 
+  router.post('/staff/:id/reset-password', requireRole('principal'), (req, res) => {
+    const staff = db.get('SELECT * FROM staff WHERE id=?', [req.params.id]);
+    if (!staff) return res.status(404).json({ error: '教职工不存在' });
+    const user = db.get('SELECT * FROM users WHERE linked_id=?', [req.params.id]);
+    if (!user) return res.status(404).json({ error: '该教职工没有关联的登录账号' });
+    const newPassword = '123456';
+    const pw = bcrypt.hashSync(newPassword, BCRYPT_COST);
+    db.run('UPDATE users SET password=?, must_change_password=1 WHERE id=?', [pw, user.id]);
+    audit(req, 'RESET_PASSWORD', 'staff', req.params.id, { name: staff.name });
+    res.json({ username: user.username, new_password: newPassword, message: '密码已重置为初始密码，该员工下次登录时将被要求修改密码' });
+  });
+
   router.post('/staff/:id/credentials', requireRole('principal','counselor'), (req, res) => {
     const { credential_type, issuer, issue_date, valid_until, description } = req.body;
     const cid = uuidv4();

@@ -1744,6 +1744,10 @@ async function renderStaffList() {
                 </div>
                 ${s.capacity_students ? `<div class="progress" style="height:6px"><div class="progress-bar bg-${cls}" style="width:${pct}%"></div></div>` : ''}
               </div>
+              ${hasRole('principal') ? `<div class="mt-3 d-flex gap-2">
+                <button class="btn btn-outline-primary btn-sm" onclick="openStaffModal('${escapeHtml(s.id)}')"><i class="bi bi-pencil me-1"></i>编辑</button>
+                <button class="btn btn-outline-warning btn-sm" onclick="resetStaffPassword('${escapeHtml(s.id)}', '${escapeHtml(s.name)}')"><i class="bi bi-key me-1"></i>重置密码</button>
+              </div>` : ''}
             </div>
           </div>
         </div>`;
@@ -1880,7 +1884,7 @@ async function openStudentModal(id = null) {
   bootstrap.Modal.getOrCreateInstance(document.getElementById('student-modal')).show();
 }
 
-function openStaffModal() {
+async function openStaffModal(editId) {
   document.getElementById('st-id').value = '';
   document.getElementById('st-name').value = '';
   document.getElementById('st-email').value = '';
@@ -1888,6 +1892,35 @@ function openStaffModal() {
   document.getElementById('st-subjects').value = '';
   document.getElementById('st-capacity').value = '20';
   ['eb-edexcel','eb-cie','eb-alevel'].forEach(id => document.getElementById(id).checked = false);
+
+  if (editId) {
+    try {
+      const data = await GET(`/api/staff/${editId}`);
+      const s = data.staff;
+      document.getElementById('st-id').value = s.id;
+      document.getElementById('st-name').value = s.name || '';
+      document.getElementById('st-role').value = s.role || 'counselor';
+      document.getElementById('st-email').value = s.email || '';
+      document.getElementById('st-phone').value = s.phone || '';
+      let subjects = [];
+      try { subjects = JSON.parse(s.subjects || '[]'); } catch(e) {}
+      document.getElementById('st-subjects').value = subjects.join(', ');
+      document.getElementById('st-capacity').value = s.capacity_students || 20;
+      let boards = [];
+      try { boards = JSON.parse(s.exam_board_exp || '[]'); } catch(e) {}
+      document.getElementById('eb-edexcel').checked = boards.includes('Edexcel');
+      document.getElementById('eb-cie').checked = boards.includes('CIE');
+      document.getElementById('eb-alevel').checked = boards.includes('A-Level');
+      document.getElementById('staff-modal-title').textContent = '编辑教职工';
+      document.getElementById('save-staff-btn').textContent = '保存修改';
+    } catch(e) {
+      showError('加载教职工信息失败：' + e.message);
+      return;
+    }
+  } else {
+    document.getElementById('staff-modal-title').textContent = '新增教职工';
+    document.getElementById('save-staff-btn').textContent = '保存（自动创建账号）';
+  }
   bootstrap.Modal.getOrCreateInstance(document.getElementById('staff-modal')).show();
 }
 
@@ -2433,13 +2466,22 @@ async function saveStaff() {
     subjects,
     capacity_students: parseInt(document.getElementById('st-capacity').value) || 20,
   };
+  const editId = document.getElementById('st-id').value;
   try {
-    const res = await POST('/api/staff', body);
-    bootstrap.Modal.getInstance(document.getElementById('staff-modal')).hide();
-    State.staffList = [];
-    navigate('staff');
-    // Show credentials in a dedicated modal rather than a fleeting toast
-    setTimeout(() => showStaffCredentials(res.username, res.default_password), 300);
+    if (editId) {
+      await PUT(`/api/staff/${editId}`, body);
+      bootstrap.Modal.getInstance(document.getElementById('staff-modal')).hide();
+      State.staffList = [];
+      navigate('staff');
+      showToast('教职工信息已更新', 'success');
+    } else {
+      const res = await POST('/api/staff', body);
+      bootstrap.Modal.getInstance(document.getElementById('staff-modal')).hide();
+      State.staffList = [];
+      navigate('staff');
+      // Show credentials in a dedicated modal rather than a fleeting toast
+      setTimeout(() => showStaffCredentials(res.username, res.default_password), 300);
+    }
   } catch(e) { showError(e.message); }
   finally { releaseSubmit('saveStaff'); }
 }
@@ -2488,6 +2530,17 @@ function showStaffCredentials(username, password) {
   document.body.appendChild(div);
   new bootstrap.Modal(div).show();
   div.addEventListener('hidden.bs.modal', () => div.remove());
+}
+
+function resetStaffPassword(staffId, staffName) {
+  confirmAction(`确定要重置 "${staffName}" 的登录密码？重置后密码将变为初始密码，该员工下次登录时需重新设置。`, async () => {
+    try {
+      const res = await POST(`/api/staff/${staffId}/reset-password`, {});
+      showStaffCredentials(res.username, res.new_password);
+    } catch(e) {
+      showError('重置密码失败：' + e.message);
+    }
+  });
 }
 
 async function saveTask() {
@@ -6106,6 +6159,7 @@ async function _bmSelectSubject(code) {
           </button>
         </div>
       </div>`;
+    document.querySelectorAll('#bm-subject-btns button').forEach(b => b.disabled = false);
   } catch(e) {
     resultEl.innerHTML = `<div class="alert alert-danger small py-2">${escapeHtml(e.message)}</div>`;
     document.querySelectorAll('#bm-subject-btns button').forEach(b => b.disabled = false);

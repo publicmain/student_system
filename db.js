@@ -16,8 +16,19 @@ let db = null;
 async function init() {
   const SQL = await initSqlJs();
   if (fs.existsSync(DB_PATH)) {
-    const buf = fs.readFileSync(DB_PATH);
-    db = new SQL.Database(buf);
+    try {
+      const buf = fs.readFileSync(DB_PATH);
+      db = new SQL.Database(buf);
+      // 校验数据库完整性
+      db.run('SELECT 1 FROM sqlite_master LIMIT 1');
+    } catch(e) {
+      console.error(`[DB] 数据库文件损坏: ${e.message}`);
+      // 备份损坏文件
+      const backupPath = DB_PATH + '.corrupt.' + Date.now();
+      try { fs.copyFileSync(DB_PATH, backupPath); console.log(`[DB] 损坏文件已备份到: ${backupPath}`); } catch(be) {}
+      console.log('[DB] 正在创建新的空数据库...');
+      db = new SQL.Database();
+    }
   } else {
     db = new SQL.Database();
   }

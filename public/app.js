@@ -828,18 +828,24 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
       </div>
     </div>
 
-    <!-- Tabs -->
+    <!-- Tabs: 主要 + 更多 -->
     <ul class="nav nav-tabs mb-3" id="student-tabs">
       <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-overview">概览</a></li>
-      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-timeline">时间线任务 <span class="badge bg-warning text-dark ms-1">${tasks.filter(t=>t.status!=='done').length}</span></a></li>
-      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-apps">申请管理 <span class="badge bg-primary ms-1">${applications.length}</span></a></li>
-      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-materials">材料状态 <span class="badge bg-info ms-1">${materials.length}</span></a></li>
-      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-ps">个人陈述</a></li>
-      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-comms">沟通记录 <span class="badge bg-secondary ms-1">${comms.length}</span></a></li>
-      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-feedback">反馈 <span class="badge bg-secondary ms-1">${feedback.length}</span></a></li>
-      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-exams">考试记录</a></li>
-      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-admission-eval">录取评估</a></li>
-      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-ai-plan">AI 规划 <i class="bi bi-stars text-warning ms-1"></i></a></li>
+      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-timeline">任务 ${tasks.filter(t=>t.status!=='done').length?`<span class="badge bg-warning text-dark ms-1">${tasks.filter(t=>t.status!=='done').length}</span>`:''}</a></li>
+      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-apps">申请 ${applications.length?`<span class="badge bg-primary ms-1">${applications.length}</span>`:''}</a></li>
+      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-materials">材料 ${materials.length?`<span class="badge bg-info ms-1">${materials.length}</span>`:''}</a></li>
+      <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button">更多</a>
+        <ul class="dropdown-menu">
+          <li><a class="dropdown-item" data-bs-toggle="tab" href="#tab-ps">个人陈述</a></li>
+          <li><a class="dropdown-item" data-bs-toggle="tab" href="#tab-comms">沟通记录 ${comms.length?`(${comms.length})`:''}</a></li>
+          <li><a class="dropdown-item" data-bs-toggle="tab" href="#tab-feedback">反馈 ${feedback.length?`(${feedback.length})`:''}</a></li>
+          <li><a class="dropdown-item" data-bs-toggle="tab" href="#tab-exams">考试记录</a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item" data-bs-toggle="tab" href="#tab-admission-eval">录取评估</a></li>
+          <li><a class="dropdown-item" data-bs-toggle="tab" href="#tab-ai-plan">AI 规划</a></li>
+        </ul>
+      </li>
     </ul>
 
     <div class="tab-content" id="student-tab-content">
@@ -3066,7 +3072,8 @@ function _setupSessionWarning() {
 //  PDF 导出
 // ════════════════════════════════════════════════════════
 function exportPDF() {
-  window.print();
+  showToast('正在打开打印预览...', 'info');
+  setTimeout(() => window.print(), 200);
 }
 
 // 在 page-header 右侧注入 PDF 按钮（通用）
@@ -4555,8 +4562,19 @@ async function renderAnalytics() {
     // Server returns: { admissionRate, taskStats, counselorKPI, templateEff, routeStats }
     const d = await GET('/api/analytics/overview');
 
-    // Derive aggregated task totals from taskStats array
+    // 检查是否有数据
     const taskStats = d.taskStats || [];
+    const hasAnyData = taskStats.length > 0 || (d.routeStats||[]).length > 0 || (d.counselorKPI||[]).length > 0;
+    if (!hasAnyData) {
+      mc.innerHTML = `
+        <div class="page-header mb-3"><h4><i class="bi bi-bar-chart-line-fill me-2"></i>数据分析</h4></div>
+        <div class="text-center py-5">
+          <i class="bi bi-bar-chart" style="font-size:3rem;color:#cbd5e1"></i>
+          <h5 class="mt-3 text-muted">暂无足够数据</h5>
+          <p class="text-muted">系统需要更多学生、任务和申请数据才能生成分析报告。<br>请先在「学生管理」中添加学生并创建任务和申请。</p>
+        </div>`;
+      return;
+    }
     const totalTasks = taskStats.reduce((s, r) => s + (r.total||0), 0);
     const doneTasks  = taskStats.reduce((s, r) => s + (r.done||0), 0);
     const overdueTasks = taskStats.reduce((s, r) => s + (r.overdue||0), 0);
@@ -4823,6 +4841,7 @@ function exportAuditCSV() {
   if (entity) params.set('entity_type', entity);
   if (from) params.set('start', from);
   if (to) params.set('end', to);
+  showToast('正在导出 CSV...', 'info');
   window.open('/api/audit/export?' + params.toString(), '_blank');
 }
 

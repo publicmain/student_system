@@ -253,71 +253,131 @@ async function renderCounselorWorkbench() {
       </button>
     </div>
 
-    <div class="row g-3">
-      <!-- 学生列表 -->
-      <div class="col-md-8">
-        <div class="card">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <span class="fw-semibold"><i class="bi bi-person-vcard me-1 text-primary"></i> 学生列表</span>
-            <div class="d-flex gap-2">
-              <input class="form-control form-control-sm" id="student-search" placeholder="搜索姓名..." style="width:150px">
-              <select class="form-select form-select-sm" id="grade-filter" style="width:120px">
-                <option value="">全部年级</option>
-                <option value="G9">G9</option><option value="G10">G10</option>
-                <option value="G11">G11</option><option value="G12">G12</option><option value="G13">G13</option>
-                <option value="Year 9">Year 9</option><option value="Year 10">Year 10</option>
-                <option value="Year 11">Year 11</option><option value="Year 12">Year 12</option><option value="Year 13">Year 13</option>
-                <option value="其他">其他</option>
-              </select>
-            </div>
-          </div>
-          <div class="card-body p-0" id="counselor-student-list">
-            ${renderStudentTable(students)}
-          </div>
+    <div class="md-layout" style="height:calc(100vh - 140px)">
+      <!-- 左侧学生列表 -->
+      <div class="md-list">
+        <div class="md-list-header">
+          <input class="form-control form-control-sm" id="student-search" placeholder="搜索姓名...">
+          <select class="form-select form-select-sm mt-2" id="grade-filter">
+            <option value="">全部年级</option>
+            <option value="G9">G9</option><option value="G10">G10</option>
+            <option value="G11">G11</option><option value="G12">G12</option><option value="G13">G13</option>
+            <option value="Year 9">Year 9</option><option value="Year 10">Year 10</option>
+            <option value="Year 11">Year 11</option><option value="Year 12">Year 12</option><option value="Year 13">Year 13</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+        <div class="md-list-body" id="counselor-student-list">
+          ${renderCounselorStudentItems(students)}
         </div>
       </div>
 
-      <!-- 右侧面板 -->
-      <div class="col-md-4">
-        <!-- 待处理反馈 -->
-        <div class="card mb-3">
-          <div class="card-header fw-semibold">
-            <i class="bi bi-chat-dots me-1 text-warning"></i> 待处理反馈
-            <span class="badge bg-warning text-dark ms-1">${feedback.length}</span>
-          </div>
-          <div class="card-body p-0">
-            ${feedback.length === 0 ? '<div class="empty-state-block" style="padding:1.5rem"><i class="bi bi-chat-dots"></i><p>暂无待处理反馈</p></div>' :
-            feedback.slice(0,5).map(f => `
-              <div class="border-bottom p-2">
-                <div class="d-flex justify-content-between">
-                  <span class="small fw-semibold">${escapeHtml(f.student_name)}</span>
-                  <span class="badge bg-secondary" style="font-size:10px">${escapeHtml(f.feedback_type)}</span>
+      <!-- 右侧详情面板 -->
+      <div class="md-detail" id="counselor-detail">
+        <div class="md-empty-detail">
+          <i class="bi bi-person-vcard" style="font-size:2.5rem;opacity:.3"></i>
+          <p class="text-muted mt-2">选择左侧学生查看详情</p>
+          <div class="row g-3 w-100 mt-3" style="max-width:500px">
+            <div class="col-6">
+              <div class="card">
+                <div class="card-header fw-semibold small py-2"><i class="bi bi-chat-dots me-1 text-warning"></i>待处理反馈 <span class="badge badge-soft-warning ms-1">${feedback.length}</span></div>
+                <div class="card-body p-0" style="max-height:200px;overflow-y:auto">
+                  ${feedback.length === 0 ? '<div class="text-center text-muted small py-3">暂无</div>' :
+                  feedback.slice(0,3).map(f => `<div class="border-bottom px-2 py-1"><span class="small fw-semibold">${escapeHtml(f.student_name)}</span><p class="small text-muted mb-0" style="font-size:11px">${escapeHtml(f.content.substring(0,40))}...</p></div>`).join('')}
+                  ${feedback.length > 3 ? `<div class="text-center py-1"><a href="#" onclick="event.preventDefault();navigate('feedback-list')" class="small">查看全部 →</a></div>` : ''}
                 </div>
-                <p class="small text-muted mb-0">${escapeHtml(f.content.substring(0,60))}...</p>
-                <small class="text-muted">${fmtDatetime(f.created_at)}</small>
-              </div>`).join('')}
-            ${feedback.length > 5 ? `<div class="p-2 text-center"><a href="#" onclick="navigate('feedback-list')" class="small">查看全部 ${feedback.length} 条</a></div>` : ''}
-          </div>
-        </div>
-
-        <!-- 即将逾期任务 -->
-        <div class="card">
-          <div class="card-header fw-semibold"><i class="bi bi-clock-history me-1 text-danger"></i> 近期截止任务</div>
-          <div id="upcoming-tasks" class="card-body p-0">
-            <div class="text-center py-2"><div class="spinner-border spinner-border-sm"></div></div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="card">
+                <div class="card-header fw-semibold small py-2"><i class="bi bi-clock-history me-1 text-danger"></i>近期截止</div>
+                <div class="card-body p-0" id="upcoming-tasks" style="max-height:200px;overflow-y:auto">
+                  <div class="text-center py-2"><div class="spinner-border spinner-border-sm"></div></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>`;
 
     loadUpcomingTasks();
-
     // 搜索过滤
-    document.getElementById('student-search').oninput = (e) => filterStudents(students, e.target.value, document.getElementById('grade-filter').value);
-    document.getElementById('grade-filter').onchange = (e) => filterStudents(students, document.getElementById('student-search').value, e.target.value);
+    document.getElementById('student-search').oninput = (e) => filterCounselorStudents(students, e.target.value, document.getElementById('grade-filter').value);
+    document.getElementById('grade-filter').onchange = (e) => filterCounselorStudents(students, document.getElementById('student-search').value, e.target.value);
 
   } catch(e) {
     mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderCounselorStudentItems(students) {
+  if (!students || students.length === 0) return '<div class="md-empty-detail" style="padding:2rem"><i class="bi bi-person-vcard" style="font-size:1.5rem;opacity:.3"></i><p class="text-muted small mt-1">暂无学生</p></div>';
+  return students.map(s => `
+    <div class="md-item" onclick="selectCounselorStudent('${s.id}',this)" data-sid="${s.id}">
+      <div class="d-flex justify-content-between align-items-center">
+        <span class="md-item-name">${escapeHtml(s.name)}</span>
+        ${s.overdue_count > 0 ? `<span class="badge badge-soft-danger" style="font-size:10px">${s.overdue_count}逾期</span>` : ''}
+      </div>
+      <div class="md-item-sub">${escapeHtml(s.grade_level)} · ${escapeHtml(s.exam_board||'—')}</div>
+    </div>`).join('');
+}
+
+async function selectCounselorStudent(id, el) {
+  document.querySelectorAll('#counselor-student-list .md-item').forEach(i => i.classList.remove('active'));
+  if (el) el.classList.add('active');
+  const panel = document.getElementById('counselor-detail');
+  panel.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
+  try {
+    const [detail, tasks] = await Promise.all([
+      GET(`/api/students/${id}`),
+      GET(`/api/students/${id}/tasks`),
+    ]);
+    const s = detail.student;
+    const canEdit = hasRole('principal','counselor');
+    const pending = tasks.filter(t => t.status !== 'done');
+    const overdue = pending.filter(t => isOverdue(t.due_date, t.status));
+    panel.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h5 class="mb-0 fw-bold">${escapeHtml(s.name)} <span class="badge badge-soft-secondary ms-1">${escapeHtml(s.grade_level)}</span></h5>
+          <small class="text-muted">${escapeHtml(s.exam_board||'—')} · 入学 ${fmtDate(s.enrol_date)}</small>
+        </div>
+        <div class="d-flex gap-2">
+          ${canEdit ? `<button class="btn btn-outline-muted btn-sm" onclick="openStudentModal('${id}')"><i class="bi bi-pencil me-1"></i>编辑</button>` : ''}
+          <button class="btn btn-primary btn-sm" onclick="navigate('student-detail',{studentId:'${id}'})"><i class="bi bi-box-arrow-up-right me-1"></i>完整档案</button>
+        </div>
+      </div>
+      <!-- KPI -->
+      <div class="row g-2 mb-3">
+        <div class="col-4"><div class="stat-card accent-primary" style="padding:.75rem 1rem .75rem 1.25rem"><div class="stat-value" style="font-size:1.5rem">${pending.length}</div><div class="stat-label">待办任务</div></div></div>
+        <div class="col-4"><div class="stat-card ${overdue.length>0?'accent-danger':'accent-success'}" style="padding:.75rem 1rem .75rem 1.25rem"><div class="stat-value" style="font-size:1.5rem;${overdue.length>0?'color:var(--danger)':''}">${overdue.length}</div><div class="stat-label">逾期任务</div></div></div>
+        <div class="col-4"><div class="stat-card accent-info" style="padding:.75rem 1rem .75rem 1.25rem"><div class="stat-value" style="font-size:1.5rem">${detail.applications.length}</div><div class="stat-label">申请院校</div></div></div>
+      </div>
+      <!-- 目标院校 -->
+      ${detail.targets.length > 0 ? `<div class="card mb-3"><div class="card-header fw-semibold small py-2"><i class="bi bi-mortarboard me-1 text-primary"></i>目标院校</div><div class="card-body p-0"><table class="table table-sm mb-0"><tbody>${detail.targets.map(t=>`<tr><td class="small fw-semibold">${escapeHtml(t.uni_name)}</td><td class="small text-muted">${escapeHtml(t.department||'—')}</td><td>${tierBadge(t.tier)}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+      <!-- 待办任务 -->
+      <div class="card mb-3">
+        <div class="card-header fw-semibold small py-2 d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-list-check me-1 text-warning"></i>待办任务</span>
+          ${canEdit || hasRole('mentor') ? `<button class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size:11px" onclick="openTaskModal('${id}')"><i class="bi bi-plus"></i></button>` : ''}
+        </div>
+        <div class="card-body p-0" style="max-height:300px;overflow-y:auto">
+          ${pending.length === 0 ? '<div class="text-center text-muted small py-3"><i class="bi bi-check-circle text-success me-1"></i>所有任务已完成</div>' :
+          pending.slice(0,10).map(t => {
+            const od = isOverdue(t.due_date, t.status);
+            return `<div class="border-bottom px-3 py-2 d-flex justify-content-between align-items-center">
+              <div style="min-width:0"><div class="small ${od?'text-danger fw-bold':''} text-truncate">${escapeHtml(t.title)}</div><small class="text-muted">${fmtDate(t.due_date)||'无期限'}</small></div>
+              ${od ? '<span class="badge badge-soft-danger" style="font-size:10px">逾期</span>' : `<span class="badge badge-soft-secondary" style="font-size:10px">${escapeHtml(t.status)}</span>`}
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+      <!-- 导师信息 -->
+      ${detail.mentors.length > 0 ? `<div class="card"><div class="card-header fw-semibold small py-2"><i class="bi bi-person-check me-1 text-success"></i>导师</div><div class="card-body p-0">${detail.mentors.map(m=>`<div class="px-3 py-2 border-bottom d-flex align-items-center gap-2"><div class="avatar-sm">${escapeHtml(m.staff_name.charAt(0))}</div><div><div class="small fw-semibold">${escapeHtml(m.staff_name)}</div><div class="text-muted" style="font-size:11px">${escapeHtml(m.role)}</div></div></div>`).join('')}</div></div>` : ''}
+    `;
+  } catch(e) {
+    panel.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
   }
 }
 
@@ -328,7 +388,6 @@ async function loadUpcomingTasks() {
     if (isNavStale(navGen)) return;
     const el = document.getElementById('upcoming-tasks');
     if (!el) return;
-    // Fetch all students' tasks concurrently instead of sliced serial requests
     const taskArrays = await Promise.all(
       students.map(s => GET(`/api/students/${s.id}/tasks`)
         .then(t => t.filter(x => x.status !== 'done').map(x => ({...x, student_name: s.name})))
@@ -338,62 +397,29 @@ async function loadUpcomingTasks() {
     if (isNavStale(navGen)) return;
     const tasks = taskArrays.flat();
     tasks.sort((a,b) => new Date(a.due_date) - new Date(b.due_date));
-    const upcoming = tasks.slice(0,8);
+    const upcoming = tasks.slice(0,5);
     if (upcoming.length === 0) {
-      el.innerHTML = '<div class="empty-state-block" style="padding:1.5rem"><i class="bi bi-clock"></i><p>暂无近期任务</p></div>';
+      el.innerHTML = '<div class="text-center text-muted small py-3">暂无近期任务</div>';
     } else {
       el.innerHTML = upcoming.map(t => {
         const overdue = isOverdue(t.due_date, t.status);
-        const daysLeft = Math.ceil((new Date(t.due_date) - new Date()) / 86400000);
-        const urgency = overdue ? 'danger' : daysLeft <= 7 ? 'warning' : 'muted';
-        return `<div class="border-bottom px-3 py-2">
-          <div class="d-flex justify-content-between align-items-center">
-            <span class="small ${overdue?'text-danger fw-bold':''}">${escapeHtml(t.title.substring(0,25))}</span>
-            ${overdue ? '<span class="badge badge-soft-danger" style="font-size:10px">逾期</span>' : daysLeft <= 7 ? '<span class="badge badge-soft-warning" style="font-size:10px">即将到期</span>' : ''}
-          </div>
-          <div class="d-flex justify-content-between">
-            <small class="text-muted">${escapeHtml(t.student_name)}</small>
-            <small class="text-${urgency}">${fmtDate(t.due_date)}</small>
-          </div>
+        return `<div class="border-bottom px-2 py-1">
+          <div class="small ${overdue?'text-danger fw-bold':''} text-truncate">${escapeHtml(t.title.substring(0,20))}</div>
+          <div class="d-flex justify-content-between"><small class="text-muted" style="font-size:10px">${escapeHtml(t.student_name)}</small><small class="text-muted" style="font-size:10px">${fmtDate(t.due_date)}</small></div>
         </div>`;
       }).join('');
     }
   } catch(e) {}
 }
 
-function filterStudents(students, search, grade) {
+function filterCounselorStudents(students, search, grade) {
   const filtered = students.filter(s => {
     const matchSearch = !search || s.name.includes(search);
     const matchGrade = !grade || s.grade_level === grade;
     return matchSearch && matchGrade;
   });
   const el = document.getElementById('counselor-student-list');
-  if (el) el.innerHTML = renderStudentTable(filtered);
-}
-
-function renderStudentTable(students) {
-  if (!students || students.length === 0) return '<div class="empty-state-block"><i class="bi bi-person-vcard"></i><p>暂无学生数据</p></div>';
-  return `<div class="table-responsive">
-    <table class="table table-hover mb-0">
-      <thead class="table-light"><tr>
-        <th>姓名</th><th>年级</th><th>考试局</th><th>逾期任务</th><th>导师</th><th>操作</th>
-      </tr></thead>
-      <tbody>
-        ${students.map(s => `<tr>
-          <td class="fw-semibold">${escapeHtml(s.name)}</td>
-          <td>${escapeHtml(s.grade_level)}</td>
-          <td><span class="badge bg-light text-dark border">${escapeHtml(s.exam_board||'—')}</span></td>
-          <td>${s.overdue_count > 0 ? `<span class="badge badge-soft-danger"><i class="bi bi-exclamation-circle me-1"></i>${s.overdue_count} 逾期</span>` : '<span class="badge badge-soft-success">正常</span>'}</td>
-          <td class="small text-muted">${escapeHtml((s.mentors||'').substring(0,20)||'—')}</td>
-          <td>
-            <button class="btn btn-sm btn-outline-primary" onclick="navigate('student-detail',{studentId:'${s.id}'})">
-              <i class="bi bi-eye"></i>
-            </button>
-          </td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-  </div>`;
+  if (el) el.innerHTML = renderCounselorStudentItems(filtered);
 }
 
 // ════════════════════════════════════════════════════════
@@ -408,28 +434,93 @@ async function renderMentorWorkbench() {
     <div class="page-header">
       <h4><i class="bi bi-person-check-fill me-2"></i>导师工作台</h4>
     </div>
-    ${students.length === 0 ? '<div class="empty-state-block"><i class="bi bi-person-check"></i><p>暂无分配的学生</p></div>' : `<div class="row g-3">
-      ${students.map(s => `
-      <div class="col-md-6">
-        <div class="card card-hover-lift student-card">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <h6 class="fw-bold mb-1">${escapeHtml(s.name)} <span class="badge badge-soft-secondary ms-1">${escapeHtml(s.grade_level)}</span></h6>
-                <small class="text-muted">${escapeHtml(s.exam_board||'—')}</small>
-              </div>
-              ${s.overdue_count > 0 ? `<span class="badge badge-soft-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>${s.overdue_count} 逾期</span>` : '<span class="badge badge-soft-success">正常</span>'}
-            </div>
-            ${s.targets ? `<p class="small text-muted mt-2 mb-2"><i class="bi bi-bullseye me-1"></i>目标: ${escapeHtml(s.targets.substring(0,60))}</p>` : ''}
-            <button class="btn btn-sm btn-outline-primary w-100" onclick="navigate('student-detail',{studentId:'${s.id}'})">
-              <i class="bi bi-clipboard-check me-1"></i>查看学业计划
-            </button>
-          </div>
+    ${students.length === 0 ? '<div class="empty-state-block"><i class="bi bi-person-check"></i><p>暂无分配的学生</p></div>' : `
+    <div class="md-layout" style="height:calc(100vh - 140px)">
+      <div class="md-list">
+        <div class="md-list-header">
+          <input class="form-control form-control-sm" id="mentor-search" placeholder="搜索学生..." oninput="window._mentorFilter(this.value)">
         </div>
-      </div>`).join('')}
+        <div class="md-list-body" id="mentor-student-list">
+          ${students.map(s => `
+          <div class="md-item" onclick="selectMentorStudent('${s.id}',this)" data-sid="${s.id}">
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="md-item-name">${escapeHtml(s.name)}</span>
+              ${s.overdue_count > 0 ? `<span class="badge badge-soft-danger" style="font-size:10px">${s.overdue_count}逾期</span>` : '<span class="badge badge-soft-success" style="font-size:10px">正常</span>'}
+            </div>
+            <div class="md-item-sub">${escapeHtml(s.grade_level)} · ${escapeHtml(s.exam_board||'—')}${s.targets ? ` · ${escapeHtml(s.targets.substring(0,20))}` : ''}</div>
+          </div>`).join('')}
+        </div>
+      </div>
+      <div class="md-detail" id="mentor-detail">
+        <div class="md-empty-detail">
+          <i class="bi bi-person-check" style="font-size:2.5rem;opacity:.3"></i>
+          <p class="text-muted mt-2">选择左侧学生查看学业计划</p>
+        </div>
+      </div>
     </div>`}`;
+
+    window._mentorFilter = (search) => {
+      const items = document.querySelectorAll('#mentor-student-list .md-item');
+      items.forEach(el => {
+        const name = el.querySelector('.md-item-name')?.textContent || '';
+        el.style.display = !search || name.includes(search) ? '' : 'none';
+      });
+    };
   } catch(e) {
     mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function selectMentorStudent(id, el) {
+  document.querySelectorAll('#mentor-student-list .md-item').forEach(i => i.classList.remove('active'));
+  if (el) el.classList.add('active');
+  const panel = document.getElementById('mentor-detail');
+  panel.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
+  try {
+    const [detail, tasks] = await Promise.all([
+      GET(`/api/students/${id}`),
+      GET(`/api/students/${id}/tasks`),
+    ]);
+    const s = detail.student;
+    const pending = tasks.filter(t => t.status !== 'done');
+    const overdue = pending.filter(t => isOverdue(t.due_date, t.status));
+    panel.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h5 class="mb-0 fw-bold">${escapeHtml(s.name)} <span class="badge badge-soft-secondary ms-1">${escapeHtml(s.grade_level)}</span></h5>
+          <small class="text-muted">${escapeHtml(s.exam_board||'—')}${s.targets ? ` · 目标: ${escapeHtml((s.targets||'').substring(0,40))}` : ''}</small>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="navigate('student-detail',{studentId:'${id}'})"><i class="bi bi-box-arrow-up-right me-1"></i>完整档案</button>
+      </div>
+      <div class="row g-2 mb-3">
+        <div class="col-4"><div class="stat-card accent-primary" style="padding:.75rem 1rem .75rem 1.25rem"><div class="stat-value" style="font-size:1.5rem">${pending.length}</div><div class="stat-label">待办</div></div></div>
+        <div class="col-4"><div class="stat-card ${overdue.length>0?'accent-danger':'accent-success'}" style="padding:.75rem 1rem .75rem 1.25rem"><div class="stat-value" style="font-size:1.5rem;${overdue.length>0?'color:var(--danger)':''}">${overdue.length}</div><div class="stat-label">逾期</div></div></div>
+        <div class="col-4"><div class="stat-card accent-info" style="padding:.75rem 1rem .75rem 1.25rem"><div class="stat-value" style="font-size:1.5rem">${detail.applications.length}</div><div class="stat-label">申请</div></div></div>
+      </div>
+      <!-- 选科 -->
+      ${detail.subjects.length > 0 ? `<div class="card mb-3"><div class="card-header fw-semibold small py-2"><i class="bi bi-book me-1 text-info"></i>选修科目</div><div class="card-body py-2"><div class="d-flex flex-wrap gap-1">${detail.subjects.map(sub=>`<span class="badge bg-light text-dark border">${escapeHtml(sub.code||sub.subject_name||'—')}${sub.predicted_grade?` <span class="text-info">${escapeHtml(sub.predicted_grade)}</span>`:''}</span>`).join('')}</div></div></div>` : ''}
+      <!-- 待办任务 -->
+      <div class="card mb-3">
+        <div class="card-header fw-semibold small py-2 d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-list-check me-1 text-warning"></i>待办任务</span>
+          <button class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size:11px" onclick="openTaskModal('${id}')"><i class="bi bi-plus"></i></button>
+        </div>
+        <div class="card-body p-0" style="max-height:300px;overflow-y:auto">
+          ${pending.length === 0 ? '<div class="text-center text-muted small py-3"><i class="bi bi-check-circle text-success me-1"></i>所有任务已完成</div>' :
+          pending.slice(0,10).map(t => {
+            const od = isOverdue(t.due_date, t.status);
+            return `<div class="border-bottom px-3 py-2 d-flex justify-content-between align-items-center">
+              <div style="min-width:0"><div class="small ${od?'text-danger fw-bold':''} text-truncate">${escapeHtml(t.title)}</div><small class="text-muted">${fmtDate(t.due_date)||'无期限'}</small></div>
+              ${od ? '<span class="badge badge-soft-danger" style="font-size:10px">逾期</span>' : `<span class="badge badge-soft-secondary" style="font-size:10px">${escapeHtml(t.status)}</span>`}
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+      <!-- 目标院校 -->
+      ${detail.targets.length > 0 ? `<div class="card"><div class="card-header fw-semibold small py-2"><i class="bi bi-mortarboard me-1 text-primary"></i>目标院校</div><div class="card-body p-0"><table class="table table-sm mb-0"><tbody>${detail.targets.map(t=>`<tr><td class="small fw-semibold">${escapeHtml(t.uni_name)}</td><td class="small text-muted">${escapeHtml(t.department||'—')}</td><td>${tierBadge(t.tier)}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+    `;
+  } catch(e) {
+    panel.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
   }
 }
 
@@ -878,14 +969,11 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
         <div class="overview-grid" id="overview-grid">
 
           <!-- 基本信息 -->
-          <div class="overview-card" data-card-id="basic" data-span="1" draggable="true">
+          <div class="overview-card" data-card-id="basic" data-span="1">
             <div class="ov-card">
               <div class="ov-card-header">
-                <i class="bi bi-grip-vertical ov-drag-handle" title="拖动排序"></i>
                 <span class="ov-card-title"><i class="bi bi-person-fill text-primary"></i>基本信息</span>
-                <div class="ov-card-actions">
-                  <button class="ov-card-btn" onclick="toggleCardSpan('basic')" title="切换宽度"><i class="bi bi-arrows-fullscreen"></i></button>
-                </div>
+                <div class="ov-card-actions"></div>
               </div>
               <div class="ov-card-body">
                 <table class="ov-info-table">
@@ -901,14 +989,12 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
           </div>
 
           <!-- 导师/规划师 -->
-          <div class="overview-card" data-card-id="mentor" data-span="1" draggable="true">
+          <div class="overview-card" data-card-id="mentor" data-span="1">
             <div class="ov-card">
               <div class="ov-card-header">
-                <i class="bi bi-grip-vertical ov-drag-handle" title="拖动排序"></i>
-                <span class="ov-card-title"><i class="bi bi-person-check text-warning"></i>导师 / 规划师</span>
+<span class="ov-card-title"><i class="bi bi-person-check text-warning"></i>导师 / 规划师</span>
                 <div class="ov-card-actions">
                   ${canEdit ? `<button class="ov-card-btn" onclick="openAssignMentorModal('${id}')" title="分配导师"><i class="bi bi-plus-lg"></i></button>` : ''}
-                  <button class="ov-card-btn" onclick="toggleCardSpan('mentor')" title="切换宽度"><i class="bi bi-arrows-fullscreen"></i></button>
                 </div>
               </div>
               <div class="ov-card-body p-0">
@@ -927,14 +1013,12 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
           </div>
 
           <!-- 入学评估 -->
-          <div class="overview-card" data-card-id="assessment" data-span="1" draggable="true">
+          <div class="overview-card" data-card-id="assessment" data-span="1">
             <div class="ov-card">
               <div class="ov-card-header">
-                <i class="bi bi-grip-vertical ov-drag-handle" title="拖动排序"></i>
-                <span class="ov-card-title"><i class="bi bi-graph-up text-success"></i>入学评估</span>
+<span class="ov-card-title"><i class="bi bi-graph-up text-success"></i>入学评估</span>
                 <div class="ov-card-actions">
                   ${canEdit ? `<button class="ov-card-btn" onclick="openAssessmentModal('${id}')" title="添加评估"><i class="bi bi-plus-lg"></i></button>` : ''}
-                  <button class="ov-card-btn" onclick="toggleCardSpan('assessment')" title="切换宽度"><i class="bi bi-arrows-fullscreen"></i></button>
                 </div>
               </div>
               <div class="ov-card-body p-0">
@@ -955,14 +1039,12 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
           </div>
 
           <!-- 选科记录 -->
-          <div class="overview-card" data-card-id="subjects" data-span="1" draggable="true">
+          <div class="overview-card" data-card-id="subjects" data-span="1">
             <div class="ov-card">
               <div class="ov-card-header">
-                <i class="bi bi-grip-vertical ov-drag-handle" title="拖动排序"></i>
-                <span class="ov-card-title"><i class="bi bi-book text-info"></i>选科记录</span>
+<span class="ov-card-title"><i class="bi bi-book text-info"></i>选科记录</span>
                 <div class="ov-card-actions">
                   ${canEdit ? `<button class="ov-card-btn" onclick="openSubjectModal('${id}')" title="添加科目"><i class="bi bi-plus-lg"></i></button>` : ''}
-                  <button class="ov-card-btn" onclick="toggleCardSpan('subjects')" title="切换宽度"><i class="bi bi-arrows-fullscreen"></i></button>
                 </div>
               </div>
               <div class="ov-card-body">
@@ -981,14 +1063,12 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
           </div>
 
           <!-- 目标院校 -->
-          <div class="overview-card" data-card-id="targets" data-span="2" draggable="true">
+          <div class="overview-card" data-card-id="targets" data-span="2">
             <div class="ov-card">
               <div class="ov-card-header">
-                <i class="bi bi-grip-vertical ov-drag-handle" title="拖动排序"></i>
-                <span class="ov-card-title"><i class="bi bi-mortarboard text-danger"></i>目标院校</span>
+<span class="ov-card-title"><i class="bi bi-mortarboard text-danger"></i>目标院校</span>
                 <div class="ov-card-actions">
                   ${canEdit ? `<button class="ov-card-btn" onclick="openTargetModal('${id}')" title="添加院校"><i class="bi bi-plus-lg"></i></button>` : ''}
-                  <button class="ov-card-btn" onclick="toggleCardSpan('targets')" title="切换宽度"><i class="bi bi-arrows-fullscreen"></i></button>
                 </div>
               </div>
               <div class="ov-card-body p-0">
@@ -1015,14 +1095,12 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
           </div>
 
           <!-- 家长/监护人 -->
-          <div class="overview-card" data-card-id="parents" data-span="2" draggable="true">
+          <div class="overview-card" data-card-id="parents" data-span="2">
             <div class="ov-card">
               <div class="ov-card-header">
-                <i class="bi bi-grip-vertical ov-drag-handle" title="拖动排序"></i>
-                <span class="ov-card-title"><i class="bi bi-people text-secondary"></i>家长 / 监护人</span>
+<span class="ov-card-title"><i class="bi bi-people text-secondary"></i>家长 / 监护人</span>
                 <div class="ov-card-actions">
                   ${canEdit ? `<button class="ov-card-btn" onclick="openParentModal('${id}')" title="添加家长"><i class="bi bi-plus-lg"></i></button>` : ''}
-                  <button class="ov-card-btn" onclick="toggleCardSpan('parents')" title="切换宽度"><i class="bi bi-arrows-fullscreen"></i></button>
                 </div>
               </div>
               <div class="ov-card-body">
@@ -1044,14 +1122,12 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
           </div>
 
           <!-- 画像标签 -->
-          <div class="overview-card" data-card-id="profile-tags" data-span="1" draggable="true">
+          <div class="overview-card" data-card-id="profile-tags" data-span="1">
             <div class="ov-card">
               <div class="ov-card-header">
-                <i class="bi bi-grip-vertical ov-drag-handle" title="拖动排序"></i>
-                <span class="ov-card-title"><i class="bi bi-tags text-info"></i>画像标签</span>
+<span class="ov-card-title"><i class="bi bi-tags text-info"></i>画像标签</span>
                 <div class="ov-card-actions">
                   ${canEdit ? `<button class="ov-card-btn" onclick="openProfileExtModal('${id}')" title="编辑画像"><i class="bi bi-pencil"></i></button>` : ''}
-                  <button class="ov-card-btn" onclick="toggleCardSpan('profile-tags')" title="切换宽度"><i class="bi bi-arrows-fullscreen"></i></button>
                 </div>
               </div>
               <div class="ov-card-body" id="profile-tags-card"><div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div></div>
@@ -1059,13 +1135,11 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
           </div>
 
           <!-- 竞争力摘要 -->
-          <div class="overview-card" data-card-id="competitiveness" data-span="1" draggable="true">
+          <div class="overview-card" data-card-id="competitiveness" data-span="1">
             <div class="ov-card">
               <div class="ov-card-header">
-                <i class="bi bi-grip-vertical ov-drag-handle" title="拖动排序"></i>
-                <span class="ov-card-title"><i class="bi bi-graph-up text-success"></i>竞争力</span>
+<span class="ov-card-title"><i class="bi bi-graph-up text-success"></i>竞争力</span>
                 <div class="ov-card-actions">
-                  <button class="ov-card-btn" onclick="toggleCardSpan('competitiveness')" title="切换宽度"><i class="bi bi-arrows-fullscreen"></i></button>
                 </div>
               </div>
               <div class="ov-card-body" id="competitiveness-card"><div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div></div>
@@ -1073,13 +1147,11 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
           </div>
 
           <!-- 荣誉亮点 -->
-          <div class="overview-card" data-card-id="awards" data-span="1" draggable="true">
+          <div class="overview-card" data-card-id="awards" data-span="1">
             <div class="ov-card">
               <div class="ov-card-header">
-                <i class="bi bi-grip-vertical ov-drag-handle" title="拖动排序"></i>
-                <span class="ov-card-title"><i class="bi bi-award text-warning"></i>荣誉亮点</span>
+<span class="ov-card-title"><i class="bi bi-award text-warning"></i>荣誉亮点</span>
                 <div class="ov-card-actions">
-                  <button class="ov-card-btn" onclick="toggleCardSpan('awards')" title="切换宽度"><i class="bi bi-arrows-fullscreen"></i></button>
                 </div>
               </div>
               <div class="ov-card-body" id="awards-card"><div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div></div>
@@ -2065,42 +2137,38 @@ async function renderFeedbackList() {
     mc.innerHTML = `
     <div class="page-header">
       <h4><i class="bi bi-chat-dots me-2"></i>反馈管理</h4>
-      <div class="d-flex gap-2 align-items-center">
-        <input class="form-control form-control-sm" id="fb-search" placeholder="搜索内容..." style="width:160px" oninput="window._fbFilter()">
-      </div>
     </div>
-    <div class="filter-chip-group mb-3">
-      <button class="filter-chip active" data-fb-type="" onclick="window._fbFilterType(this)">全部 <span style="opacity:.5">${feedback.length}</span></button>
-      ${types.map(t => `<button class="filter-chip" data-fb-type="${escapeHtml(t)}" onclick="window._fbFilterType(this)">${escapeHtml(t)} <span style="opacity:.5">${feedback.filter(f=>f.feedback_type===t).length}</span></button>`).join('')}
-    </div>
-    <div id="fb-list">
-    ${feedback.length === 0 ? '<div class="empty-state-block"><i class="bi bi-chat-dots"></i><p>暂无待处理反馈</p></div>' :
-    feedback.map(f => `
-    <div class="card mb-2 fb-item" data-fb-type="${escapeHtml(f.feedback_type||'')}">
-      <div class="card-body py-3 px-4">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <div class="d-flex align-items-center gap-2">
-            <span class="fw-semibold">${escapeHtml(f.student_name)}</span>
-            <span class="badge badge-soft-info">${escapeHtml(f.feedback_type)}</span>
-            <span class="badge badge-soft-secondary">${escapeHtml(f.from_role)}</span>
-          </div>
-          <div class="d-flex align-items-center gap-2">
-            ${f.rating ? `<span class="small text-warning">${'★'.repeat(parseInt(f.rating))}${'☆'.repeat(5-parseInt(f.rating))}</span>` : ''}
-            <small class="text-muted">${fmtDatetime(f.created_at)}</small>
+
+    <div class="md-layout" style="height:calc(100vh - 140px)">
+      <div class="md-list">
+        <div class="md-list-header">
+          <input class="form-control form-control-sm" id="fb-search" placeholder="搜索内容..." oninput="window._fbFilter()">
+          <div class="filter-chip-group mt-2" style="flex-wrap:wrap">
+            <button class="filter-chip active" data-fb-type="" onclick="window._fbFilterType(this)" style="font-size:11px;padding:2px 8px">全部 <span style="opacity:.5">${feedback.length}</span></button>
+            ${types.map(t => `<button class="filter-chip" data-fb-type="${escapeHtml(t)}" onclick="window._fbFilterType(this)" style="font-size:11px;padding:2px 8px">${escapeHtml(t)} <span style="opacity:.5">${feedback.filter(f=>f.feedback_type===t).length}</span></button>`).join('')}
           </div>
         </div>
-        <p class="small mb-2 text-secondary">${escapeHtml(f.content)}</p>
-        <div class="d-flex gap-2">
-          <button class="btn btn-sm btn-success" data-fbid="${escapeHtml(f.id)}" data-fbcontent="${escapeHtml(f.content)}" onclick="openFeedbackResponse(this.dataset.fbid, this.dataset.fbcontent)">
-            <i class="bi bi-reply me-1"></i>回复并标记解决
-          </button>
-          <button class="btn btn-sm btn-outline-muted" onclick="navigate('student-detail',{studentId:'${f.student_id}'})">
-            <i class="bi bi-person me-1"></i>查看学生
-          </button>
+        <div class="md-list-body" id="fb-list-body">
+          ${feedback.length === 0 ? '<div class="text-center text-muted small py-4">暂无反馈</div>' :
+          feedback.map(f => `
+          <div class="md-item fb-item" data-fb-type="${escapeHtml(f.feedback_type||'')}" data-fbid="${escapeHtml(f.id)}" onclick="selectFeedbackItem(${JSON.stringify(f).replace(/"/g,'&quot;')},this)">
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="md-item-name">${escapeHtml(f.student_name)}</span>
+              ${f.rating ? `<span class="small text-warning" style="font-size:10px">${'★'.repeat(parseInt(f.rating))}</span>` : ''}
+            </div>
+            <div class="md-item-sub">${escapeHtml(f.feedback_type||'—')} · ${escapeHtml(f.content.substring(0,30))}...</div>
+          </div>`).join('')}
         </div>
       </div>
-    </div>`).join('')}
+
+      <div class="md-detail" id="fb-detail">
+        <div class="md-empty-detail">
+          <i class="bi bi-chat-dots" style="font-size:2.5rem;opacity:.3"></i>
+          <p class="text-muted mt-2">选择左侧反馈查看详情</p>
+        </div>
+      </div>
     </div>`;
+
     window._fbFilterType = (btn) => {
       document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
       btn.classList.add('active');
@@ -2109,7 +2177,7 @@ async function renderFeedbackList() {
     window._fbFilter = () => {
       const type = document.querySelector('.filter-chip.active')?.dataset.fbType || '';
       const search = (document.getElementById('fb-search')?.value||'').toLowerCase();
-      document.querySelectorAll('.fb-item').forEach(el => {
+      document.querySelectorAll('#fb-list-body .fb-item').forEach(el => {
         const matchType = !type || el.dataset.fbType === type;
         const matchSearch = !search || el.textContent.toLowerCase().includes(search);
         el.style.display = matchType && matchSearch ? '' : 'none';
@@ -2118,6 +2186,40 @@ async function renderFeedbackList() {
   } catch(e) {
     mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
   }
+}
+
+function selectFeedbackItem(f, el) {
+  document.querySelectorAll('#fb-list-body .md-item').forEach(i => i.classList.remove('active'));
+  if (el) el.classList.add('active');
+  const panel = document.getElementById('fb-detail');
+  panel.innerHTML = `
+    <div class="mb-4">
+      <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+          <h5 class="fw-bold mb-1">${escapeHtml(f.student_name)}</h5>
+          <div class="d-flex gap-2 align-items-center">
+            <span class="badge badge-soft-info">${escapeHtml(f.feedback_type)}</span>
+            <span class="badge badge-soft-secondary">${escapeHtml(f.from_role)}</span>
+            ${f.rating ? `<span class="text-warning">${'★'.repeat(parseInt(f.rating))}${'☆'.repeat(5-parseInt(f.rating))}</span>` : ''}
+          </div>
+        </div>
+        <small class="text-muted">${fmtDatetime(f.created_at)}</small>
+      </div>
+      <div class="card mb-3">
+        <div class="card-body">
+          <p class="mb-0">${escapeHtml(f.content)}</p>
+        </div>
+      </div>
+      ${f.response ? `<div class="card border-success mb-3"><div class="card-header small fw-semibold text-success py-2"><i class="bi bi-check-circle me-1"></i>已回复</div><div class="card-body"><p class="mb-0 small">${escapeHtml(f.response)}</p></div></div>` : ''}
+      <div class="d-flex gap-2">
+        ${!f.response ? `<button class="btn btn-success" data-fbid="${escapeHtml(f.id)}" data-fbcontent="${escapeHtml(f.content)}" onclick="openFeedbackResponse(this.dataset.fbid, this.dataset.fbcontent)">
+          <i class="bi bi-reply me-1"></i>回复并标记解决
+        </button>` : ''}
+        <button class="btn btn-outline-primary" onclick="navigate('student-detail',{studentId:'${f.student_id}'})">
+          <i class="bi bi-person me-1"></i>查看学生档案
+        </button>
+      </div>
+    </div>`;
 }
 
 // ════════════════════════════════════════════════════════
@@ -3666,17 +3768,21 @@ async function renderSettings() {
     <div class="page-header">
       <h4><i class="bi bi-gear me-2"></i>系统设置</h4>
     </div>
-    <ul class="nav nav-tabs mb-3" id="settings-tabs">
-      <li class="nav-item"><a class="nav-link active" href="#stab-appearance" data-bs-toggle="tab"><i class="bi bi-palette me-1"></i>外观与显示</a></li>
-      <li class="nav-item"><a class="nav-link" href="#stab-ps" data-bs-toggle="tab"><i class="bi bi-file-earmark-text me-1"></i>个人陈述</a></li>
-      <li class="nav-item"><a class="nav-link" href="#stab-assess" data-bs-toggle="tab"><i class="bi bi-clipboard-data me-1"></i>评估类型</a></li>
-      <li class="nav-item"><a class="nav-link" href="#stab-appconfig" data-bs-toggle="tab"><i class="bi bi-sliders me-1"></i>申请与任务</a></li>
-      <li class="nav-item"><a class="nav-link" href="#stab-subject" data-bs-toggle="tab"><i class="bi bi-book me-1"></i>选科配置</a></li>
-      <li class="nav-item"><a class="nav-link" href="#stab-system" data-bs-toggle="tab"><i class="bi bi-building me-1"></i>系统信息</a></li>
-      <li class="nav-item"><a class="nav-link" href="#stab-tpl" data-bs-toggle="tab"><i class="bi bi-layout-text-sidebar-reverse me-1"></i>时间线模板</a></li>
-      <li class="nav-item"><a class="nav-link" href="#stab-anchors" data-bs-toggle="tab"><i class="bi bi-calendar-event me-1"></i>锚点事件</a></li>
-      <li class="nav-item"><a class="nav-link" href="#stab-escalation" data-bs-toggle="tab"><i class="bi bi-bell me-1"></i>升级政策</a></li>
-    </ul>
+    <div class="settings-layout">
+      <div class="settings-nav">
+        <div class="nav flex-column nav-pills" id="settings-tabs" role="tablist">
+          <a class="nav-link active" href="#stab-appearance" data-bs-toggle="tab"><i class="bi bi-palette me-1"></i>外观与显示</a>
+          <a class="nav-link" href="#stab-ps" data-bs-toggle="tab"><i class="bi bi-file-earmark-text me-1"></i>个人陈述</a>
+          <a class="nav-link" href="#stab-assess" data-bs-toggle="tab"><i class="bi bi-clipboard-data me-1"></i>评估类型</a>
+          <a class="nav-link" href="#stab-appconfig" data-bs-toggle="tab"><i class="bi bi-sliders me-1"></i>申请与任务</a>
+          <a class="nav-link" href="#stab-subject" data-bs-toggle="tab"><i class="bi bi-book me-1"></i>选科配置</a>
+          <a class="nav-link" href="#stab-system" data-bs-toggle="tab"><i class="bi bi-building me-1"></i>系统信息</a>
+          <a class="nav-link" href="#stab-tpl" data-bs-toggle="tab"><i class="bi bi-layout-text-sidebar-reverse me-1"></i>时间线模板</a>
+          <a class="nav-link" href="#stab-anchors" data-bs-toggle="tab"><i class="bi bi-calendar-event me-1"></i>锚点事件</a>
+          <a class="nav-link" href="#stab-escalation" data-bs-toggle="tab"><i class="bi bi-bell me-1"></i>升级政策</a>
+        </div>
+      </div>
+      <div class="settings-content">
     <div class="tab-content">
 
       <!-- ── 外观与显示 ── -->
@@ -4130,6 +4236,8 @@ async function renderSettings() {
         </div>
       </div>
 
+    </div>
+      </div>
     </div>`;
 
     // Render draft editors

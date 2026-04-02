@@ -295,23 +295,47 @@ function isOverdue(dueDate, status) {
 }
 
 function tierBadge(tier) {
-  const map = { '冲刺': 'danger', '意向': 'primary', '保底': 'success' };
-  return `<span class="badge bg-${map[tier]||'secondary'}">${tier||'—'}</span>`;
+  const map = { '冲刺': 'danger', '意向': 'primary', '保底': 'success', '通用': 'secondary' };
+  return `<span class="badge badge-soft-${map[tier]||'secondary'}">${escapeHtml(tier||'—')}</span>`;
 }
 
 function statusBadge(status) {
   const map = {
-    'pending': ['secondary', '待处理'], 'in_progress': ['warning text-dark', '进行中'], 'done': ['success', '已完成'],
-    '未开始': ['secondary', '未开始'], '收集中': ['warning text-dark', '收集中'], '已上传': ['info', '已上传'],
+    // Task statuses
+    'pending': ['secondary', '待处理'], 'in_progress': ['warning', '进行中'], 'done': ['success', '已完成'],
+    'todo': ['secondary', '待开始'],
+    // Material statuses
+    '未开始': ['secondary', '未开始'], '收集中': ['warning', '收集中'], '已上传': ['info', '已上传'],
     '已审核': ['primary', '已审核'], '已提交': ['success', '已提交'], '需补件': ['danger', '需补件'],
-    '草稿': ['warning text-dark', '草稿'], '一审中': ['info', '一审中'], '需修改': ['danger', '需修改'],
+    // Essay statuses
+    '草稿': ['warning', '草稿'], '一审中': ['info', '一审中'], '需修改': ['danger', '需修改'],
     '二审中': ['primary', '二审中'], '定稿': ['success', '定稿'],
-    'active': ['success', '在读'], 'Conditional': ['warning text-dark', '条件Offer'],
-    'Unconditional': ['success', '无条件'], 'Rejected': ['danger', '拒信'], 'Pending': ['secondary', '待定'],
-    'Waitlist': ['info', '候补'],
+    // Application statuses
+    'applied': ['primary', '已提交'], 'offer': ['success', '有Offer'], 'firm': ['success', '已确认'],
+    'declined': ['danger', '已拒绝'], 'enrolled': ['success', '已入学'], 'withdrawn': ['secondary', '已撤回'],
+    'waitlist': ['info', '候补'], 'interview': ['warning', '面试中'],
+    'conditional': ['warning', '条件Offer'], 'unconditional': ['success', '无条件Offer'],
+    // Student statuses
+    'active': ['success', '在读'],
+    // Offer types (capitalized)
+    'Conditional': ['warning', '条件Offer'], 'Unconditional': ['success', '无条件'],
+    'Rejected': ['danger', '拒信'], 'Pending': ['secondary', '待定'], 'Waitlist': ['info', '候补'],
+    // Intake statuses
+    'registered': ['secondary', '已注册'], 'collecting_docs': ['info', '收集材料中'],
+    'contract_signed': ['primary', '合同已签'], 'paid': ['success', '已付款'],
+    'visa_in_progress': ['warning', '签证办理中'], 'ipa_received': ['success', '已获IPA'],
+    'arrived': ['primary', '已到校'], 'oriented': ['success', '已入学'], 'closed': ['secondary', '已关闭'],
+    // Audit actions
+    'CREATE': ['success', 'CREATE'], 'UPDATE': ['primary', 'UPDATE'],
+    'DELETE': ['danger', 'DELETE'], 'VOID': ['warning', 'VOID'],
+    'LOGIN': ['info', 'LOGIN'], 'AI_ENHANCE': ['info', 'AI'],
   };
   const [cls, label] = map[status] || ['secondary', status || '—'];
-  return `<span class="badge bg-${cls}">${label}</span>`;
+  return `<span class="badge badge-soft-${cls}">${escapeHtml(label)}</span>`;
+}
+
+function actionBadge(action) {
+  return statusBadge(action);
 }
 
 function priorityIcon(p) {

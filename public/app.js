@@ -715,14 +715,10 @@ async function renderParentPortal(params = {}) {
                   <thead class="table-light"><tr><th>院校</th><th>专业</th><th>状态</th><th>截止</th></tr></thead>
                   <tbody>
                     ${detail.applications.map(app => {
-                      const st = appStatusMap[app.status] || app.status || '—';
-                      const stColor = app.status==='offer'||app.status==='conditional' ? 'success'
-                        : app.status==='reject' ? 'danger'
-                        : app.status==='submitted' ? 'primary' : 'secondary';
                       return `<tr>
                         <td class="small">${escapeHtml(app.uni_name||'—')}</td>
                         <td class="small text-muted">${escapeHtml(app.department||'—')}</td>
-                        <td><span class="badge bg-${stColor}">${st}</span></td>
+                        <td>${statusBadge(app.status)}</td>
                         <td class="small text-muted">${fmtDate(app.deadline)||'—'}</td>
                       </tr>`;
                     }).join('')}
@@ -1755,7 +1751,6 @@ async function _loadTaskFiles(studentId, intakeCaseId, applicationId) {
       return;
     }
 
-    const statusColors = { '未开始':'secondary','进行中':'primary','已完成':'success','已提交':'info','已审核':'warning' };
     el.innerHTML = `<table class="table table-sm table-hover mb-0">
       <thead class="table-light"><tr>
         <th class="ps-3">文件名</th><th>类型</th><th>状态</th><th>版本</th><th>操作</th>
@@ -1764,7 +1759,7 @@ async function _loadTaskFiles(studentId, intakeCaseId, applicationId) {
         ${filtered.map(m => `<tr>
           <td class="ps-3 fw-semibold">${escapeHtml(m.title || m.material_type)}</td>
           <td><span class="badge bg-light text-dark border">${escapeHtml(m.material_type)}</span></td>
-          <td><span class="badge bg-${statusColors[m.status]||'secondary'}">${escapeHtml(m.status)}</span></td>
+          <td>${statusBadge(m.status)}</td>
           <td class="text-muted small">v${m.version||1}</td>
           <td>
             ${m.file_path
@@ -5101,6 +5096,9 @@ async function renderAnalytics() {
 // ════════════════════════════════════════════════════════
 async function renderAuditLog() {
   const mc = document.getElementById('main-content');
+  const today = new Date().toISOString().slice(0,10);
+  const d7 = new Date(Date.now()-7*86400000).toISOString().slice(0,10);
+  const d30 = new Date(Date.now()-30*86400000).toISOString().slice(0,10);
   mc.innerHTML = `
   <div class="page-header">
     <h4 class="mb-0"><i class="bi bi-clock-history me-2 text-secondary"></i>操作审计日志</h4>
@@ -5108,12 +5106,19 @@ async function renderAuditLog() {
       <button class="btn btn-outline-secondary btn-sm" onclick="exportAuditCSV()"><i class="bi bi-download me-1"></i>导出CSV</button>
     </div>
   </div>
+  <!-- 时间快捷筛选 -->
+  <div class="filter-chip-group mb-3">
+    <button class="filter-chip active" onclick="setAuditDateRange('','',this)">全部时间</button>
+    <button class="filter-chip" onclick="setAuditDateRange('${today}','${today}',this)">今天</button>
+    <button class="filter-chip" onclick="setAuditDateRange('${d7}','${today}',this)">近7天</button>
+    <button class="filter-chip" onclick="setAuditDateRange('${d30}','${today}',this)">近30天</button>
+  </div>
   <div class="card mb-3">
     <div class="card-body py-2">
       <div class="row g-2 align-items-end">
         <div class="col-md-3">
           <label class="form-label small mb-1">操作类型</label>
-          <select class="form-select form-select-sm" id="audit-filter-action">
+          <select class="form-select form-select-sm" id="audit-filter-action" onchange="loadAuditLogs()">
             <option value="">全部</option>
             <option value="CREATE">CREATE（新建）</option>
             <option value="UPDATE">UPDATE（修改）</option>
@@ -5125,7 +5130,7 @@ async function renderAuditLog() {
         </div>
         <div class="col-md-3">
           <label class="form-label small mb-1">目标类型</label>
-          <select class="form-select form-select-sm" id="audit-filter-entity">
+          <select class="form-select form-select-sm" id="audit-filter-entity" onchange="loadAuditLogs()">
             <option value="">全部</option>
             <option value="students">学生</option>
             <option value="applications">申请</option>
@@ -5157,6 +5162,16 @@ async function renderAuditLog() {
   loadAuditLogs();
 }
 
+function setAuditDateRange(from, to, btn) {
+  document.querySelectorAll('.filter-chip-group .filter-chip').forEach(c => c.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const fromEl = document.getElementById('audit-filter-from');
+  const toEl = document.getElementById('audit-filter-to');
+  if (fromEl) fromEl.value = from;
+  if (toEl) toEl.value = to;
+  loadAuditLogs();
+}
+
 async function loadAuditLogs() {
   const tableEl = document.getElementById('audit-log-table');
   if (!tableEl) return;
@@ -5177,7 +5192,8 @@ async function loadAuditLogs() {
       tableEl.innerHTML = '<p class="text-center text-muted py-4">暂无日志记录</p>';
       return;
     }
-    tableEl.innerHTML = `<div class="table-responsive">
+    const entityLabels = {students:'学生',applications:'申请',milestone_tasks:'任务',material_items:'材料',personal_statements:'个人陈述',staff:'教职工',finance_invoices:'账单',admission_evaluations:'录取评估',benchmark_evaluations:'基准评估',ai_student_plans:'AI规划',settings:'设置',exam_sittings:'考试记录'};
+    tableEl.innerHTML = `<div class="small text-muted mb-2">${logs.length} 条记录</div><div class="table-responsive">
       <table class="table table-sm table-hover">
         <thead class="table-light">
           <tr><th>时间</th><th>操作者</th><th>操作</th><th>目标类型</th><th>目标ID</th><th>变更前</th><th>变更后</th></tr>
@@ -5185,12 +5201,12 @@ async function loadAuditLogs() {
         <tbody>
           ${logs.map(l => `<tr>
             <td class="small text-muted text-nowrap">${fmtDatetime(l.created_at)||''}</td>
-            <td class="small">${l.user_name||l.username||'—'}</td>
-            <td><span class="badge bg-secondary">${l.action}</span></td>
-            <td class="small">${l.entity||'—'}</td>
-            <td class="small text-muted">${l.entity_id||'—'}</td>
-            <td class="small text-muted" style="max-width:150px;overflow:hidden;text-overflow:ellipsis" title="${(l.before_value||'').replace(/"/g,'&quot;')}">${l.before_value||'—'}</td>
-            <td class="small text-muted" style="max-width:150px;overflow:hidden;text-overflow:ellipsis" title="${(l.after_value||'').replace(/"/g,'&quot;')}">${l.after_value||'—'}</td>
+            <td class="small fw-semibold">${escapeHtml(l.user_name||l.username||'—')}</td>
+            <td>${statusBadge(l.action)}</td>
+            <td class="small">${escapeHtml(entityLabels[l.entity]||l.entity||'—')}</td>
+            <td class="small text-muted" style="max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(l.entity_id||'')}">${escapeHtml((l.entity_id||'—').substring(0,8))}</td>
+            <td class="small text-muted" style="max-width:150px;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(l.before_value||'')}">${escapeHtml((l.before_value||'—').substring(0,40))}</td>
+            <td class="small text-muted" style="max-width:150px;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(l.after_value||'')}">${escapeHtml((l.after_value||'—').substring(0,40))}</td>
           </tr>`).join('')}
         </tbody>
       </table>

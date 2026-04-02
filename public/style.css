@@ -697,8 +697,8 @@ body {
 .table tbody tr:nth-child(n+11) { animation-delay: 240ms; }
 
 .table-hover tbody tr:hover {
-  background: rgba(37,99,235,0.035);
-  transform: scale(1.001);
+  background: rgba(37,99,235,0.06);
+  box-shadow: inset 3px 0 0 var(--primary);
 }
 
 /* ═══ Tab 样式 ═══ */
@@ -971,7 +971,7 @@ body {
 .badge {
   font-weight: 600;
   font-size: 11px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   letter-spacing: 0.2px;
 }
 
@@ -2035,3 +2035,145 @@ body.dark-mode .intake-detail-panel::-webkit-scrollbar-thumb { background: #4755
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   UI 一致性改造 — 全局工具类
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── 软色徽章（pill 样式）── */
+.badge-pill { border-radius: var(--radius-pill); padding: .25em .65em; }
+.badge-soft-primary   { background: #dbeafe; color: #1d4ed8; }
+.badge-soft-success   { background: #dcfce7; color: #166534; }
+.badge-soft-warning   { background: #fef3c7; color: #92400e; }
+.badge-soft-danger    { background: #fee2e2; color: #991b1b; }
+.badge-soft-info      { background: #e0f2fe; color: #075985; }
+.badge-soft-secondary { background: #f1f5f9; color: #475569; }
+
+/* ── 进度条渐变 ── */
+.progress-bar-gradient-blue    { background: linear-gradient(90deg, #3b82f6, #2563eb) !important; }
+.progress-bar-gradient-green   { background: linear-gradient(90deg, #4ade80, #16a34a) !important; }
+.progress-bar-gradient-red     { background: linear-gradient(90deg, #f87171, #dc2626) !important; }
+.progress-bar-gradient-yellow  { background: linear-gradient(90deg, #fbbf24, #d97706) !important; }
+.progress-bar-gradient-purple  { background: linear-gradient(90deg, #a78bfa, #7c3aed) !important; }
+
+/* ── 卡片 hover 抬升效果（可选加在交互式卡片上）── */
+.card-hover-lift { transition: transform var(--ease-fast), box-shadow var(--ease-fast); }
+.card-hover-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+/* ── 柔和的次要按钮 ── */
+.btn-outline-muted {
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  background: transparent;
+  transition: all var(--ease-fast);
+}
+.btn-outline-muted:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+/* ── 内容区块卡片标题栏 ── */
+.content-section-header {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: .9rem;
+  color: var(--text-secondary);
+}
+.content-section-header i { font-size: 1rem; opacity: .7; }
+
+/* ── 统一空状态 ── */
+.empty-state-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1rem;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+.empty-state-block i { font-size: 2.5rem; margin-bottom: .75rem; opacity: .3; }
+.empty-state-block p { margin: 0 0 .5rem; font-size: .875rem; }
+.empty-state-block .btn { margin-top: .5rem; }
+
+/* ── 竞争力分数条（渐变色动态）── */
+.competitiveness-bar {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.competitiveness-bar .bar-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width .6s ease;
+}
+.bar-fill-low    { background: linear-gradient(90deg, #f87171, #ef4444); }
+.bar-fill-medium { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+.bar-fill-high   { background: linear-gradient(90deg, #4ade80, #22c55e); }
+
+/* ── 拖拽把手弱化 ── */
+.ov-drag-handle { color: #cbd5e1 !important; font-size: .75rem !important; opacity: .4; transition: opacity var(--ease-fast); }
+.ov-card:hover .ov-drag-handle { opacity: .8; }
+
+/* ── 操作图标按钮（表格内）── */
+.action-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: .875rem;
+  cursor: pointer;
+  transition: all var(--ease-fast);
+}
+.action-icon-btn:hover { background: var(--primary-light); color: var(--primary); }
+.action-icon-btn.danger:hover { background: #fee2e2; color: #dc2626; }
+
+/* ── 筛选标签组 ── */
+.filter-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.filter-chip {
+  padding: .25rem .75rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  font-size: .8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--ease-fast);
+}
+.filter-chip:hover { border-color: var(--primary); color: var(--primary); }
+.filter-chip.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+/* ── 深色模式: 新工具类适配 ── */
+body.dark-mode .badge-soft-primary   { background: rgba(37,99,235,0.2);  color: #93c5fd; }
+body.dark-mode .badge-soft-success   { background: rgba(22,163,74,0.2);  color: #86efac; }
+body.dark-mode .badge-soft-warning   { background: rgba(217,119,6,0.2);  color: #fcd34d; }
+body.dark-mode .badge-soft-danger    { background: rgba(220,38,38,0.2);  color: #fca5a5; }
+body.dark-mode .badge-soft-info      { background: rgba(2,132,199,0.2);  color: #7dd3fc; }
+body.dark-mode .badge-soft-secondary { background: rgba(100,116,139,0.2); color: #94a3b8; }
+body.dark-mode .filter-chip          { background: var(--surface-2); border-color: var(--border); color: var(--text-secondary); }
+body.dark-mode .filter-chip.active   { background: var(--primary); border-color: var(--primary); color: #fff; }
+body.dark-mode .action-icon-btn      { color: var(--text-secondary); }
+body.dark-mode .action-icon-btn:hover { background: rgba(37,99,235,0.15); color: #93c5fd; }
+body.dark-mode .action-icon-btn.danger:hover { background: rgba(220,38,38,0.15); color: #fca5a5; }
+body.dark-mode .competitiveness-bar  { background: var(--surface-3); }
+body.dark-mode .content-section-header { color: var(--text-secondary); border-color: var(--border); }
+body.dark-mode .empty-state-block    { color: var(--text-tertiary); }

@@ -139,17 +139,17 @@ async function renderDashboard() {
           <div class="card-header fw-semibold"><i class="bi bi-bar-chart-fill me-1 text-primary"></i> 目标院校梯度分布</div>
           <div class="card-body">
             ${(() => {
-              const colors = {'冲刺':'danger','意向':'primary','保底':'success'};
+              const gradients = {'冲刺':'progress-bar-gradient-red','意向':'progress-bar-gradient-blue','保底':'progress-bar-gradient-green'};
               const maxCnt = Math.max(...['冲刺','意向','保底'].map(t => tierMap[t]||0), 1);
               return ['冲刺','意向','保底'].map(tier => {
                 const cnt = tierMap[tier] || 0;
                 const pct = Math.round(cnt / maxCnt * 100);
                 return `<div class="mb-3">
                   <div class="d-flex justify-content-between mb-1">
-                    <span>${tier}</span><span class="fw-bold">${cnt}</span>
+                    <span class="small fw-semibold">${tier}</span><span class="fw-bold">${cnt}</span>
                   </div>
-                  <div class="progress" style="height:10px">
-                    <div class="progress-bar bg-${colors[tier]}" style="width:${pct}%"></div>
+                  <div class="progress" style="height:10px;border-radius:999px">
+                    <div class="progress-bar ${gradients[tier]}" style="width:${pct}%;border-radius:999px"></div>
                   </div>
                 </div>`;
               }).join('');
@@ -169,16 +169,18 @@ async function renderDashboard() {
                   ${workload.map(w => {
                     const pct = w.capacity_students > 0 ? Math.round(w.current_students/w.capacity_students*100) : 0;
                     const cls = pct >= 90 ? 'danger' : pct >= 70 ? 'warning' : 'success';
+                    const roleClass = w.role === 'counselor' ? 'badge-soft-success' : w.role === 'mentor' ? 'badge-soft-info' : w.role === 'principal' ? 'badge-soft-primary' : 'badge-soft-secondary';
+                    const barGrad = cls === 'danger' ? 'progress-bar-gradient-red' : cls === 'warning' ? 'progress-bar-gradient-yellow' : 'progress-bar-gradient-green';
                     return `<tr>
-                      <td>${escapeHtml(w.name)}</td>
-                      <td><span class="badge bg-secondary">${escapeHtml(w.role)}</span></td>
+                      <td class="fw-semibold">${escapeHtml(w.name)}</td>
+                      <td><span class="badge badge-pill ${roleClass}">${escapeHtml(w.role)}</span></td>
                       <td>${w.current_students}</td>
                       <td>${w.capacity_students || '—'}</td>
                       <td>
-                        <div class="progress" style="height:6px;min-width:80px">
-                          <div class="progress-bar bg-${cls}" style="width:${pct}%"></div>
+                        <div class="progress" style="height:6px;min-width:80px;border-radius:999px">
+                          <div class="progress-bar ${barGrad}" style="width:${pct}%;border-radius:999px"></div>
                         </div>
-                        <small class="text-${cls}">${pct}%</small>
+                        <small class="text-${cls} fw-semibold">${pct}%</small>
                       </td>
                     </tr>`;
                   }).join('')}
@@ -194,7 +196,7 @@ async function renderDashboard() {
     <div class="card">
       <div class="card-header fw-semibold text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i> 风险学生（有逾期任务）</div>
       <div class="card-body p-0">
-        ${risks.length === 0 ? '<p class="text-center text-muted py-3">🎉 暂无风险学生</p>' : `
+        ${risks.length === 0 ? '<div class="empty-state-block"><i class="bi bi-check-circle"></i><p>暂无风险学生，所有任务按时推进中</p></div>' : `
         <div class="table-responsive">
           <table class="table table-hover mb-0">
             <thead class="table-light"><tr><th>姓名</th><th>年级</th><th>考试局</th><th>逾期任务数</th><th>操作</th></tr></thead>
@@ -202,9 +204,9 @@ async function renderDashboard() {
               ${risks.map(r => `<tr>
                 <td class="fw-semibold">${escapeHtml(r.name)}</td>
                 <td>${escapeHtml(r.grade_level)}</td>
-                <td>${escapeHtml(r.exam_board||'—')}</td>
-                <td><span class="badge bg-danger">${r.overdue_count}</span></td>
-                <td><button class="btn btn-sm btn-outline-primary" onclick="navigate('student-detail',{studentId:'${r.id}'})">查看详情</button></td>
+                <td><span class="badge bg-light text-dark border">${escapeHtml(r.exam_board||'—')}</span></td>
+                <td><span class="badge badge-soft-danger">${r.overdue_count} 逾期</span></td>
+                <td><button class="action-icon-btn" title="查看详情" onclick="navigate('student-detail',{studentId:'${r.id}'})"><i class="bi bi-eye"></i></button></td>
               </tr>`).join('')}
             </tbody>
           </table>
@@ -269,7 +271,7 @@ async function renderCounselorWorkbench() {
             <span class="badge bg-warning text-dark ms-1">${feedback.length}</span>
           </div>
           <div class="card-body p-0">
-            ${feedback.length === 0 ? '<p class="text-center text-muted py-3 small">暂无待处理反馈</p>' :
+            ${feedback.length === 0 ? '<div class="empty-state-block" style="padding:1.5rem"><i class="bi bi-chat-dots"></i><p>暂无待处理反馈</p></div>' :
             feedback.slice(0,5).map(f => `
               <div class="border-bottom p-2">
                 <div class="d-flex justify-content-between">
@@ -323,18 +325,20 @@ async function loadUpcomingTasks() {
     tasks.sort((a,b) => new Date(a.due_date) - new Date(b.due_date));
     const upcoming = tasks.slice(0,8);
     if (upcoming.length === 0) {
-      el.innerHTML = '<p class="text-center text-muted py-3 small">暂无近期任务</p>';
+      el.innerHTML = '<div class="empty-state-block" style="padding:1.5rem"><i class="bi bi-clock"></i><p>暂无近期任务</p></div>';
     } else {
       el.innerHTML = upcoming.map(t => {
         const overdue = isOverdue(t.due_date, t.status);
-        return `<div class="border-bottom p-2">
-          <div class="d-flex justify-content-between">
+        const daysLeft = Math.ceil((new Date(t.due_date) - new Date()) / 86400000);
+        const urgency = overdue ? 'danger' : daysLeft <= 7 ? 'warning' : 'muted';
+        return `<div class="border-bottom px-3 py-2">
+          <div class="d-flex justify-content-between align-items-center">
             <span class="small ${overdue?'text-danger fw-bold':''}">${escapeHtml(t.title.substring(0,25))}</span>
-            ${overdue ? '<i class="bi bi-exclamation-circle text-danger"></i>' : ''}
+            ${overdue ? '<span class="badge badge-soft-danger" style="font-size:10px">逾期</span>' : daysLeft <= 7 ? '<span class="badge badge-soft-warning" style="font-size:10px">即将到期</span>' : ''}
           </div>
           <div class="d-flex justify-content-between">
             <small class="text-muted">${escapeHtml(t.student_name)}</small>
-            <small class="${overdue?'text-danger':'text-muted'}">${fmtDate(t.due_date)}</small>
+            <small class="text-${urgency}">${fmtDate(t.due_date)}</small>
           </div>
         </div>`;
       }).join('');
@@ -353,7 +357,7 @@ function filterStudents(students, search, grade) {
 }
 
 function renderStudentTable(students) {
-  if (!students || students.length === 0) return '<p class="text-center text-muted py-4">暂无学生数据</p>';
+  if (!students || students.length === 0) return '<div class="empty-state-block"><i class="bi bi-person-vcard"></i><p>暂无学生数据</p></div>';
   return `<div class="table-responsive">
     <table class="table table-hover mb-0">
       <thead class="table-light"><tr>
@@ -364,7 +368,7 @@ function renderStudentTable(students) {
           <td class="fw-semibold">${escapeHtml(s.name)}</td>
           <td>${escapeHtml(s.grade_level)}</td>
           <td><span class="badge bg-light text-dark border">${escapeHtml(s.exam_board||'—')}</span></td>
-          <td>${s.overdue_count > 0 ? `<span class="badge bg-danger">${s.overdue_count} 逾期</span>` : '<span class="text-muted small">正常</span>'}</td>
+          <td>${s.overdue_count > 0 ? `<span class="badge badge-soft-danger"><i class="bi bi-exclamation-circle me-1"></i>${s.overdue_count} 逾期</span>` : '<span class="badge badge-soft-success">正常</span>'}</td>
           <td class="small text-muted">${escapeHtml((s.mentors||'').substring(0,20)||'—')}</td>
           <td>
             <button class="btn btn-sm btn-outline-primary" onclick="navigate('student-detail',{studentId:'${s.id}'})">
@@ -389,26 +393,26 @@ async function renderMentorWorkbench() {
     <div class="page-header">
       <h4><i class="bi bi-person-check-fill me-2"></i>导师工作台</h4>
     </div>
-    <div class="row g-3">
+    ${students.length === 0 ? '<div class="empty-state-block"><i class="bi bi-person-check"></i><p>暂无分配的学生</p></div>' : `<div class="row g-3">
       ${students.map(s => `
       <div class="col-md-6">
-        <div class="card student-card">
+        <div class="card card-hover-lift student-card">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-start">
               <div>
-                <h6 class="fw-bold mb-1">${escapeHtml(s.name)} <span class="badge bg-secondary ms-1">${escapeHtml(s.grade_level)}</span></h6>
+                <h6 class="fw-bold mb-1">${escapeHtml(s.name)} <span class="badge badge-soft-secondary ms-1">${escapeHtml(s.grade_level)}</span></h6>
                 <small class="text-muted">${escapeHtml(s.exam_board||'—')}</small>
               </div>
-              ${s.overdue_count > 0 ? `<span class="badge bg-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>${s.overdue_count} 逾期</span>` : '<span class="badge bg-success">正常</span>'}
+              ${s.overdue_count > 0 ? `<span class="badge badge-soft-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>${s.overdue_count} 逾期</span>` : '<span class="badge badge-soft-success">正常</span>'}
             </div>
-            ${s.targets ? `<p class="small text-muted mt-2 mb-2">目标: ${escapeHtml(s.targets.substring(0,60))}</p>` : ''}
+            ${s.targets ? `<p class="small text-muted mt-2 mb-2"><i class="bi bi-bullseye me-1"></i>目标: ${escapeHtml(s.targets.substring(0,60))}</p>` : ''}
             <button class="btn btn-sm btn-outline-primary w-100" onclick="navigate('student-detail',{studentId:'${s.id}'})">
               <i class="bi bi-clipboard-check me-1"></i>查看学业计划
             </button>
           </div>
         </div>
       </div>`).join('')}
-    </div>`;
+    </div>`}`;
   } catch(e) {
     mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
   }
@@ -734,9 +738,9 @@ async function renderStudentList() {
                   <td>
                   ${isIntakeStaff
                     ? `<button class="btn btn-sm btn-outline-primary" onclick="navigate('intake-cases',{student_id:'${s.id}'})"><i class="bi bi-folder2-open me-1"></i>查看案例</button>`
-                    : `<button class="btn btn-sm btn-outline-primary me-1" onclick="navigate('student-detail',{studentId:'${s.id}'})"><i class="bi bi-eye"></i></button>
-                       ${hasRole('principal','counselor') ? `<button class="btn btn-sm btn-outline-secondary me-1" onclick="openStudentModal('${s.id}')"><i class="bi bi-pencil"></i></button>` : ''}
-                       ${hasRole('principal') ? `<button class="btn btn-sm btn-outline-danger" data-sid="${escapeHtml(s.id)}" data-sname="${escapeHtml(s.name)}" onclick="deleteStudent(this.dataset.sid,this.dataset.sname)"><i class="bi bi-trash"></i></button>` : ''}`
+                    : `<button class="action-icon-btn" title="查看" onclick="navigate('student-detail',{studentId:'${s.id}'})"><i class="bi bi-eye"></i></button>
+                       ${hasRole('principal','counselor') ? `<button class="action-icon-btn" title="编辑" onclick="openStudentModal('${s.id}')"><i class="bi bi-pencil"></i></button>` : ''}
+                       ${hasRole('principal') ? `<button class="action-icon-btn danger" title="删除" data-sid="${escapeHtml(s.id)}" data-sname="${escapeHtml(s.name)}" onclick="deleteStudent(this.dataset.sid,this.dataset.sname)"><i class="bi bi-trash"></i></button>` : ''}`
                   }
                 </td>
               </tr>`).join('') || '<tr><td colspan="10" class="text-center text-muted py-3">暂无匹配学生</td></tr>';
@@ -822,10 +826,10 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
       </div>
       <div class="d-flex gap-2">
         ${canEdit ? `
-          <button class="btn btn-outline-secondary btn-sm" onclick="openStudentModal('${id}')"><i class="bi bi-pencil me-1"></i>编辑</button>
-          <button class="btn btn-outline-primary btn-sm" onclick="openAssignMentorModal('${id}')"><i class="bi bi-person-plus me-1"></i>分配导师</button>
-          <button class="btn btn-warning btn-sm" onclick="openTimelineModal('${id}')"><i class="bi bi-magic me-1"></i>生成时间线</button>
-          <button class="btn btn-outline-warning btn-sm" onclick="openConsentModal('${id}')"><i class="bi bi-shield-check me-1"></i>监护人同意</button>
+          <button class="btn btn-outline-muted btn-sm" onclick="openStudentModal('${id}')"><i class="bi bi-pencil me-1"></i>编辑</button>
+          <button class="btn btn-outline-muted btn-sm" onclick="openAssignMentorModal('${id}')"><i class="bi bi-person-plus me-1"></i>分配导师</button>
+          <button class="btn btn-primary btn-sm" onclick="openTimelineModal('${id}')"><i class="bi bi-magic me-1"></i>生成时间线</button>
+          <button class="btn btn-outline-muted btn-sm" onclick="openConsentModal('${id}')"><i class="bi bi-shield-check me-1"></i>监护人同意</button>
         ` : ''}
         ${hasRole('parent','student') ? `<button class="btn btn-outline-primary btn-sm" onclick="openFeedbackModal('${id}')"><i class="bi bi-chat me-1"></i>提交反馈</button>` : ''}
       </div>
@@ -834,9 +838,9 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
     <!-- Tabs: 主要 + 更多 -->
     <ul class="nav nav-tabs mb-3" id="student-tabs">
       <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-overview">概览</a></li>
-      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-timeline">任务 ${tasks.filter(t=>t.status!=='done').length?`<span class="badge bg-warning text-dark ms-1">${tasks.filter(t=>t.status!=='done').length}</span>`:''}</a></li>
-      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-apps">申请 ${applications.length?`<span class="badge bg-primary ms-1">${applications.length}</span>`:''}</a></li>
-      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-materials">材料 ${materials.length?`<span class="badge bg-info ms-1">${materials.length}</span>`:''}</a></li>
+      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-timeline">任务 ${tasks.filter(t=>t.status!=='done').length?`<span class="badge badge-soft-primary ms-1">${tasks.filter(t=>t.status!=='done').length}</span>`:''}</a></li>
+      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-apps">申请 ${applications.length?`<span class="badge badge-soft-primary ms-1">${applications.length}</span>`:''}</a></li>
+      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-materials">材料 ${materials.length?`<span class="badge badge-soft-primary ms-1">${materials.length}</span>`:''}</a></li>
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-activities"><i class="bi bi-trophy me-1"></i>活动</a></li>
       <li class="nav-item dropdown">
         <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button">更多</a>
@@ -1373,10 +1377,12 @@ async function loadOverviewCompetitiveness(studentId) {
     let bars = '';
     for (const [k, v] of Object.entries(dimensions)) {
       const pct = Math.round(v);
-      bars += `<div class="mb-1"><div class="d-flex justify-content-between small"><span>${dimLabels[k]||k}</span><span>${pct}%</span></div><div class="progress" style="height:6px"><div class="progress-bar bg-${dimColors[k]||'secondary'}" style="width:${pct}%"></div></div></div>`;
+      const fillClass = pct >= 70 ? 'bar-fill-high' : pct >= 30 ? 'bar-fill-medium' : 'bar-fill-low';
+      bars += `<div class="mb-2"><div class="d-flex justify-content-between small mb-1"><span>${dimLabels[k]||k}</span><span class="fw-semibold">${pct}%</span></div><div class="competitiveness-bar"><div class="bar-fill ${fillClass}" style="width:${pct}%"></div></div></div>`;
     }
     const overall = c.overall;
-    el.innerHTML = `<div style="padding:.5rem">${bars}<div class="mt-2 text-center"><span class="badge bg-dark">综合: ${overall}%</span></div></div>`;
+    const overallClass = overall >= 70 ? 'badge-soft-success' : overall >= 40 ? 'badge-soft-warning' : 'badge-soft-danger';
+    el.innerHTML = `<div style="padding:.5rem">${bars}<div class="mt-2 text-center"><span class="badge ${overallClass}">综合: ${overall}%</span></div></div>`;
   } catch(e) {
     el.innerHTML = `<div class="ov-empty" style="padding:.75rem"><i class="bi bi-graph-up"></i><span>暂无竞争力数据</span></div>`;
   }
@@ -1901,7 +1907,7 @@ async function renderStaffList() {
     mc.innerHTML = `
     <div class="page-header">
       <h4><i class="bi bi-people me-2"></i>师资管理</h4>
-      ${hasRole('principal') ? `<button class="btn btn-success btn-sm" onclick="openStaffModal()"><i class="bi bi-plus-lg me-1"></i>新增教职工</button>` : ''}
+      ${hasRole('principal') ? `<button class="btn btn-primary btn-sm" onclick="openStaffModal()"><i class="bi bi-plus-lg me-1"></i>新增教职工</button>` : ''}
     </div>
     <div class="row g-3">
       ${staff.map(s => {
@@ -1919,7 +1925,7 @@ async function renderStaffList() {
                 <div class="avatar-lg">${escapeHtml(s.name.charAt(0))}</div>
                 <div>
                   <div class="fw-bold">${escapeHtml(s.name)}</div>
-                  <span class="badge bg-secondary">${escapeHtml(s.role)}</span>
+                  <span class="badge badge-pill ${s.role==='counselor'?'badge-soft-success':s.role==='mentor'?'badge-soft-info':s.role==='principal'?'badge-soft-primary':'badge-soft-secondary'}">${escapeHtml(s.role)}</span>
                 </div>
               </div>
               <div class="small mb-2">
@@ -1935,11 +1941,11 @@ async function renderStaffList() {
                   <span>学生负载</span>
                   <span class="text-${cls}">${s.current_students}/${s.capacity_students||'—'}</span>
                 </div>
-                ${s.capacity_students ? `<div class="progress" style="height:6px"><div class="progress-bar bg-${cls}" style="width:${pct}%"></div></div>` : ''}
+                ${s.capacity_students ? `<div class="progress" style="height:6px;border-radius:999px"><div class="progress-bar ${cls==='danger'?'progress-bar-gradient-red':cls==='warning'?'progress-bar-gradient-yellow':'progress-bar-gradient-green'}" style="width:${pct}%;border-radius:999px"></div></div>` : ''}
               </div>
               ${hasRole('principal') ? `<div class="mt-3 d-flex gap-2">
                 <button class="btn btn-outline-primary btn-sm" onclick="openStaffModal('${escapeHtml(s.id)}')"><i class="bi bi-pencil me-1"></i>编辑</button>
-                <button class="btn btn-outline-warning btn-sm" onclick="resetStaffPassword('${escapeHtml(s.id)}', '${escapeHtml(s.name)}')"><i class="bi bi-key me-1"></i>重置密码</button>
+                <button class="btn btn-outline-danger btn-sm" onclick="resetStaffPassword('${escapeHtml(s.id)}', '${escapeHtml(s.name)}')"><i class="bi bi-key me-1"></i>重置密码</button>
               </div>` : ''}
             </div>
           </div>
@@ -2009,38 +2015,60 @@ async function renderFeedbackList() {
   mc.innerHTML = `<div class="page-loading"><div class="spinner-border text-primary"></div></div>`;
   try {
     const feedback = await GET('/api/feedback');
+    const types = [...new Set(feedback.map(f => f.feedback_type).filter(Boolean))];
     mc.innerHTML = `
     <div class="page-header">
       <h4><i class="bi bi-chat-dots me-2"></i>反馈管理</h4>
-    </div>
-    <div class="card">
-      <div class="card-body p-0">
-        ${feedback.length === 0 ? '<p class="text-center text-muted py-4">暂无待处理反馈</p>' :
-        feedback.map(f => `
-        <div class="border-bottom p-3 d-flex gap-3">
-          <div class="flex-grow-1">
-            <div class="d-flex justify-content-between mb-1">
-              <span class="fw-semibold">${escapeHtml(f.student_name)}</span>
-              <div class="d-flex gap-2">
-                <span class="badge bg-secondary">${escapeHtml(f.feedback_type)}</span>
-                <span class="badge bg-light text-dark">${escapeHtml(f.from_role)}</span>
-                ${f.rating ? `<span>${'⭐'.repeat(parseInt(f.rating))}</span>` : ''}
-                <small class="text-muted">${fmtDatetime(f.created_at)}</small>
-              </div>
-            </div>
-            <p class="small mb-2">${escapeHtml(f.content)}</p>
-            <div class="d-flex gap-2">
-              <button class="btn btn-sm btn-success" data-fbid="${escapeHtml(f.id)}" data-fbcontent="${escapeHtml(f.content)}" onclick="openFeedbackResponse(this.dataset.fbid, this.dataset.fbcontent)">
-                <i class="bi bi-reply me-1"></i>回复并标记解决
-              </button>
-              <button class="btn btn-sm btn-outline-primary" onclick="navigate('student-detail',{studentId:'${f.student_id}'})">
-                查看学生
-              </button>
-            </div>
-          </div>
-        </div>`).join('')}
+      <div class="d-flex gap-2 align-items-center">
+        <input class="form-control form-control-sm" id="fb-search" placeholder="搜索内容..." style="width:160px" oninput="window._fbFilter()">
       </div>
+    </div>
+    <div class="filter-chip-group mb-3">
+      <button class="filter-chip active" data-fb-type="" onclick="window._fbFilterType(this)">全部 <span style="opacity:.5">${feedback.length}</span></button>
+      ${types.map(t => `<button class="filter-chip" data-fb-type="${escapeHtml(t)}" onclick="window._fbFilterType(this)">${escapeHtml(t)} <span style="opacity:.5">${feedback.filter(f=>f.feedback_type===t).length}</span></button>`).join('')}
+    </div>
+    <div id="fb-list">
+    ${feedback.length === 0 ? '<div class="empty-state-block"><i class="bi bi-chat-dots"></i><p>暂无待处理反馈</p></div>' :
+    feedback.map(f => `
+    <div class="card mb-2 fb-item" data-fb-type="${escapeHtml(f.feedback_type||'')}">
+      <div class="card-body py-3 px-4">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div class="d-flex align-items-center gap-2">
+            <span class="fw-semibold">${escapeHtml(f.student_name)}</span>
+            <span class="badge badge-soft-info">${escapeHtml(f.feedback_type)}</span>
+            <span class="badge badge-soft-secondary">${escapeHtml(f.from_role)}</span>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            ${f.rating ? `<span class="small text-warning">${'★'.repeat(parseInt(f.rating))}${'☆'.repeat(5-parseInt(f.rating))}</span>` : ''}
+            <small class="text-muted">${fmtDatetime(f.created_at)}</small>
+          </div>
+        </div>
+        <p class="small mb-2 text-secondary">${escapeHtml(f.content)}</p>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-success" data-fbid="${escapeHtml(f.id)}" data-fbcontent="${escapeHtml(f.content)}" onclick="openFeedbackResponse(this.dataset.fbid, this.dataset.fbcontent)">
+            <i class="bi bi-reply me-1"></i>回复并标记解决
+          </button>
+          <button class="btn btn-sm btn-outline-muted" onclick="navigate('student-detail',{studentId:'${f.student_id}'})">
+            <i class="bi bi-person me-1"></i>查看学生
+          </button>
+        </div>
+      </div>
+    </div>`).join('')}
     </div>`;
+    window._fbFilterType = (btn) => {
+      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      window._fbFilter();
+    };
+    window._fbFilter = () => {
+      const type = document.querySelector('.filter-chip.active')?.dataset.fbType || '';
+      const search = (document.getElementById('fb-search')?.value||'').toLowerCase();
+      document.querySelectorAll('.fb-item').forEach(el => {
+        const matchType = !type || el.dataset.fbType === type;
+        const matchSearch = !search || el.textContent.toLowerCase().includes(search);
+        el.style.display = matchType && matchSearch ? '' : 'none';
+      });
+    };
   } catch(e) {
     mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
   }
@@ -5356,7 +5384,7 @@ function filterPrograms(q) {
 }
 
 function renderProgramCards(programs, canEdit) {
-  if (!programs.length) return '<div class="text-center text-muted py-5"><i class="bi bi-inbox display-4 d-block mb-2"></i>暂无专业条目，点击"新增专业"开始录入。</div>';
+  if (!programs.length) return '<div class="empty-state-block"><i class="bi bi-inbox"></i><p>暂无专业条目，点击"新增专业"开始录入</p></div>';
 
   const byCountry = {};
   programs.forEach(p => {
@@ -5366,12 +5394,18 @@ function renderProgramCards(programs, canEdit) {
   });
 
   const countryIcon = { 'UK': '🇬🇧', 'US': '🇺🇸', 'SG': '🇸🇬', 'CA': '🇨🇦', 'AU': '🇦🇺' };
+  const countryName = { 'UK': '英国', 'US': '美国', 'SG': '新加坡', 'CA': '加拿大', 'AU': '澳大利亚' };
 
   return Object.entries(byCountry).map(([country, progs]) => `
-    <div class="mb-4">
-      <h6 class="fw-bold text-muted mb-2">${countryIcon[country]||'🌍'} ${escapeHtml(country)} <span class="badge bg-secondary ms-1">${progs.length}</span></h6>
+    <div class="card mb-3">
+      <div class="content-section-header">
+        <span>${countryIcon[country]||'🌍'}</span>
+        <span>${countryName[country]||escapeHtml(country)}</span>
+        <span class="badge badge-soft-primary ms-1">${progs.length}</span>
+      </div>
+      <div class="card-body p-0">
       <div class="table-responsive">
-        <table class="table table-hover align-middle">
+        <table class="table table-hover align-middle mb-0">
           <thead class="table-light">
             <tr>
               <th>院校</th><th>专业/项目</th><th>通道</th><th>学术要求</th>
@@ -5397,13 +5431,14 @@ function renderProgramCards(programs, canEdit) {
                 <td class="small">${p.app_deadline ? fmtDate(p.app_deadline) + (p.app_deadline_time ? ' '+escapeHtml(p.app_deadline_time) : '') : '—'}</td>
                 <td>${rateStr !== '—' ? `<span class="badge bg-${confBadge}">${rateStr}</span><small class="text-muted ms-1">(n=${p.hist_applicants||0})</small>` : '<span class="text-muted small">—</span>'}</td>
                 ${canEdit ? `<td>
-                  <button class="btn btn-outline-primary btn-xs me-1" onclick="openUniProgramModal('${p.id}')"><i class="bi bi-pencil"></i></button>
-                  <button class="btn btn-outline-danger btn-xs" data-pid="${escapeHtml(p.id)}" data-pname="${escapeHtml(p.uni_name+' '+p.program_name)}" onclick="deleteUniProgram(this.dataset.pid,this.dataset.pname)"><i class="bi bi-trash"></i></button>
+                  <button class="action-icon-btn" title="编辑" onclick="openUniProgramModal('${p.id}')"><i class="bi bi-pencil"></i></button>
+                  <button class="action-icon-btn danger" title="删除" data-pid="${escapeHtml(p.id)}" data-pname="${escapeHtml(p.uni_name+' '+p.program_name)}" onclick="deleteUniProgram(this.dataset.pid,this.dataset.pname)"><i class="bi bi-trash"></i></button>
                 </td>` : ''}
               </tr>`;
             }).join('')}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   `).join('');

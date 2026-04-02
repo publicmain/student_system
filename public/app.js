@@ -93,37 +93,46 @@ async function renderDashboard() {
     const tierMap = {};
     (stats.tierStats || []).forEach(t => tierMap[t.tier] = t.cnt);
 
+    // ── 计算需要关注的师资（>70%负载）
+    const warnStaff = workload.filter(w => {
+      const pct = w.capacity_students > 0 ? Math.round(w.current_students/w.capacity_students*100) : 0;
+      return pct >= 70;
+    });
+
     mc.innerHTML = `
     <div class="page-header">
       <h4><i class="bi bi-speedometer2 me-2"></i>总览仪表盘</h4>
-      <small class="text-muted">更新时间：${new Date().toLocaleString('zh-CN')}</small>
+      <div class="page-header-actions">
+        <small class="text-muted me-2">更新时间：${new Date().toLocaleString('zh-CN')}</small>
+        <button class="btn btn-outline-muted btn-sm" onclick="exportDashboardPDF()"><i class="bi bi-printer me-1"></i>导出PDF</button>
+      </div>
     </div>
 
-    <!-- 关键指标卡 -->
+    <!-- KPI 指标条 -->
     <div class="row g-3 mb-4">
-      <div class="col-md-3">
-        <div class="stat-card bg-primary text-white">
+      <div class="col-6 col-md-3">
+        <div class="stat-card accent-primary" onclick="navigate('students')" style="cursor:pointer">
           <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
           <div class="stat-value">${stats.totalStudents}</div>
           <div class="stat-label">在读学生</div>
         </div>
       </div>
-      <div class="col-md-3">
-        <div class="stat-card bg-success text-white">
+      <div class="col-6 col-md-3">
+        <div class="stat-card accent-success">
           <div class="stat-icon"><i class="bi bi-file-earmark-check-fill"></i></div>
           <div class="stat-value">${stats.totalApplications}</div>
           <div class="stat-label">总申请数</div>
         </div>
       </div>
-      <div class="col-md-3">
-        <div class="stat-card ${stats.overdueTasks>0?'bg-danger':'bg-success'} text-white">
+      <div class="col-6 col-md-3">
+        <div class="stat-card ${stats.overdueTasks>0?'accent-danger':'accent-success'}">
           <div class="stat-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
-          <div class="stat-value">${stats.overdueTasks}</div>
+          <div class="stat-value" style="${stats.overdueTasks>0?'color:var(--danger)':''}">${stats.overdueTasks}</div>
           <div class="stat-label">逾期任务</div>
         </div>
       </div>
-      <div class="col-md-3">
-        <div class="stat-card bg-info text-white">
+      <div class="col-6 col-md-3">
+        <div class="stat-card accent-info">
           <div class="stat-icon"><i class="bi bi-folder-check"></i></div>
           <div class="stat-value">${stats.pendingMaterials}</div>
           <div class="stat-label">待处理材料</div>
@@ -131,12 +140,11 @@ async function renderDashboard() {
       </div>
     </div>
 
-    <!-- 第二行 -->
     <div class="row g-3 mb-4">
       <!-- 梯度分布 -->
       <div class="col-md-4">
         <div class="card h-100">
-          <div class="card-header fw-semibold"><i class="bi bi-bar-chart-fill me-1 text-primary"></i> 目标院校梯度分布</div>
+          <div class="card-header fw-semibold"><i class="bi bi-bar-chart-fill me-1 text-primary"></i> 院校梯度分布</div>
           <div class="card-body">
             ${(() => {
               const gradients = {'冲刺':'progress-bar-gradient-red','意向':'progress-bar-gradient-blue','保底':'progress-bar-gradient-green'};
@@ -148,7 +156,7 @@ async function renderDashboard() {
                   <div class="d-flex justify-content-between mb-1">
                     <span class="small fw-semibold">${tier}</span><span class="fw-bold">${cnt}</span>
                   </div>
-                  <div class="progress" style="height:10px;border-radius:999px">
+                  <div class="progress" style="height:8px;border-radius:999px">
                     <div class="progress-bar ${gradients[tier]}" style="width:${pct}%;border-radius:999px"></div>
                   </div>
                 </div>`;
@@ -157,60 +165,67 @@ async function renderDashboard() {
           </div>
         </div>
       </div>
-      <!-- 师资负载 -->
+      <!-- 需要关注 -->
       <div class="col-md-8">
         <div class="card h-100">
-          <div class="card-header fw-semibold"><i class="bi bi-person-fill-gear me-1 text-success"></i> 师资负载</div>
+          <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-exclamation-triangle me-1 text-warning"></i> 需要关注</span>
+            <a href="#" onclick="event.preventDefault();navigate('students')" class="small text-primary text-decoration-none">查看全部学生 →</a>
+          </div>
           <div class="card-body p-0">
-            <div class="table-responsive">
-              <table class="table table-sm table-hover mb-0">
-                <thead class="table-light"><tr><th>姓名</th><th>角色</th><th>当前学生</th><th>容量</th><th>负载</th></tr></thead>
-                <tbody>
-                  ${workload.map(w => {
-                    const pct = w.capacity_students > 0 ? Math.round(w.current_students/w.capacity_students*100) : 0;
-                    const cls = pct >= 90 ? 'danger' : pct >= 70 ? 'warning' : 'success';
-                    const roleClass = w.role === 'counselor' ? 'badge-soft-success' : w.role === 'mentor' ? 'badge-soft-info' : w.role === 'principal' ? 'badge-soft-primary' : 'badge-soft-secondary';
-                    const barGrad = cls === 'danger' ? 'progress-bar-gradient-red' : cls === 'warning' ? 'progress-bar-gradient-yellow' : 'progress-bar-gradient-green';
-                    return `<tr>
-                      <td class="fw-semibold">${escapeHtml(w.name)}</td>
-                      <td><span class="badge badge-pill ${roleClass}">${escapeHtml(w.role)}</span></td>
-                      <td>${w.current_students}</td>
-                      <td>${w.capacity_students || '—'}</td>
-                      <td>
-                        <div class="progress" style="height:6px;min-width:80px;border-radius:999px">
-                          <div class="progress-bar ${barGrad}" style="width:${pct}%;border-radius:999px"></div>
-                        </div>
-                        <small class="text-${cls} fw-semibold">${pct}%</small>
-                      </td>
-                    </tr>`;
-                  }).join('')}
-                </tbody>
-              </table>
-            </div>
+            ${risks.length === 0
+              ? '<div class="empty-state-block" style="padding:2rem"><i class="bi bi-check-circle" style="color:var(--success)"></i><p>所有学生任务均按时推进</p></div>'
+              : `<ul class="attention-list">
+                ${risks.slice(0,5).map(r => `<li>
+                  <div>
+                    <div class="att-name">${escapeHtml(r.name)} <span class="badge badge-soft-secondary ms-1">${escapeHtml(r.grade_level)}</span></div>
+                    <div class="att-desc"><span class="badge badge-soft-danger">${r.overdue_count} 项逾期</span></div>
+                  </div>
+                  <div class="att-action">
+                    <button class="action-icon-btn" title="查看" onclick="navigate('student-detail',{studentId:'${r.id}'})"><i class="bi bi-chevron-right"></i></button>
+                  </div>
+                </li>`).join('')}
+              </ul>`}
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 风险学生 -->
+    <!-- 师资负载（仅显示需关注的） -->
     <div class="card">
-      <div class="card-header fw-semibold text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i> 风险学生（有逾期任务）</div>
+      <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-person-fill-gear me-1 text-muted"></i> 师资负载</span>
+        <a href="#" onclick="event.preventDefault();navigate('staff')" class="small text-primary text-decoration-none">查看全部师资 →</a>
+      </div>
       <div class="card-body p-0">
-        ${risks.length === 0 ? '<div class="empty-state-block"><i class="bi bi-check-circle"></i><p>暂无风险学生，所有任务按时推进中</p></div>' : `
-        <div class="table-responsive">
-          <table class="table table-hover mb-0">
-            <thead class="table-light"><tr><th>姓名</th><th>年级</th><th>考试局</th><th>逾期任务数</th><th>操作</th></tr></thead>
-            <tbody>
-              ${risks.map(r => `<tr>
-                <td class="fw-semibold">${escapeHtml(r.name)}</td>
-                <td>${escapeHtml(r.grade_level)}</td>
-                <td><span class="badge bg-light text-dark border">${escapeHtml(r.exam_board||'—')}</span></td>
-                <td><span class="badge badge-soft-danger">${r.overdue_count} 逾期</span></td>
-                <td><button class="action-icon-btn" title="查看详情" onclick="navigate('student-detail',{studentId:'${r.id}'})"><i class="bi bi-eye"></i></button></td>
-              </tr>`).join('')}
-            </tbody>
-          </table>
-        </div>`}
+        ${warnStaff.length === 0
+          ? `<div class="d-flex align-items-center justify-content-center py-3 gap-2 text-muted" style="font-size:.85rem">
+              <i class="bi bi-check-circle text-success"></i> 暂无过载教师
+            </div>`
+          : `<div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light"><tr><th>姓名</th><th>角色</th><th>学生数</th><th>容量</th><th>负载</th></tr></thead>
+              <tbody>
+                ${warnStaff.map(w => {
+                  const pct = w.capacity_students > 0 ? Math.round(w.current_students/w.capacity_students*100) : 0;
+                  const cls = pct >= 90 ? 'danger' : 'warning';
+                  const barGrad = cls === 'danger' ? 'progress-bar-gradient-red' : 'progress-bar-gradient-yellow';
+                  return `<tr>
+                    <td class="fw-semibold">${escapeHtml(w.name)}</td>
+                    <td><span class="badge badge-soft-${w.role==='counselor'?'success':w.role==='mentor'?'info':'primary'}">${escapeHtml(w.role)}</span></td>
+                    <td>${w.current_students}</td>
+                    <td>${w.capacity_students||'—'}</td>
+                    <td>
+                      <div class="progress" style="height:6px;min-width:80px;border-radius:999px">
+                        <div class="progress-bar ${barGrad}" style="width:${pct}%;border-radius:999px"></div>
+                      </div>
+                      <small class="text-${cls} fw-semibold">${pct}%</small>
+                    </td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>`}
       </div>
     </div>`;
   } catch (e) {
@@ -1904,54 +1919,85 @@ async function renderStaffList() {
   mc.innerHTML = `<div class="page-loading"><div class="spinner-border text-primary"></div></div>`;
   try {
     const staff = await GET('/api/staff');
+    const roles = [...new Set(staff.map(s => s.role).filter(Boolean))];
+    const roleLabel = { counselor:'规划师', mentor:'导师', principal:'校长', student_admin:'学管' };
+    const roleBadge = r => r==='counselor'?'badge-soft-success':r==='mentor'?'badge-soft-info':r==='principal'?'badge-soft-primary':'badge-soft-secondary';
+
     mc.innerHTML = `
     <div class="page-header">
       <h4><i class="bi bi-people me-2"></i>师资管理</h4>
-      ${hasRole('principal') ? `<button class="btn btn-primary btn-sm" onclick="openStaffModal()"><i class="bi bi-plus-lg me-1"></i>新增教职工</button>` : ''}
+      <div class="page-header-actions">
+        ${hasRole('principal') ? `<button class="btn btn-primary btn-sm" onclick="openStaffModal()"><i class="bi bi-plus-lg me-1"></i>新增教职工</button>` : ''}
+      </div>
     </div>
-    <div class="row g-3">
-      ${staff.map(s => {
+    <!-- FilterBar -->
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+      <div class="filter-chip-group">
+        <button class="filter-chip active" onclick="window._staffFilter='';window._renderStaffTable()">全部 <span class="text-muted">${staff.length}</span></button>
+        ${roles.map(r => `<button class="filter-chip" onclick="window._staffFilter='${r}';window._renderStaffTable()">${roleLabel[r]||r} <span class="text-muted">${staff.filter(s=>s.role===r).length}</span></button>`).join('')}
+      </div>
+      <div class="ms-auto">
+        <input class="form-control form-control-sm" id="staffSearch" placeholder="搜索姓名..." style="width:160px" oninput="window._renderStaffTable()">
+      </div>
+    </div>
+    <!-- Table -->
+    <div class="card">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-light"><tr><th>姓名</th><th>角色</th><th>邮箱</th><th>电话</th><th>学生负载</th>${hasRole('principal')?'<th class="text-center">操作</th>':''}</tr></thead>
+            <tbody id="staffTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+
+    window._staffFilter = '';
+    window._renderStaffTable = function() {
+      const kw = (document.getElementById('staffSearch')?.value||'').trim().toLowerCase();
+      const filtered = staff.filter(s => {
+        if (window._staffFilter && s.role !== window._staffFilter) return false;
+        if (kw && !s.name.toLowerCase().includes(kw)) return false;
+        return true;
+      });
+      // Update active chip
+      document.querySelectorAll('.filter-chip').forEach(c => {
+        const isAll = !c.onclick.toString().includes("_staffFilter='") || c.onclick.toString().includes("_staffFilter=''");
+        const chipRole = c.textContent.trim().split(' ')[0];
+        c.classList.toggle('active', window._staffFilter === '' ? isAll : (roleLabel[window._staffFilter]||window._staffFilter) === chipRole);
+      });
+      const tbody = document.getElementById('staffTbody');
+      if (!tbody) return;
+      tbody.innerHTML = filtered.length ? filtered.map(s => {
         const pct = s.capacity_students > 0 ? Math.round(s.current_students/s.capacity_students*100) : 0;
         const cls = pct >= 90 ? 'danger' : pct >= 70 ? 'warning' : 'success';
-        let subjects = [];
-        try { subjects = JSON.parse(s.subjects||'[]'); } catch(e) {}
-        let boards = [];
-        try { boards = JSON.parse(s.exam_board_exp||'[]'); } catch(e) {}
-        return `
-        <div class="col-md-4">
-          <div class="card h-100">
-            <div class="card-body">
-              <div class="d-flex align-items-center gap-3 mb-3">
-                <div class="avatar-lg">${escapeHtml(s.name.charAt(0))}</div>
-                <div>
-                  <div class="fw-bold">${escapeHtml(s.name)}</div>
-                  <span class="badge badge-pill ${s.role==='counselor'?'badge-soft-success':s.role==='mentor'?'badge-soft-info':s.role==='principal'?'badge-soft-primary':'badge-soft-secondary'}">${escapeHtml(s.role)}</span>
-                </div>
-              </div>
-              <div class="small mb-2">
-                <i class="bi bi-envelope me-1 text-muted"></i>${escapeHtml(s.email||'—')}
-              </div>
-              <div class="small mb-2">
-                <i class="bi bi-telephone me-1 text-muted"></i>${escapeHtml(s.phone||'—')}
-              </div>
-              ${subjects.length > 0 ? `<div class="small mb-2"><i class="bi bi-book me-1 text-muted"></i>${subjects.map(x=>escapeHtml(x)).join('、')}</div>` : ''}
-              ${boards.length > 0 ? `<div class="small mb-2">${boards.map(b=>`<span class="badge bg-light text-dark border me-1">${escapeHtml(b)}</span>`).join('')}</div>` : ''}
-              <div class="mt-2">
-                <div class="d-flex justify-content-between small mb-1">
-                  <span>学生负载</span>
-                  <span class="text-${cls}">${s.current_students}/${s.capacity_students||'—'}</span>
-                </div>
-                ${s.capacity_students ? `<div class="progress" style="height:6px;border-radius:999px"><div class="progress-bar ${cls==='danger'?'progress-bar-gradient-red':cls==='warning'?'progress-bar-gradient-yellow':'progress-bar-gradient-green'}" style="width:${pct}%;border-radius:999px"></div></div>` : ''}
-              </div>
-              ${hasRole('principal') ? `<div class="mt-3 d-flex gap-2">
-                <button class="btn btn-outline-primary btn-sm" onclick="openStaffModal('${escapeHtml(s.id)}')"><i class="bi bi-pencil me-1"></i>编辑</button>
-                <button class="btn btn-outline-danger btn-sm" onclick="resetStaffPassword('${escapeHtml(s.id)}', '${escapeHtml(s.name)}')"><i class="bi bi-key me-1"></i>重置密码</button>
-              </div>` : ''}
+        const barGrad = cls==='danger'?'progress-bar-gradient-red':cls==='warning'?'progress-bar-gradient-yellow':'progress-bar-gradient-green';
+        return `<tr>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <div class="avatar-sm">${escapeHtml(s.name.charAt(0))}</div>
+              <span class="fw-semibold">${escapeHtml(s.name)}</span>
             </div>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>`;
+          </td>
+          <td><span class="badge badge-soft-${s.role==='counselor'?'success':s.role==='mentor'?'info':s.role==='principal'?'primary':'secondary'}">${escapeHtml(roleLabel[s.role]||s.role)}</span></td>
+          <td class="text-muted small">${escapeHtml(s.email||'—')}</td>
+          <td class="text-muted small">${escapeHtml(s.phone||'—')}</td>
+          <td style="min-width:140px">
+            <div class="d-flex align-items-center gap-2">
+              <div class="progress flex-grow-1" style="height:6px;border-radius:999px">
+                <div class="progress-bar ${barGrad}" style="width:${pct}%;border-radius:999px"></div>
+              </div>
+              <span class="small text-${cls} fw-semibold" style="min-width:40px">${s.current_students}/${s.capacity_students||'—'}</span>
+            </div>
+          </td>
+          ${hasRole('principal')?`<td class="text-center">
+            <button class="action-icon-btn" title="编辑" onclick="openStaffModal('${escapeHtml(s.id)}')"><i class="bi bi-pencil"></i></button>
+            <button class="action-icon-btn danger" title="重置密码" onclick="resetStaffPassword('${escapeHtml(s.id)}','${escapeHtml(s.name)}')"><i class="bi bi-key"></i></button>
+          </td>`:''}
+        </tr>`;
+      }).join('') : '<tr><td colspan="6"><div class="empty-state-block"><i class="bi bi-people"></i><p>暂无匹配的教职工</p></div></td></tr>';
+    };
+    window._renderStaffTable();
   } catch(e) {
     mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
   }
@@ -5317,29 +5363,29 @@ async function renderAdmissionPrograms() {
           ${canEdit ? `<button class="btn btn-primary btn-sm" onclick="openUniProgramModal()"><i class="bi bi-plus me-1"></i>新增专业</button>` : ''}
         </div>
         <div class="row g-3 mb-3">
-          <div class="col-md-3">
-            <div class="stat-card bg-primary text-white">
+          <div class="col-6 col-md-3">
+            <div class="stat-card accent-primary">
               <div class="stat-icon"><i class="bi bi-building"></i></div>
               <div class="stat-value">${programs.length}</div>
               <div class="stat-label">专业条目</div>
             </div>
           </div>
-          <div class="col-md-3">
-            <div class="stat-card bg-info text-white">
+          <div class="col-6 col-md-3">
+            <div class="stat-card accent-info">
               <div class="stat-icon"><i class="bi bi-flag"></i></div>
               <div class="stat-value">${Object.keys(byCountry).length}</div>
               <div class="stat-label">覆盖国家/地区</div>
             </div>
           </div>
-          <div class="col-md-3">
-            <div class="stat-card bg-success text-white">
+          <div class="col-6 col-md-3">
+            <div class="stat-card accent-success">
               <div class="stat-icon"><i class="bi bi-graph-up"></i></div>
               <div class="stat-value">${programs.filter(p => p.hist_applicants).length}</div>
               <div class="stat-label">有历史数据</div>
             </div>
           </div>
-          <div class="col-md-3">
-            <div class="stat-card bg-warning text-dark">
+          <div class="col-6 col-md-3">
+            <div class="stat-card accent-warning">
               <div class="stat-icon"><i class="bi bi-calendar-check"></i></div>
               <div class="stat-value">${programs.filter(p => p.ucas_early_deadline).length}</div>
               <div class="stat-label">早截止专业</div>

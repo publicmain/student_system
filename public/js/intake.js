@@ -42,28 +42,28 @@ async function renderIntakeDashboard() {
       </div>
       <div class="row g-3 mb-4">
         <div class="col-6 col-md-3">
-          <div class="stat-card bg-primary text-white" style="cursor:pointer" onclick="navigate('intake-cases')">
+          <div class="stat-card accent-primary" style="cursor:pointer" onclick="navigate('intake-cases')">
             <div class="stat-icon"><i class="bi bi-person-check-fill"></i></div>
             <div class="stat-value">${data.arrivedCount||0}</div>
             <div class="stat-label">已到校·待跟进</div>
           </div>
         </div>
         <div class="col-6 col-md-3">
-          <div class="stat-card bg-success text-white">
+          <div class="stat-card accent-success">
             <div class="stat-icon"><i class="bi bi-mortarboard-fill"></i></div>
             <div class="stat-value">${data.orientedCount||0}</div>
             <div class="stat-label">已完成入学</div>
           </div>
         </div>
         <div class="col-6 col-md-3">
-          <div class="stat-card ${(data.overdueMyTasks||0)>0?'bg-danger':'bg-success'} text-white">
+          <div class="stat-card ${(data.overdueMyTasks||0)>0?'accent-danger':'accent-success'}">
             <div class="stat-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
             <div class="stat-value">${data.overdueMyTasks||0}</div>
             <div class="stat-label">我的逾期任务</div>
           </div>
         </div>
         <div class="col-6 col-md-3">
-          <div class="stat-card bg-info text-white">
+          <div class="stat-card accent-info">
             <div class="stat-icon"><i class="bi bi-calendar-check"></i></div>
             <div class="stat-value">${data.thisMonthOriented||0}</div>
             <div class="stat-label">本月已入学</div>
@@ -101,28 +101,28 @@ async function renderIntakeDashboard() {
   // ── intake_staff（关）：入学前视图 ──
   const intakeStaffStatusCards = isPrincipal ? '' : `
     <div class="col-6 col-md-3">
-      <div class="stat-card bg-primary text-white">
+      <div class="stat-card accent-primary">
         <div class="stat-icon"><i class="bi bi-person-lines-fill"></i></div>
         <div class="stat-value">${data.total||0}</div>
         <div class="stat-label">进行中案例</div>
       </div>
     </div>
     <div class="col-6 col-md-3">
-      <div class="stat-card ${(data.overdueTasks||0)>0?'bg-danger':'bg-success'} text-white">
+      <div class="stat-card ${(data.overdueTasks||0)>0?'accent-danger':'accent-success'}">
         <div class="stat-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
         <div class="stat-value">${data.overdueTasks||0}</div>
         <div class="stat-label">我的逾期任务</div>
       </div>
     </div>
     <div class="col-6 col-md-3">
-      <div class="stat-card bg-warning text-dark">
+      <div class="stat-card accent-warning">
         <div class="stat-icon"><i class="bi bi-calendar-x"></i></div>
         <div class="stat-value">${data.ipaExpiringSoon?.length||0}</div>
         <div class="stat-label">IPA 即将到期</div>
       </div>
     </div>
     <div class="col-6 col-md-3">
-      <div class="stat-card bg-success text-white">
+      <div class="stat-card accent-success">
         <div class="stat-icon"><i class="bi bi-person-plus-fill"></i></div>
         <div class="stat-value">${data.thisMonthNew?.cnt||0}</div>
         <div class="stat-label">本月新增案例</div>
@@ -131,28 +131,28 @@ async function renderIntakeDashboard() {
 
   const principalStatCards = !isPrincipal ? '' : `
     <div class="col-6 col-md-3">
-      <div class="stat-card bg-primary text-white">
+      <div class="stat-card accent-primary">
         <div class="stat-icon"><i class="bi bi-person-lines-fill"></i></div>
         <div class="stat-value">${data.total||0}</div>
         <div class="stat-label">进行中案例</div>
       </div>
     </div>
     <div class="col-6 col-md-3">
-      <div class="stat-card ${(data.overdueTasks||0)>0?'bg-danger':'bg-success'} text-white">
+      <div class="stat-card ${(data.overdueTasks||0)>0?'accent-danger':'accent-success'}">
         <div class="stat-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
         <div class="stat-value">${data.overdueTasks||0}</div>
         <div class="stat-label">逾期任务</div>
       </div>
     </div>
     <div class="col-6 col-md-3">
-      <div class="stat-card ${(data.unpaidInvoices?.cnt||0)>0?'bg-danger':'bg-success'} text-white">
+      <div class="stat-card ${(data.unpaidInvoices?.cnt||0)>0?'accent-danger':'accent-success'}">
         <div class="stat-icon"><i class="bi bi-receipt-cutoff"></i></div>
         <div class="stat-value">${data.unpaidInvoices?.cnt||0}</div>
         <div class="stat-label">未结账单 · ${(data.unpaidInvoices?.total||0).toFixed(0)} SGD</div>
       </div>
     </div>
     <div class="col-6 col-md-3">
-      <div class="stat-card bg-info text-white">
+      <div class="stat-card accent-info">
         <div class="stat-icon"><i class="bi bi-currency-dollar"></i></div>
         <div class="stat-value">${data.pendingCommissions?.cnt||0}</div>
         <div class="stat-label">待审佣金 · ${(data.pendingCommissions?.total||0).toFixed(0)} SGD</div>

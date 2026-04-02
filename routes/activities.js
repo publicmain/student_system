@@ -6,6 +6,10 @@ const express = require('express');
 module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload, fileStorage, moveUploadedFile }) {
   const router = express.Router();
 
+  function _getSetting(key, fallback) {
+    try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? JSON.parse(r[0].values[0][0]) : fallback; } catch(e) { return fallback; }
+  }
+
   // 权限检查
   function _checkAccess(req, sid) {
     const u = req.session.user;
@@ -17,11 +21,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     return null;
   }
 
-  const ACTIVITY_CATEGORIES = [
-    'academic_competition','club_leadership','volunteer','internship',
-    'sports','arts','personal_project','research','other'
-  ];
-  const IMPACT_LEVELS = ['school','city','province','national','international'];
+  function _getActivityCategories() { return _getSetting('activity_categories', ['academic_competition','club_leadership','volunteer','internship','sports','arts','personal_project','research','other']); }
+  function _getImpactLevels() { return _getSetting('activity_impact_levels', ['school','city','province','national','international']); }
 
   // ═══════════════════════════════════════════════════════════════════
   //  课外活动 CRUD
@@ -157,8 +158,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
       by_impact: byImpact,
       honors_by_level: honorsByLevel,
       balance,
-      categories: ACTIVITY_CATEGORIES,
-      impact_levels: IMPACT_LEVELS,
+      categories: _getActivityCategories(),
+      impact_levels: _getImpactLevels(),
     });
   });
 

@@ -6,8 +6,13 @@ const express = require('express');
 module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   const router = express.Router();
 
-  const ESSAY_TYPES = ['main','supplement','personal_statement','why_school','diversity','activity'];
-  const ESSAY_STATUSES = ['collecting_material','draft','review','revision','final','submitted'];
+  function _getSetting(key, fallback) {
+    try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? JSON.parse(r[0].values[0][0]) : fallback; } catch(e) { return fallback; }
+  }
+
+  function _getEssayTypes() { return _getSetting('essay_types', ['main','supplement','personal_statement','why_school','diversity','activity']); }
+  function _getEssayStatuses() { return _getSetting('essay_statuses', ['collecting_material','draft','review','revision','final','submitted']); }
+  function _getAnnotationStatuses() { return _getSetting('essay_annotation_statuses', ['open','accepted','rejected']); }
 
   // 权限检查
   function _checkAccess(req, sid) {
@@ -59,8 +64,12 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   router.put('/essays/:id', requireAuth, requireRole('principal','counselor','mentor'), (req, res) => {
     const essay = db.get('SELECT * FROM essays WHERE id=?', [req.params.id]);
     if (!essay) return res.status(404).json({ error: '文书不存在' });
-    const { application_id, essay_type, title, prompt, word_limit, status, assigned_reviewer_id, review_deadline, strategy_notes } = req.body;
-    if (status && !ESSAY_STATUSES.includes(status)) return res.status(400).json({ error: '无效状态' });
+    const { application_id, essay_type, title, prompt, word_limit, status, assigned_reviewer_id, review_deadline, strategy_notes, _expected_updated_at } = req.body;
+    // 乐观锁
+    if (_expected_updated_at && essay.updated_at && essay.updated_at !== _expected_updated_at) {
+      return res.status(409).json({ error: '文书已被其他用户修改，请刷新后重试', current_updated_at: essay.updated_at });
+    }
+    if (status && !_getEssayStatuses().includes(status)) return res.status(400).json({ error: '无效状态' });
     db.run(`UPDATE essays SET application_id=?, essay_type=?, title=?, prompt=?, word_limit=?, status=?, assigned_reviewer_id=?, review_deadline=?, strategy_notes=?, updated_at=datetime('now') WHERE id=?`,
       [application_id??essay.application_id, essay_type||essay.essay_type, title??essay.title, prompt??essay.prompt, word_limit??essay.word_limit, status||essay.status, assigned_reviewer_id??essay.assigned_reviewer_id, review_deadline??essay.review_deadline, strategy_notes??essay.strategy_notes, req.params.id]);
     audit(req, 'UPDATE', 'essays', req.params.id, { title: title||essay.title, status });
@@ -105,6 +114,11 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
 
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length;
     const charCount = content.length;
+
+    // 强制字数限制检查
+    if (essay.word_limit && wordCount > essay.word_limit) {
+      return res.status(400).json({ error: `文书字数超限：当前 ${wordCount} 词，上限 ${essay.word_limit} 词` });
+    }
 
     // 事务保护版本号（SELECT MAX + INSERT 必须在同一事务内防止竞态）
     const id = uuidv4();
@@ -174,18 +188,24 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     const u = req.session.user;
     const { version_id, type, position_start, position_end, content } = req.body;
     if (!content || !content.trim()) return res.status(400).json({ error: '批注内容必填' });
+    // 若未提供 version_id，自动关联最新版本
+    let resolvedVersionId = version_id || null;
+    if (!resolvedVersionId && essay.current_version) {
+      const latestVer = db.get('SELECT id FROM essay_versions WHERE essay_id=? AND version_no=?', [req.params.id, essay.current_version]);
+      if (latestVer) resolvedVersionId = latestVer.id;
+    }
     const id = uuidv4();
     db.run(`INSERT INTO essay_annotations (id, essay_id, version_id, annotator_id, annotator_name, type, position_start, position_end, content) VALUES (?,?,?,?,?,?,?,?,?)`,
-      [id, req.params.id, version_id||null, u.id, u.name||u.username, type||'general', position_start??null, position_end??null, content.trim()]);
-    audit(req, 'CREATE', 'essay_annotations', id, { essay_id: req.params.id });
-    res.json({ id });
+      [id, req.params.id, resolvedVersionId, u.id, u.name||u.username, type||'general', position_start!=null?parseInt(position_start):null, position_end!=null?parseInt(position_end):null, content.trim()]);
+    audit(req, 'CREATE', 'essay_annotations', id, { essay_id: req.params.id, version_id: resolvedVersionId });
+    res.json({ id, version_id: resolvedVersionId });
   });
 
   router.put('/essay-annotations/:id', requireAuth, (req, res) => {
     const ann = db.get('SELECT * FROM essay_annotations WHERE id=?', [req.params.id]);
     if (!ann) return res.status(404).json({ error: '批注不存在' });
     const { status, content } = req.body;
-    if (status && !['open','accepted','rejected'].includes(status)) return res.status(400).json({ error: '无效状态' });
+    if (status && !_getAnnotationStatuses().includes(status)) return res.status(400).json({ error: '无效状态' });
     const sets = [], vals = [];
     if (status) { sets.push('status=?'); vals.push(status); }
     if (content) { sets.push('content=?'); vals.push(content.trim()); }
@@ -283,8 +303,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
       by_status: byStatus,
       by_type: byType,
       material_count: materials.length,
-      statuses: ESSAY_STATUSES,
-      types: ESSAY_TYPES,
+      statuses: _getEssayStatuses(),
+      types: _getEssayTypes(),
     });
   });
 

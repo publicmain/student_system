@@ -1769,6 +1769,91 @@ function seedData() {
       { code: 'FR', name: '法语 French' },
       { code: 'DE', name: '德语 German' },
     ])],
+
+    // ── 入学管理 (Intake) ──
+    ['intake_case_statuses', JSON.stringify(['registered','collecting_docs','contract_signed','visa_in_progress','ipa_received','paid','arrived','oriented','closed'])],
+    ['intake_allowed_transitions', JSON.stringify({
+      'registered':       ['collecting_docs'],
+      'collecting_docs':  ['registered','contract_signed'],
+      'contract_signed':  ['collecting_docs','visa_in_progress'],
+      'visa_in_progress': ['contract_signed','ipa_received'],
+      'ipa_received':     ['visa_in_progress','paid'],
+      'paid':             ['ipa_received','arrived'],
+      'arrived':          ['paid','oriented'],
+      'oriented':         ['arrived','closed'],
+      'closed':           [],
+    })],
+    ['intake_year_range', JSON.stringify({ min: 2000, max: 2100 })],
+    ['intake_auto_tasks', JSON.stringify({
+      collect_docs_days: 14, visa_submit_days: 14,
+      fee_followup_days: 7, fee_receipt_days: 14,
+      arrival_confirm_days: 7, accommodation_days: 14,
+      orientation_days: 3, student_pass_days: 7, survey_days: 14
+    })],
+    ['intake_ipa_reminder_days', JSON.stringify([30, 14, 3])],
+    ['mat_token_expiry_hours', '72'],
+
+    // ── 签证与到校 (Visa) ──
+    ['visa_document_types', JSON.stringify(['passport','offer_letter','ipa','insurance','accommodation'])],
+    ['arrival_checklist', JSON.stringify(['airport_pickup','accommodation_check','sim_card','bank_account','orientation'])],
+
+    // ── 财务配置 (Finance) ──
+    ['default_currency', 'SGD'],
+    ['commission_rule_types', JSON.stringify(['percent','fixed'])],
+    ['commission_percent_max', '1.0'],
+    ['agent_token_expiry_hours', '72'],
+
+    // ── 录取评估 (Admission Eval) ──
+    ['grade_conversion_alevel', JSON.stringify({ 'A*': 100, 'A': 90, 'B': 80, 'C': 70, 'D': 60, 'E': 50, 'U': 0 })],
+    ['grade_conversion_ib', JSON.stringify({ '7': 100, '6': 85, '5': 70, '4': 55, '3': 40, '2': 25, '1': 10 })],
+    ['competitiveness_weights', JSON.stringify({ academic: 0.3, language: 0.25, activities: 0.2, awards: 0.1, leadership: 0.15 })],
+    ['admission_scoring', JSON.stringify({ prior_rate: 0.30, sample_size: 30, score_factors: [1.8, 1.4, 1.0, 0.7, 0.4], low_pass_multiplier: 0.6 })],
+    ['default_weight_academic', '0.6'],
+    ['default_weight_language', '0.25'],
+    ['default_weight_extra', '0.15'],
+
+    // ── 文书管理 (Essays) ──
+    ['essay_types', JSON.stringify(['main','supplement','personal_statement','why_school','diversity','activity'])],
+    ['essay_statuses', JSON.stringify(['collecting_material','draft','review','revision','final','submitted'])],
+    ['essay_annotation_statuses', JSON.stringify(['open','accepted','rejected'])],
+
+    // ── 课外活动 (Activities) ──
+    ['activity_categories', JSON.stringify(['academic_competition','club_leadership','volunteer','internship','sports','arts','personal_project','research','other'])],
+    ['activity_impact_levels', JSON.stringify(['school','city','province','national','international'])],
+    ['impact_weight_map', JSON.stringify({ international: 100, national: 80, province: 60, city: 40, school: 20 })],
+    ['leadership_score_per_item', '25'],
+
+    // ── 代理与佣金 (Agents) ──
+    ['agent_request_defaults', JSON.stringify({ remind_days_before: 3, overdue_interval_days: 2, max_overdue_reminders: 5 })],
+
+    // ── 材料管理 (Materials) ──
+    ['material_statuses', JSON.stringify(['未提交','已提交','已审核','需补充'])],
+
+    // ── 学生管理 (Students) ──
+    ['valid_grade_levels', JSON.stringify(['G9','G10','G11','G12','G13','Year 9','Year 10','Year 11','Year 12','Year 13','9','10','11','12','13','其他'])],
+    ['valid_student_statuses', JSON.stringify(['active','inactive','graduated','deleted'])],
+    ['student_name_max_length', '200'],
+    ['grade_rank_map', JSON.stringify({ 'A*': 100, 'A': 90, 'B': 75, 'C': 60, 'D': 45, 'E': 30, 'U': 10 })],
+
+    // ── 通知与审计 (Notifications) ──
+    ['auto_escalate_overdue_hours', '24'],
+    ['audit_query_default_limit', '200'],
+    ['audit_query_max_limit', '1000'],
+    ['audit_export_max_records', '5000'],
+
+    // ── 系统安全 (Auth/System) ──
+    ['password_min_length', '6'],
+    ['password_max_length', '128'],
+    ['toast_delay_ms', '3000'],
+    ['max_batch_programs', '50'],
+    ['default_timezone', 'Europe/London'],
+
+    // ── 申请管理 (Applications) ──
+    ['default_application_route', 'UK-UG'],
+    ['default_grade_type_used', 'Predicted'],
+    ['default_application_status', 'Pending'],
+    ['reference_task_keywords', JSON.stringify(['reference%','推荐信%','参考人%'])],
+    ['application_statuses', JSON.stringify(['Pending','Submitted','Conditional Offer','Unconditional Offer','Rejected','Withdrawn','Firm','Insurance'])],
   ];
   for (const [key, value] of settingDefaults) {
     db.run('INSERT OR IGNORE INTO settings VALUES (?,?)', [key, value]);

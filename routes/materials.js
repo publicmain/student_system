@@ -46,7 +46,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     const { title, status, notes, reviewed_by, version } = req.body;
     const now = new Date().toISOString();
     const reviewed_at = reviewed_by ? now : null;
-    const submitted_at = status === '已提交' ? now : null;
+    const _submittedStatus = (() => { try { const r = db.exec("SELECT value FROM settings WHERE key='material_statuses'"); if (r.length) { const arr = JSON.parse(r[0].values[0][0]); return arr[1] || '已提交'; } return '已提交'; } catch(e) { return '已提交'; } })();
+    const submitted_at = status === _submittedStatus ? now : null;
     db.run(`UPDATE material_items SET title=?,status=?,notes=?,reviewed_by=?,reviewed_at=?,submitted_at=?,version=?,updated_at=? WHERE id=?`,
       [title, status, notes, reviewed_by||null, reviewed_at, submitted_at, version||1, now, req.params.id]);
     res.json({ ok: true });

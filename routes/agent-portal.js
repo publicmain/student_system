@@ -79,7 +79,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     db.run(`UPDATE mat_magic_tokens SET status='REVOKED' WHERE request_id=? AND status='ACTIVE'`, [requestId]);
     const token = _matGenerateToken();
     const id = uuidv4();
-    const expiresAt = new Date(Date.now() + 72 * 3600 * 1000).toISOString();
+    const _tokenHours = (() => { try { const r = db.exec("SELECT value FROM settings WHERE key='agent_token_expiry_hours'"); return r.length ? parseInt(r[0].values[0][0]) : 72; } catch(e) { return 72; } })();
+    const expiresAt = new Date(Date.now() + _tokenHours * 3600 * 1000).toISOString();
     db.run(`INSERT INTO mat_magic_tokens (id,token,request_id,contact_id,status,expires_at) VALUES (?,?,?,?,?,?)`,
       [id, token, requestId, contactId, 'ACTIVE', expiresAt]);
     const baseUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`;

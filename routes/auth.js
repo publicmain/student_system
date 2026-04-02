@@ -59,8 +59,10 @@ module.exports = function({ db, uuidv4, audit, requireAuth, loginAttempts, pwdCh
       return res.status(429).json({ error: `密码修改失败次数过多，请 ${Math.ceil((pr.resetAt - now) / 60000)} 分钟后重试` });
     }
     const { old_password, new_password } = req.body;
-    if (!new_password || new_password.length < 6 || new_password.length > 128) {
-      return res.status(400).json({ error: '新密码长度须在 6-128 位之间' });
+    const _pwdMin = (() => { try { const r = db.exec("SELECT value FROM settings WHERE key='password_min_length'"); return r.length ? parseInt(r[0].values[0][0]) : 6; } catch(e) { return 6; } })();
+    const _pwdMax = (() => { try { const r = db.exec("SELECT value FROM settings WHERE key='password_max_length'"); return r.length ? parseInt(r[0].values[0][0]) : 128; } catch(e) { return 128; } })();
+    if (!new_password || new_password.length < _pwdMin || new_password.length > _pwdMax) {
+      return res.status(400).json({ error: `新密码长度须在 ${_pwdMin}-${_pwdMax} 位之间` });
     }
     const user = db.get('SELECT * FROM users WHERE id=?', [userId]);
     if (!user) return res.status(404).json({ error: '用户不存在' });

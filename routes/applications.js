@@ -4,6 +4,13 @@
 module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   const router = require('express').Router();
 
+  function _getSettingRaw(key, fallback) {
+    try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? r[0].values[0][0] : fallback; } catch(e) { return fallback; }
+  }
+  function _getSetting(key, fallback) {
+    try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? JSON.parse(r[0].values[0][0]) : fallback; } catch(e) { return fallback; }
+  }
+
   router.post('/applications', requireRole('principal','counselor'), (req, res) => {
     const { student_id, uni_name, department, tier, cycle_year, route, submit_deadline, grade_type_used } = req.body;
     if (!student_id) return res.status(400).json({ error: 'student_id 必填' });
@@ -12,8 +19,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     const id = uuidv4();
     const now = new Date().toISOString();
     db.run(`INSERT INTO applications (id,student_id,university_id,uni_name,department,tier,cycle_year,route,submit_deadline,submit_date,grade_type_used,independent_tests,offer_date,offer_type,conditions,firm_choice,insurance_choice,matriculation_date,status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [id, student_id, uuidv4(), uni_name, department, tier, cycle_year, route||'UK-UG',
-      submit_deadline, null, grade_type_used||'Predicted', '[]', null, 'Pending', null, 0, 0, null, 'pending', '', now, now]);
+      [id, student_id, uuidv4(), uni_name, department, tier, cycle_year, route||_getSettingRaw('default_application_route','UK-UG'),
+      submit_deadline, null, grade_type_used||_getSettingRaw('default_grade_type_used','Predicted'), '[]', null, _getSettingRaw('default_application_status','Pending'), null, 0, 0, null, 'pending', '', now, now]);
     res.json({ id });
   });
 
@@ -43,9 +50,10 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     if (status === 'applied' && (route || '') === 'UK-UG') {
       const app = db.get('SELECT * FROM applications WHERE id=?', [req.params.id]);
       if (app) {
+        const _refKeywords = _getSetting('reference_task_keywords', ['reference%','推荐信%','参考人%']);
+        const _refCond = _refKeywords.map(k => `LOWER(title) LIKE '%${k.replace(/%/g,'').toLowerCase()}%'`).join(' OR ');
         const refTask = db.get(
-          `SELECT id FROM milestone_tasks WHERE student_id=? AND status='done'
-           AND (LOWER(title) LIKE '%reference%' OR LOWER(title) LIKE '%推荐信%' OR LOWER(title) LIKE '%参考人%')`,
+          `SELECT id FROM milestone_tasks WHERE student_id=? AND status='done' AND (${_refCond})`,
           [app.student_id]
         );
         if (!refTask) {

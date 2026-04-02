@@ -6,6 +6,13 @@ const express = require('express');
 module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval, aiCallAttempts, AI_CALL_MAX, AI_CALL_WINDOW_MS }) {
   const router = express.Router();
 
+  function _getSetting(key, fallback) {
+    try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? JSON.parse(r[0].values[0][0]) : fallback; } catch(e) { return fallback; }
+  }
+  function _getSettingRaw(key, fallback) {
+    try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? r[0].values[0][0] : fallback; } catch(e) { return fallback; }
+  }
+
   // ═══════════════════════════════════════════════════════
   //  P2.1 ANALYTICS（数据分析）
   // ═══════════════════════════════════════════════════════
@@ -160,7 +167,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
        weight_academic,weight_language,weight_extra,notes,created_by,created_at,updated_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [id, university_id||null, uni_name, program_name, department||null, country||'UK', route||'UK-UG',
-       cycle_year||null, app_deadline||null, app_deadline_time||null, app_deadline_tz||'Europe/London',
+       cycle_year||null, app_deadline||null, app_deadline_time||null, app_deadline_tz||_getSettingRaw('default_timezone', 'Europe/London'),
        ucas_early_deadline?1:0,
        typeof grade_requirements === 'object' ? JSON.stringify(grade_requirements) : (grade_requirements||null),
        min_subjects||3, grade_type||'A-Level',
@@ -168,7 +175,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
        typeof extra_tests === 'object' ? JSON.stringify(extra_tests) : (extra_tests||null),
        reference_required?1:0, reference_notes||null,
        hist_applicants||null, hist_offers||null, hist_offer_rate||null, hist_avg_grade||null, hist_data_year||null,
-       weight_academic||0.6, weight_language||0.25, weight_extra||0.15,
+       weight_academic||parseFloat(_getSettingRaw('default_weight_academic','0.6')), weight_language||parseFloat(_getSettingRaw('default_weight_language','0.25')), weight_extra||parseFloat(_getSettingRaw('default_weight_extra','0.15')),
        notes||null, req.session.user.id, new Date().toISOString(), new Date().toISOString()
       ]);
     audit(req, 'CREATE', 'uni_programs', id, { uni_name, program_name });
@@ -298,8 +305,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
 
   // ── 成绩等级转换工具 ──────────────────────────────────
   function gradeToScore(grade, gradeType) {
-    const aLevelMap = { 'A*': 100, 'A': 90, 'B': 80, 'C': 70, 'D': 60, 'E': 50, 'U': 0 };
-    const ibMap = { '7': 100, '6': 85, '5': 70, '4': 55, '3': 40, '2': 25, '1': 10 };
+    const aLevelMap = _getSetting('grade_conversion_alevel', { 'A*': 100, 'A': 90, 'B': 80, 'C': 70, 'D': 60, 'E': 50, 'U': 0 });
+    const ibMap = _getSetting('grade_conversion_ib', { '7': 100, '6': 85, '5': 70, '4': 55, '3': 40, '2': 25, '1': 10 });
     const g = String(grade||'').trim().toUpperCase();
     if (!gradeType || gradeType.includes('A-Level')) return aLevelMap[g] ?? null;
     if (gradeType === 'IB') return ibMap[g] ?? (parseFloat(grade) ? parseFloat(grade)/7*100 : null);
@@ -461,9 +468,9 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
     }
 
     // ── 5. 综合评分 ────────────────────────────────────
-    const wa = parseFloat(program.weight_academic) || 0.6;
-    const wl = parseFloat(program.weight_language) || 0.25;
-    const we = parseFloat(program.weight_extra) || 0.15;
+    const wa = parseFloat(program.weight_academic) || parseFloat(_getSettingRaw('default_weight_academic','0.6'));
+    const wl = parseFloat(program.weight_language) || parseFloat(_getSettingRaw('default_weight_language','0.25'));
+    const we = parseFloat(program.weight_extra) || parseFloat(_getSettingRaw('default_weight_extra','0.15'));
     const totalScore = Math.round(academicScore * wa + languageScore * wl + extraScore * we);
 
     // ── 6. 概率区间估算 ────────────────────────────────
@@ -475,17 +482,19 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
     else if (histTotal >= 5) { confidence = 'medium'; }
     else { confidence = 'low'; }
 
-    const priorRate = 0.30;
+    const admScoring = _getSetting('admission_scoring', { prior_rate: 0.30, sample_size: 30, score_factors: [1.8, 1.4, 1.0, 0.7, 0.4], low_pass_multiplier: 0.6 });
+    const priorRate = admScoring.prior_rate || 0.30;
     const observedRate = histRate != null ? parseFloat(histRate) : priorRate;
 
-    const histWeight = Math.min(histTotal / 30, 1.0);
+    const histWeight = Math.min(histTotal / (admScoring.sample_size || 30), 1.0);
     const baseProbability = observedRate * histWeight + priorRate * (1 - histWeight);
 
-    const scoreFactor = totalScore >= 90 ? 1.8 : totalScore >= 75 ? 1.4 : totalScore >= 60 ? 1.0 : totalScore >= 45 ? 0.7 : 0.4;
+    const sf = admScoring.score_factors || [1.8, 1.4, 1.0, 0.7, 0.4];
+    const scoreFactor = totalScore >= 90 ? sf[0] : totalScore >= 75 ? sf[1] : totalScore >= 60 ? sf[2] : totalScore >= 45 ? sf[3] : sf[4];
     const hardPenalty = hardPass ? 1.0 : 0.2;
 
     probMid = Math.min(Math.round(baseProbability * scoreFactor * hardPenalty * 100), 98);
-    probLow = Math.max(Math.round(probMid * 0.6), hardPass ? 2 : 0);
+    probLow = Math.max(Math.round(probMid * (admScoring.low_pass_multiplier || 0.6)), hardPass ? 2 : 0);
     probHigh = Math.min(Math.round(probMid * 1.5), 98);
     probLow = Math.min(probLow, probMid);
     probHigh = Math.max(probHigh, probMid);
@@ -760,7 +769,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
 
     const { program_ids } = req.body;
     if (!Array.isArray(program_ids) || program_ids.length === 0) return res.status(400).json({ error: 'program_ids 必填' });
-    if (program_ids.length > 50) return res.status(400).json({ error: 'program_ids 最多一次提交 50 个' });
+    const _maxBatch = parseInt(_getSettingRaw('max_batch_programs', '50'));
+    if (program_ids.length > _maxBatch) return res.status(400).json({ error: `program_ids 最多一次提交 ${_maxBatch} 个` });
 
     const examSittings = db.all('SELECT * FROM exam_sittings WHERE student_id=?', [req.params.id]);
     const assessments  = db.all('SELECT * FROM admission_assessments WHERE student_id=?', [req.params.id]);

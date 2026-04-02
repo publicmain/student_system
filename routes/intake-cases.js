@@ -10,6 +10,14 @@ const fileStorage = require('../file-storage');
 module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, requireAdmissionModule, sendMail, escHtml, brandedEmail, upload, moveUploadedFile, _matSendInviteEmail }) {
   const router = express.Router();
 
+  // 从 settings 表读取配置，带硬编码 fallback
+  function _getSetting(key, fallback) {
+    try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? JSON.parse(r[0].values[0][0]) : fallback; } catch(e) { return fallback; }
+  }
+  function _getSettingRaw(key, fallback) {
+    try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? r[0].values[0][0] : fallback; } catch(e) { return fallback; }
+  }
+
   // ═══════════════════════════════════════════════════════
   //  INTAKE CASES
   // ═══════════════════════════════════════════════════════
@@ -19,7 +27,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     if (!student_name || !intake_year || !program_name) return res.status(400).json({ error: '缺少必填字段: student_name, intake_year, program_name' });
     // R15: 后端 intake_year 范围校验
     const year = parseInt(intake_year);
-    if (isNaN(year) || year < 2000 || year > 2100) return res.status(400).json({ error: '入学年份无效（须在 2000-2100 之间）' });
+    const yearRange = _getSetting('intake_year_range', { min: 2000, max: 2100 });
+    if (isNaN(year) || year < yearRange.min || year > yearRange.max) return res.status(400).json({ error: `入学年份无效（须在 ${yearRange.min}-${yearRange.max} 之间）` });
     const id = uuidv4();
     const vcId = uuidv4();
     const arId = uuidv4();
@@ -203,7 +212,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
 
     // 生成 magic token
     const token = require('crypto').randomBytes(32).toString('hex');
-    const expires = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
+    const tokenExpiryHours = parseInt(_getSettingRaw('mat_token_expiry_hours', '72'));
+    const expires = new Date(Date.now() + tokenExpiryHours * 60 * 60 * 1000).toISOString();
     db.run(`INSERT INTO mat_magic_tokens (id, request_id, contact_id, token, status, expires_at, created_at) VALUES (?,?,?,?,?,?,datetime('now'))`,
       [uuidv4(), requestId, contact_id, token, 'ACTIVE', expires]);
 
@@ -227,7 +237,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
 
   router.put('/intake-cases/:id/status', requireRole('principal','intake_staff','student_admin'), (req, res) => {
     const { status } = req.body;
-    const validStatuses = ['registered','collecting_docs','contract_signed','visa_in_progress','ipa_received','paid','arrived','oriented','closed'];
+    const validStatuses = _getSetting('intake_case_statuses', ['registered','collecting_docs','contract_signed','visa_in_progress','ipa_received','paid','arrived','oriented','closed']);
     if (!validStatuses.includes(status)) return res.status(400).json({ error: '无效状态' });
     const prev = db.get('SELECT status, student_name FROM intake_cases WHERE id=?', [req.params.id]);
     if (!prev) return res.status(404).json({ error: 'Case 不存在' });
@@ -235,18 +245,13 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     if (req.session.user.role === 'student_admin' && !['arrived','oriented'].includes(status)) {
       return res.status(403).json({ error: 'student_admin 仅可将案例标记为到校或已入学' });
     }
-    // 状态机顺序：contract_signed → visa_in_progress → ipa_received → paid → arrived
-    const ALLOWED_TRANSITIONS = {
-      'registered':       ['collecting_docs'],
-      'collecting_docs':  ['registered','contract_signed'],
-      'contract_signed':  ['collecting_docs','visa_in_progress'],   // 签合同 → 签证办理
-      'visa_in_progress': ['contract_signed','ipa_received'],       // 签证办理 → IPA
-      'ipa_received':     ['visa_in_progress','paid'],              // IPA → 付款
-      'paid':             ['ipa_received','arrived'],               // 付款 → 到校
-      'arrived':          ['paid','oriented'],
-      'oriented':         ['arrived','closed'],
-      'closed':           [],
-    };
+    // 状态机顺序：从设置读取
+    const ALLOWED_TRANSITIONS = _getSetting('intake_allowed_transitions', {
+      'registered':['collecting_docs'], 'collecting_docs':['registered','contract_signed'],
+      'contract_signed':['collecting_docs','visa_in_progress'], 'visa_in_progress':['contract_signed','ipa_received'],
+      'ipa_received':['visa_in_progress','paid'], 'paid':['ipa_received','arrived'],
+      'arrived':['paid','oriented'], 'oriented':['arrived','closed'], 'closed':[]
+    });
     const allowed = ALLOWED_TRANSITIONS[prev.status] || [];
     if (!allowed.includes(status)) {
       return res.status(400).json({ error: `状态流转不合法：${prev.status} → ${status}，允许跳转至：${allowed.join('、') || '（终态，不可变更）'}` });
@@ -260,28 +265,30 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     const autoTasks = [];
     const now = new Date();
     const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate()+n); return r.toISOString().slice(0,10); };
+    const atCfg = _getSetting('intake_auto_tasks', { collect_docs_days:14, visa_submit_days:14, fee_followup_days:7, fee_receipt_days:14, arrival_confirm_days:7, accommodation_days:14, orientation_days:3, student_pass_days:7, survey_days:14 });
     if (status === 'contract_signed') {
-      autoTasks.push({ title: '收集护照及入学材料', category: '材料', priority: 'high', due_date: addDays(now, 14) });
+      autoTasks.push({ title: '收集护照及入学材料', category: '材料', priority: 'high', due_date: addDays(now, atCfg.collect_docs_days||14) });
     } else if (status === 'visa_in_progress') {
-      autoTasks.push({ title: '提交签证申请（Student Pass）', category: '签证', priority: 'high', due_date: addDays(now, 14) });
+      autoTasks.push({ title: '提交签证申请（Student Pass）', category: '签证', priority: 'high', due_date: addDays(now, atCfg.visa_submit_days||14) });
     } else if (status === 'paid') {
-      autoTasks.push({ title: '跟进首期学费缴纳', category: '财务', priority: 'high', due_date: addDays(now, 7) });
-      autoTasks.push({ title: '确认学费收据并发送给学生', category: '财务', priority: 'normal', due_date: addDays(now, 14) });
+      autoTasks.push({ title: '跟进首期学费缴纳', category: '财务', priority: 'high', due_date: addDays(now, atCfg.fee_followup_days||7) });
+      autoTasks.push({ title: '确认学费收据并发送给学生', category: '财务', priority: 'normal', due_date: addDays(now, atCfg.fee_receipt_days||14) });
     } else if (status === 'ipa_received') {
-      autoTasks.push({ title: '提醒学生确认到校日期及航班', category: '到校', priority: 'high', due_date: addDays(now, 7) });
-      autoTasks.push({ title: '安排接机与住宿', category: '到校', priority: 'high', due_date: addDays(now, 14) });
-      // IPA到期前30/14/3天提醒（从visa_cases获取到期日）
+      autoTasks.push({ title: '提醒学生确认到校日期及航班', category: '到校', priority: 'high', due_date: addDays(now, atCfg.arrival_confirm_days||7) });
+      autoTasks.push({ title: '安排接机与住宿', category: '到校', priority: 'high', due_date: addDays(now, atCfg.accommodation_days||14) });
+      // IPA到期前提醒（从visa_cases获取到期日）
       const vc = db.get('SELECT ipa_expiry_date FROM visa_cases WHERE case_id=?', [req.params.id]);
       if (vc && vc.ipa_expiry_date) {
         const exp = new Date(vc.ipa_expiry_date);
-        [30,14,3].forEach(d => {
+        const ipaReminderDays = _getSetting('intake_ipa_reminder_days', [30, 14, 3]);
+        ipaReminderDays.forEach(d => {
           const due = new Date(exp); due.setDate(due.getDate()-d);
           if (due > now) autoTasks.push({ title: `⚠️ IPA 将在 ${d} 天后到期（${vc.ipa_expiry_date}）`, category: '签证', priority: d<=3?'high':'normal', due_date: due.toISOString().slice(0,10) });
         });
       }
     } else if (status === 'arrived') {
-      autoTasks.push({ title: '完成到校登记与Orientation', category: '入学', priority: 'high', due_date: addDays(now, 3) });
-      autoTasks.push({ title: '确认学生准证办理', category: '签证', priority: 'high', due_date: addDays(now, 7) });
+      autoTasks.push({ title: '完成到校登记与Orientation', category: '入学', priority: 'high', due_date: addDays(now, atCfg.orientation_days||3) });
+      autoTasks.push({ title: '确认学生准证办理', category: '签证', priority: 'high', due_date: addDays(now, atCfg.student_pass_days||7) });
       // 通知所有 student_admin：学生已到校
       try {
         const studentName = prev.student_name || '学生';
@@ -294,7 +301,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
         }
       } catch(e) { console.error('student_admin 通知创建失败:', e.message); }
     } else if (status === 'oriented') {
-      autoTasks.push({ title: '发送到校后满意度问卷', category: '回访', priority: 'normal', due_date: addDays(now, 14) });
+      autoTasks.push({ title: '发送到校后满意度问卷', category: '回访', priority: 'normal', due_date: addDays(now, atCfg.survey_days||14) });
       // 通知 intake_staff：学生已入学，案例已移交学管
       try {
         const studentName = prev.student_name || '学生';

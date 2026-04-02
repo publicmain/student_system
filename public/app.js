@@ -3787,6 +3787,21 @@ async function renderSettings() {
       subject_levels: [...(JSON.parse(settings.subject_levels || '[]'))],
       exam_boards: [...(JSON.parse(settings.exam_boards || '[]'))],
       subject_list: JSON.parse(settings.subject_list || '[]').map(s => ({...s})),
+      // ── 新增设置 draft ──
+      intake_case_statuses: [...(JSON.parse(settings.intake_case_statuses || '[]'))],
+      visa_document_types: [...(JSON.parse(settings.visa_document_types || '[]'))],
+      arrival_checklist: [...(JSON.parse(settings.arrival_checklist || '[]'))],
+      commission_rule_types: [...(JSON.parse(settings.commission_rule_types || '[]'))],
+      essay_types: [...(JSON.parse(settings.essay_types || '[]'))],
+      essay_statuses: [...(JSON.parse(settings.essay_statuses || '[]'))],
+      essay_annotation_statuses: [...(JSON.parse(settings.essay_annotation_statuses || '[]'))],
+      activity_categories: [...(JSON.parse(settings.activity_categories || '[]'))],
+      activity_impact_levels: [...(JSON.parse(settings.activity_impact_levels || '[]'))],
+      material_statuses: [...(JSON.parse(settings.material_statuses || '[]'))],
+      valid_grade_levels: [...(JSON.parse(settings.valid_grade_levels || '[]'))],
+      valid_student_statuses: [...(JSON.parse(settings.valid_student_statuses || '[]'))],
+      reference_task_keywords: [...(JSON.parse(settings.reference_task_keywords || '[]'))],
+      application_statuses: [...(JSON.parse(settings.application_statuses || '[]'))],
     };
 
     const tierColors = { '冲刺':'danger','意向':'primary','保底':'success','通用':'secondary' };
@@ -3798,16 +3813,38 @@ async function renderSettings() {
     </div>
     <div class="settings-layout">
       <div class="settings-nav">
-        <div class="nav flex-column nav-pills" id="settings-tabs" role="tablist">
+        <div class="nav flex-column nav-pills" id="settings-tabs" role="tablist" style="max-height:calc(100vh - 200px);overflow-y:auto">
+          <small class="text-muted px-2 py-1 d-block fw-bold" style="font-size:10px;letter-spacing:1px">基础设置</small>
           <a class="nav-link active" href="#stab-appearance" data-bs-toggle="tab"><i class="bi bi-palette me-1"></i>外观与显示</a>
-          <a class="nav-link" href="#stab-ps" data-bs-toggle="tab"><i class="bi bi-file-earmark-text me-1"></i>个人陈述</a>
-          <a class="nav-link" href="#stab-assess" data-bs-toggle="tab"><i class="bi bi-clipboard-data me-1"></i>评估类型</a>
-          <a class="nav-link" href="#stab-appconfig" data-bs-toggle="tab"><i class="bi bi-sliders me-1"></i>申请与任务</a>
-          <a class="nav-link" href="#stab-subject" data-bs-toggle="tab"><i class="bi bi-book me-1"></i>选科配置</a>
           <a class="nav-link" href="#stab-system" data-bs-toggle="tab"><i class="bi bi-building me-1"></i>系统信息</a>
+          <hr class="my-1">
+          <small class="text-muted px-2 py-1 d-block fw-bold" style="font-size:10px;letter-spacing:1px">教学配置</small>
+          <a class="nav-link" href="#stab-subject" data-bs-toggle="tab"><i class="bi bi-book me-1"></i>选科配置</a>
+          <a class="nav-link" href="#stab-assess" data-bs-toggle="tab"><i class="bi bi-clipboard-data me-1"></i>评估类型</a>
+          <a class="nav-link" href="#stab-ps" data-bs-toggle="tab"><i class="bi bi-file-earmark-text me-1"></i>个人陈述</a>
+          <hr class="my-1">
+          <small class="text-muted px-2 py-1 d-block fw-bold" style="font-size:10px;letter-spacing:1px">申请流程</small>
+          <a class="nav-link" href="#stab-appconfig" data-bs-toggle="tab"><i class="bi bi-sliders me-1"></i>申请与任务</a>
           <a class="nav-link" href="#stab-tpl" data-bs-toggle="tab"><i class="bi bi-layout-text-sidebar-reverse me-1"></i>时间线模板</a>
           <a class="nav-link" href="#stab-anchors" data-bs-toggle="tab"><i class="bi bi-calendar-event me-1"></i>锚点事件</a>
+          <hr class="my-1">
+          <small class="text-muted px-2 py-1 d-block fw-bold" style="font-size:10px;letter-spacing:1px">业务模块</small>
+          <a class="nav-link" href="#stab-intake" data-bs-toggle="tab"><i class="bi bi-person-plus me-1"></i>入学管理</a>
+          <a class="nav-link" href="#stab-visa" data-bs-toggle="tab"><i class="bi bi-airplane me-1"></i>签证与到校</a>
+          <a class="nav-link" href="#stab-finance" data-bs-toggle="tab"><i class="bi bi-currency-dollar me-1"></i>财务配置</a>
+          <a class="nav-link" href="#stab-admeval" data-bs-toggle="tab"><i class="bi bi-graph-up me-1"></i>录取评估</a>
+          <a class="nav-link" href="#stab-essays" data-bs-toggle="tab"><i class="bi bi-pencil-square me-1"></i>文书管理</a>
+          <a class="nav-link" href="#stab-activities" data-bs-toggle="tab"><i class="bi bi-trophy me-1"></i>课外活动</a>
+          <a class="nav-link" href="#stab-agents" data-bs-toggle="tab"><i class="bi bi-people me-1"></i>代理与佣金</a>
+          <a class="nav-link" href="#stab-materials" data-bs-toggle="tab"><i class="bi bi-folder me-1"></i>材料管理</a>
+          <hr class="my-1">
+          <small class="text-muted px-2 py-1 d-block fw-bold" style="font-size:10px;letter-spacing:1px">数据管理</small>
+          <a class="nav-link" href="#stab-students" data-bs-toggle="tab"><i class="bi bi-mortarboard me-1"></i>学生管理</a>
+          <a class="nav-link" href="#stab-notifications" data-bs-toggle="tab"><i class="bi bi-megaphone me-1"></i>通知与审计</a>
           <a class="nav-link" href="#stab-escalation" data-bs-toggle="tab"><i class="bi bi-bell me-1"></i>升级政策</a>
+          <hr class="my-1">
+          <small class="text-muted px-2 py-1 d-block fw-bold" style="font-size:10px;letter-spacing:1px">安全与高级</small>
+          <a class="nav-link" href="#stab-security" data-bs-toggle="tab"><i class="bi bi-shield-lock me-1"></i>安全设置</a>
         </div>
       </div>
       <div class="settings-content">
@@ -4264,6 +4301,377 @@ async function renderSettings() {
         </div>
       </div>
 
+      <!-- ── 入学管理 ── -->
+      <div class="tab-pane fade" id="stab-intake">
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-person-plus me-1 text-primary"></i>入学案例状态</div>
+          <div class="card-body">
+            <p class="small text-muted">配置入学案例的可用状态列表。状态机流转规则在下方配置。</p>
+            <div id="cfg-intake-statuses-list" class="mb-2"></div>
+            <div class="input-group input-group-sm" style="max-width:300px">
+              <input type="text" class="form-control" id="cfg-intake-statuses-input" placeholder="新增状态...">
+              <button class="btn btn-outline-primary" onclick="addListItemDraft('intake_case_statuses','cfg-intake-statuses-input','cfg-intake-statuses-list')">添加</button>
+            </div>
+          </div>
+        </div>
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-diagram-3 me-1 text-info"></i>自动任务天数配置</div>
+          <div class="card-body">
+            <p class="small text-muted">入学案例状态变更时自动创建任务的截止天数。</p>
+            <div class="row g-2" id="cfg-intake-auto-tasks">
+              ${(() => {
+                const at = JSON.parse(settings.intake_auto_tasks || '{}');
+                const labels = { collect_docs_days:'收集材料', visa_submit_days:'签证提交', fee_followup_days:'费用跟进', fee_receipt_days:'收据确认', arrival_confirm_days:'到校确认', accommodation_days:'住宿安排', orientation_days:'入学登记', student_pass_days:'学生准证', survey_days:'满意度问卷' };
+                return Object.entries(labels).map(([k,l]) =>
+                  '<div class="col-md-4"><label class="form-label small">'+escapeHtml(l)+'</label>' +
+                  '<input type="number" class="form-control form-control-sm" id="cfg-at-'+k+'" value="'+(at[k]||'')+'" min="1" max="365"></div>').join('');
+              })()}
+            </div>
+          </div>
+        </div>
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-clock me-1 text-warning"></i>IPA 提醒天数 & Token 过期</div>
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-md-6">
+                <label class="form-label small">IPA 到期提醒天数（逗号分隔）</label>
+                <input type="text" class="form-control form-control-sm" id="cfg-ipa-reminder" value="${(JSON.parse(settings.intake_ipa_reminder_days||'[]')).join(',')}">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small">材料 Token 有效期（小时）</label>
+                <input type="number" class="form-control form-control-sm" id="cfg-mat-token-hours" value="${settings.mat_token_expiry_hours||72}" min="1">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small">入学年份范围</label>
+                <div class="d-flex gap-1">
+                  <input type="number" class="form-control form-control-sm" id="cfg-year-min" value="${JSON.parse(settings.intake_year_range||'{}').min||2000}">
+                  <span class="align-self-center">-</span>
+                  <input type="number" class="form-control form-control-sm" id="cfg-year-max" value="${JSON.parse(settings.intake_year_range||'{}').max||2100}">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveIntakeSettings()"><i class="bi bi-check-lg me-1"></i>保存入学管理设置</button>
+      </div>
+
+      <!-- ── 签证与到校 ── -->
+      <div class="tab-pane fade" id="stab-visa">
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-file-earmark me-1 text-primary"></i>签证材料类型</div>
+          <div class="card-body">
+            <div id="cfg-visa-docs-list" class="mb-2"></div>
+            <div class="input-group input-group-sm" style="max-width:300px">
+              <input type="text" class="form-control" id="cfg-visa-docs-input" placeholder="新增材料类型...">
+              <button class="btn btn-outline-primary" onclick="addListItemDraft('visa_document_types','cfg-visa-docs-input','cfg-visa-docs-list')">添加</button>
+            </div>
+          </div>
+        </div>
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-check2-square me-1 text-success"></i>到校清单</div>
+          <div class="card-body">
+            <div id="cfg-arrival-list" class="mb-2"></div>
+            <div class="input-group input-group-sm" style="max-width:300px">
+              <input type="text" class="form-control" id="cfg-arrival-input" placeholder="新增清单项...">
+              <button class="btn btn-outline-primary" onclick="addListItemDraft('arrival_checklist','cfg-arrival-input','cfg-arrival-list')">添加</button>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveVisaSettings()"><i class="bi bi-check-lg me-1"></i>保存签证设置</button>
+      </div>
+
+      <!-- ── 财务配置 ── -->
+      <div class="tab-pane fade" id="stab-finance">
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-currency-dollar me-1 text-success"></i>财务参数</div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label small">默认货币</label>
+                <input type="text" class="form-control form-control-sm" id="cfg-currency" value="${escapeHtml(settings.default_currency||'SGD')}">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small">佣金百分比上限</label>
+                <input type="number" class="form-control form-control-sm" id="cfg-comm-max" value="${settings.commission_percent_max||1.0}" step="0.01" min="0" max="1">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small">代理 Token 有效期（小时）</label>
+                <input type="number" class="form-control form-control-sm" id="cfg-agent-token-hours" value="${settings.agent_token_expiry_hours||72}" min="1">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-tags me-1 text-info"></i>佣金规则类型</div>
+          <div class="card-body">
+            <div id="cfg-comm-types-list" class="mb-2"></div>
+            <div class="input-group input-group-sm" style="max-width:300px">
+              <input type="text" class="form-control" id="cfg-comm-types-input" placeholder="新增类型...">
+              <button class="btn btn-outline-primary" onclick="addListItemDraft('commission_rule_types','cfg-comm-types-input','cfg-comm-types-list')">添加</button>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveFinanceSettings()"><i class="bi bi-check-lg me-1"></i>保存财务设置</button>
+      </div>
+
+      <!-- ── 录取评估 ── -->
+      <div class="tab-pane fade" id="stab-admeval">
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-bar-chart me-1 text-primary"></i>成绩等级转换 (A-Level)</div>
+          <div class="card-body">
+            <p class="small text-muted">配置 A-Level 等级与数值分数的映射关系。</p>
+            <div class="row g-2" id="cfg-grade-alevel">
+              ${(() => { const m = JSON.parse(settings.grade_conversion_alevel||'{}'); return Object.entries(m).map(([g,s]) => '<div class="col-auto"><div class="input-group input-group-sm"><span class="input-group-text" style="min-width:36px">'+escapeHtml(g)+'</span><input type="number" class="form-control" style="width:65px" value="'+s+'" data-grade="'+escapeHtml(g)+'"></div></div>').join(''); })()}
+            </div>
+          </div>
+        </div>
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-bar-chart me-1 text-info"></i>成绩等级转换 (IB)</div>
+          <div class="card-body">
+            <div class="row g-2" id="cfg-grade-ib">
+              ${(() => { const m = JSON.parse(settings.grade_conversion_ib||'{}'); return Object.entries(m).map(([g,s]) => '<div class="col-auto"><div class="input-group input-group-sm"><span class="input-group-text" style="min-width:36px">'+escapeHtml(g)+'</span><input type="number" class="form-control" style="width:65px" value="'+s+'" data-grade="'+escapeHtml(g)+'"></div></div>').join(''); })()}
+            </div>
+          </div>
+        </div>
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-sliders2 me-1 text-warning"></i>竞争力权重</div>
+          <div class="card-body">
+            <p class="small text-muted">各维度权重之和建议为 1.0。</p>
+            <div class="row g-2">
+              ${(() => { const w = JSON.parse(settings.competitiveness_weights||'{}'); const labels = { academic:'学术', language:'语言', activities:'活动', awards:'奖项', leadership:'领导力' }; return Object.entries(labels).map(([k,l]) => '<div class="col-md-2"><label class="form-label small">'+escapeHtml(l)+'</label><input type="number" class="form-control form-control-sm" id="cfg-cw-'+k+'" value="'+(w[k]||0)+'" step="0.05" min="0" max="1"></div>').join(''); })()}
+            </div>
+          </div>
+        </div>
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-calculator me-1 text-danger"></i>录取评分参数</div>
+          <div class="card-body">
+            <div class="row g-2">
+              ${(() => { const s2 = JSON.parse(settings.admission_scoring||'{}'); return '' +
+              '<div class="col-md-3"><label class="form-label small">先验概率</label><input type="number" class="form-control form-control-sm" id="cfg-as-prior" value="'+(s2.prior_rate||0.3)+'" step="0.01" min="0" max="1"></div>' +
+              '<div class="col-md-3"><label class="form-label small">样本阈值</label><input type="number" class="form-control form-control-sm" id="cfg-as-sample" value="'+(s2.sample_size||30)+'" min="1"></div>' +
+              '<div class="col-md-3"><label class="form-label small">低分系数</label><input type="number" class="form-control form-control-sm" id="cfg-as-lowmult" value="'+(s2.low_pass_multiplier||0.6)+'" step="0.1" min="0" max="1"></div>' +
+              '<div class="col-md-3"><label class="form-label small">分数因子（逗号）</label><input type="text" class="form-control form-control-sm" id="cfg-as-factors" value="'+(s2.score_factors||[1.8,1.4,1.0,0.7,0.4]).join(',')+'"></div>'; })()}
+            </div>
+          </div>
+        </div>
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-speedometer me-1 text-secondary"></i>默认权重</div>
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-md-4"><label class="form-label small">学术权重</label><input type="number" class="form-control form-control-sm" id="cfg-dw-academic" value="${settings.default_weight_academic||0.6}" step="0.05" min="0" max="1"></div>
+              <div class="col-md-4"><label class="form-label small">语言权重</label><input type="number" class="form-control form-control-sm" id="cfg-dw-language" value="${settings.default_weight_language||0.25}" step="0.05" min="0" max="1"></div>
+              <div class="col-md-4"><label class="form-label small">综合权重</label><input type="number" class="form-control form-control-sm" id="cfg-dw-extra" value="${settings.default_weight_extra||0.15}" step="0.05" min="0" max="1"></div>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveAdmEvalSettings()"><i class="bi bi-check-lg me-1"></i>保存录取评估设置</button>
+      </div>
+
+      <!-- ── 文书管理 ── -->
+      <div class="tab-pane fade" id="stab-essays">
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-pencil me-1 text-primary"></i>文书类型</div>
+          <div class="card-body">
+            <div id="cfg-essay-types-list" class="mb-2"></div>
+            <div class="input-group input-group-sm" style="max-width:300px">
+              <input type="text" class="form-control" id="cfg-essay-types-input" placeholder="新增类型...">
+              <button class="btn btn-outline-primary" onclick="addListItemDraft('essay_types','cfg-essay-types-input','cfg-essay-types-list')">添加</button>
+            </div>
+          </div>
+        </div>
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-list-check me-1 text-info"></i>文书状态</div>
+          <div class="card-body">
+            <div id="cfg-essay-statuses-list" class="mb-2"></div>
+            <div class="input-group input-group-sm" style="max-width:300px">
+              <input type="text" class="form-control" id="cfg-essay-statuses-input" placeholder="新增状态...">
+              <button class="btn btn-outline-primary" onclick="addListItemDraft('essay_statuses','cfg-essay-statuses-input','cfg-essay-statuses-list')">添加</button>
+            </div>
+          </div>
+        </div>
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-chat-dots me-1 text-warning"></i>批注状态</div>
+          <div class="card-body">
+            <div id="cfg-annotation-statuses-list" class="mb-2"></div>
+            <div class="input-group input-group-sm" style="max-width:300px">
+              <input type="text" class="form-control" id="cfg-annotation-statuses-input" placeholder="新增状态...">
+              <button class="btn btn-outline-primary" onclick="addListItemDraft('essay_annotation_statuses','cfg-annotation-statuses-input','cfg-annotation-statuses-list')">添加</button>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveEssaySettings()"><i class="bi bi-check-lg me-1"></i>保存文书设置</button>
+      </div>
+
+      <!-- ── 课外活动 ── -->
+      <div class="tab-pane fade" id="stab-activities">
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-trophy me-1 text-warning"></i>活动类别</div>
+          <div class="card-body">
+            <div id="cfg-act-categories-list" class="mb-2"></div>
+            <div class="input-group input-group-sm" style="max-width:300px">
+              <input type="text" class="form-control" id="cfg-act-categories-input" placeholder="新增类别...">
+              <button class="btn btn-outline-primary" onclick="addListItemDraft('activity_categories','cfg-act-categories-input','cfg-act-categories-list')">添加</button>
+            </div>
+          </div>
+        </div>
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-star me-1 text-info"></i>影响力级别</div>
+          <div class="card-body">
+            <div id="cfg-impact-levels-list" class="mb-2"></div>
+            <div class="input-group input-group-sm" style="max-width:300px">
+              <input type="text" class="form-control" id="cfg-impact-levels-input" placeholder="新增级别...">
+              <button class="btn btn-outline-primary" onclick="addListItemDraft('activity_impact_levels','cfg-impact-levels-input','cfg-impact-levels-list')">添加</button>
+            </div>
+          </div>
+        </div>
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-sliders2 me-1 text-secondary"></i>影响力权重 & 领导力分值</div>
+          <div class="card-body">
+            <div class="row g-2">
+              ${(() => { const iw = JSON.parse(settings.impact_weight_map||'{}'); const labels = { international:'国际', national:'国家', province:'省级', city:'市级', school:'校级' }; return Object.entries(labels).map(([k,l]) => '<div class="col-md-2"><label class="form-label small">'+escapeHtml(l)+'</label><input type="number" class="form-control form-control-sm" id="cfg-iw-'+k+'" value="'+(iw[k]||0)+'" min="0" max="200"></div>').join(''); })()}
+              <div class="col-md-2"><label class="form-label small">领导力/项</label><input type="number" class="form-control form-control-sm" id="cfg-leadership-per" value="${settings.leadership_score_per_item||25}" min="1" max="100"></div>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveActivitySettings()"><i class="bi bi-check-lg me-1"></i>保存活动设置</button>
+      </div>
+
+      <!-- ── 代理与佣金 ── -->
+      <div class="tab-pane fade" id="stab-agents">
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-people me-1 text-primary"></i>代理请求默认值</div>
+          <div class="card-body">
+            <div class="row g-2">
+              ${(() => { const ad = JSON.parse(settings.agent_request_defaults||'{}'); return '' +
+              '<div class="col-md-4"><label class="form-label small">提前提醒天数</label><input type="number" class="form-control form-control-sm" id="cfg-ard-remind" value="'+(ad.remind_days_before||3)+'" min="1"></div>' +
+              '<div class="col-md-4"><label class="form-label small">逾期提醒间隔天数</label><input type="number" class="form-control form-control-sm" id="cfg-ard-interval" value="'+(ad.overdue_interval_days||2)+'" min="1"></div>' +
+              '<div class="col-md-4"><label class="form-label small">最大逾期提醒次数</label><input type="number" class="form-control form-control-sm" id="cfg-ard-max" value="'+(ad.max_overdue_reminders||5)+'" min="1"></div>'; })()}
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveAgentSettings()"><i class="bi bi-check-lg me-1"></i>保存代理设置</button>
+      </div>
+
+      <!-- ── 材料管理 ── -->
+      <div class="tab-pane fade" id="stab-materials">
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-folder me-1 text-primary"></i>材料状态列表</div>
+          <div class="card-body">
+            <p class="small text-muted">配置材料的可选状态。第二项（默认"已提交"）用于自动标记提交时间。</p>
+            <div id="cfg-mat-statuses-list" class="mb-2"></div>
+            <div class="input-group input-group-sm" style="max-width:300px">
+              <input type="text" class="form-control" id="cfg-mat-statuses-input" placeholder="新增状态...">
+              <button class="btn btn-outline-primary" onclick="addListItemDraft('material_statuses','cfg-mat-statuses-input','cfg-mat-statuses-list')">添加</button>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveMaterialSettings()"><i class="bi bi-check-lg me-1"></i>保存材料设置</button>
+      </div>
+
+      <!-- ── 学生管理 ── -->
+      <div class="tab-pane fade" id="stab-students">
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-mortarboard me-1 text-primary"></i>年级列表</div>
+          <div class="card-body">
+            <div id="cfg-grade-levels-list" class="mb-2"></div>
+            <div class="input-group input-group-sm" style="max-width:300px">
+              <input type="text" class="form-control" id="cfg-grade-levels-input" placeholder="新增年级...">
+              <button class="btn btn-outline-primary" onclick="addListItemDraft('valid_grade_levels','cfg-grade-levels-input','cfg-grade-levels-list')">添加</button>
+            </div>
+          </div>
+        </div>
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-toggle-on me-1 text-info"></i>学生状态</div>
+          <div class="card-body">
+            <div id="cfg-student-statuses-list" class="mb-2"></div>
+            <div class="input-group input-group-sm" style="max-width:300px">
+              <input type="text" class="form-control" id="cfg-student-statuses-input" placeholder="新增状态...">
+              <button class="btn btn-outline-primary" onclick="addListItemDraft('valid_student_statuses','cfg-student-statuses-input','cfg-student-statuses-list')">添加</button>
+            </div>
+          </div>
+        </div>
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-sliders me-1 text-secondary"></i>其他学生参数</div>
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-md-4"><label class="form-label small">姓名最大长度</label><input type="number" class="form-control form-control-sm" id="cfg-name-maxlen" value="${settings.student_name_max_length||200}" min="10" max="500"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-bar-chart me-1 text-warning"></i>成绩排名映射</div>
+          <div class="card-body">
+            <p class="small text-muted">用于竞争力评估中的成绩排名计算。</p>
+            <div class="row g-2" id="cfg-grade-rank">
+              ${(() => { const m = JSON.parse(settings.grade_rank_map||'{}'); return Object.entries(m).map(([g,s]) => '<div class="col-auto"><div class="input-group input-group-sm"><span class="input-group-text" style="min-width:36px">'+escapeHtml(g)+'</span><input type="number" class="form-control" style="width:65px" value="'+s+'" data-grade="'+escapeHtml(g)+'"></div></div>').join(''); })()}
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveStudentSettings()"><i class="bi bi-check-lg me-1"></i>保存学生设置</button>
+      </div>
+
+      <!-- ── 通知与审计 ── -->
+      <div class="tab-pane fade" id="stab-notifications">
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-megaphone me-1 text-warning"></i>通知与审计参数</div>
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-md-3"><label class="form-label small">自动升级超时（小时）</label><input type="number" class="form-control form-control-sm" id="cfg-esc-hours" value="${settings.auto_escalate_overdue_hours||24}" min="1"></div>
+              <div class="col-md-3"><label class="form-label small">审计默认查询量</label><input type="number" class="form-control form-control-sm" id="cfg-audit-default" value="${settings.audit_query_default_limit||200}" min="10"></div>
+              <div class="col-md-3"><label class="form-label small">审计最大查询量</label><input type="number" class="form-control form-control-sm" id="cfg-audit-max" value="${settings.audit_query_max_limit||1000}" min="100"></div>
+              <div class="col-md-3"><label class="form-label small">审计导出上限</label><input type="number" class="form-control form-control-sm" id="cfg-audit-export" value="${settings.audit_export_max_records||5000}" min="100"></div>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveNotificationSettings()"><i class="bi bi-check-lg me-1"></i>保存通知设置</button>
+      </div>
+
+      <!-- ── 安全设置 ── -->
+      <div class="tab-pane fade" id="stab-security">
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-shield-lock me-1 text-danger"></i>安全与系统参数</div>
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-md-3"><label class="form-label small">密码最小长度</label><input type="number" class="form-control form-control-sm" id="cfg-pwd-min" value="${settings.password_min_length||6}" min="4" max="32"></div>
+              <div class="col-md-3"><label class="form-label small">密码最大长度</label><input type="number" class="form-control form-control-sm" id="cfg-pwd-max" value="${settings.password_max_length||128}" min="32" max="256"></div>
+              <div class="col-md-3"><label class="form-label small">Toast 延迟 (ms)</label><input type="number" class="form-control form-control-sm" id="cfg-toast-delay" value="${settings.toast_delay_ms||3000}" min="500" max="10000"></div>
+              <div class="col-md-3"><label class="form-label small">批量评估上限</label><input type="number" class="form-control form-control-sm" id="cfg-batch-max" value="${settings.max_batch_programs||50}" min="5" max="200"></div>
+            </div>
+            <div class="row g-2 mt-2">
+              <div class="col-md-4"><label class="form-label small">默认时区</label><input type="text" class="form-control form-control-sm" id="cfg-default-tz" value="${escapeHtml(settings.default_timezone||'Europe/London')}"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-signpost-2 me-1 text-info"></i>申请管理默认值</div>
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-md-3"><label class="form-label small">默认申请路线</label><input type="text" class="form-control form-control-sm" id="cfg-def-route" value="${escapeHtml(settings.default_application_route||'UK-UG')}"></div>
+              <div class="col-md-3"><label class="form-label small">默认成绩类型</label><input type="text" class="form-control form-control-sm" id="cfg-def-grade-type" value="${escapeHtml(settings.default_grade_type_used||'Predicted')}"></div>
+              <div class="col-md-3"><label class="form-label small">默认申请状态</label><input type="text" class="form-control form-control-sm" id="cfg-def-app-status" value="${escapeHtml(settings.default_application_status||'Pending')}"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card mb-3">
+          <div class="card-header fw-semibold"><i class="bi bi-tags me-1 text-secondary"></i>申请状态列表 & 推荐信关键词</div>
+          <div class="card-body">
+            <p class="small text-muted mb-2">申请状态</p>
+            <div id="cfg-app-statuses-list" class="mb-2"></div>
+            <div class="input-group input-group-sm mb-3" style="max-width:300px">
+              <input type="text" class="form-control" id="cfg-app-statuses-input" placeholder="新增状态...">
+              <button class="btn btn-outline-primary" onclick="addListItemDraft('application_statuses','cfg-app-statuses-input','cfg-app-statuses-list')">添加</button>
+            </div>
+            <p class="small text-muted mb-2">推荐信关键词（用于 UCAS 提交检查）</p>
+            <div id="cfg-ref-keywords-list" class="mb-2"></div>
+            <div class="input-group input-group-sm" style="max-width:300px">
+              <input type="text" class="form-control" id="cfg-ref-keywords-input" placeholder="新增关键词...">
+              <button class="btn btn-outline-primary" onclick="addListItemDraft('reference_task_keywords','cfg-ref-keywords-input','cfg-ref-keywords-list')">添加</button>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveSecuritySettings()"><i class="bi bi-check-lg me-1"></i>保存安全与高级设置</button>
+      </div>
+
     </div>
       </div>
     </div>`;
@@ -4277,6 +4685,22 @@ async function renderSettings() {
     renderListDraft('subject_levels', 'cfg-levels-list');
     renderListDraft('exam_boards', 'cfg-boards-list');
     renderSubjectListDraft();
+
+    // ── 新增 tab 的列表 draft 渲染 ──
+    renderListDraft('intake_case_statuses', 'cfg-intake-statuses-list');
+    renderListDraft('visa_document_types', 'cfg-visa-docs-list');
+    renderListDraft('arrival_checklist', 'cfg-arrival-list');
+    renderListDraft('commission_rule_types', 'cfg-comm-types-list');
+    renderListDraft('essay_types', 'cfg-essay-types-list');
+    renderListDraft('essay_statuses', 'cfg-essay-statuses-list');
+    renderListDraft('essay_annotation_statuses', 'cfg-annotation-statuses-list');
+    renderListDraft('activity_categories', 'cfg-act-categories-list');
+    renderListDraft('activity_impact_levels', 'cfg-impact-levels-list');
+    renderListDraft('material_statuses', 'cfg-mat-statuses-list');
+    renderListDraft('valid_grade_levels', 'cfg-grade-levels-list');
+    renderListDraft('valid_student_statuses', 'cfg-student-statuses-list');
+    renderListDraft('application_statuses', 'cfg-app-statuses-list');
+    renderListDraft('reference_task_keywords', 'cfg-ref-keywords-list');
 
     // Load anchor events and escalation policy on tab activation
     const anchorsTab = document.querySelector('a[href="#stab-anchors"]');
@@ -4846,6 +5270,179 @@ async function saveSystemInfo() {
     showSuccess('系统信息已保存');
   } catch(e) { showError(e.message); }
   finally { releaseSubmit('saveSystemInfo'); }
+}
+
+// ── 新增设置 Tab 保存函数 ──
+
+async function saveIntakeSettings() {
+  if (!acquireSubmit('saveIntakeSettings')) return;
+  try {
+    await PUT('/api/settings/intake_case_statuses', { value: JSON.stringify(State.settingsDraft.intake_case_statuses || []) });
+    // auto tasks
+    const atKeys = ['collect_docs_days','visa_submit_days','fee_followup_days','fee_receipt_days','arrival_confirm_days','accommodation_days','orientation_days','student_pass_days','survey_days'];
+    const at = {}; atKeys.forEach(k => { at[k] = parseInt(document.getElementById('cfg-at-'+k)?.value) || 0; });
+    await PUT('/api/settings/intake_auto_tasks', { value: JSON.stringify(at) });
+    // IPA reminder
+    const ipaStr = document.getElementById('cfg-ipa-reminder')?.value || '';
+    await PUT('/api/settings/intake_ipa_reminder_days', { value: JSON.stringify(ipaStr.split(',').map(s=>parseInt(s.trim())).filter(n=>!isNaN(n))) });
+    await PUT('/api/settings/mat_token_expiry_hours', { value: document.getElementById('cfg-mat-token-hours')?.value || '72' });
+    await PUT('/api/settings/intake_year_range', { value: JSON.stringify({ min: parseInt(document.getElementById('cfg-year-min')?.value)||2000, max: parseInt(document.getElementById('cfg-year-max')?.value)||2100 }) });
+    State.settings = await GET('/api/settings');
+    showSuccess('入学管理设置已保存');
+  } catch(e) { showError(e.message); }
+  finally { releaseSubmit('saveIntakeSettings'); }
+}
+
+async function saveVisaSettings() {
+  if (!acquireSubmit('saveVisaSettings')) return;
+  try {
+    await PUT('/api/settings/visa_document_types', { value: JSON.stringify(State.settingsDraft.visa_document_types || []) });
+    await PUT('/api/settings/arrival_checklist', { value: JSON.stringify(State.settingsDraft.arrival_checklist || []) });
+    State.settings = await GET('/api/settings');
+    showSuccess('签证设置已保存');
+  } catch(e) { showError(e.message); }
+  finally { releaseSubmit('saveVisaSettings'); }
+}
+
+async function saveFinanceSettings() {
+  if (!acquireSubmit('saveFinanceSettings')) return;
+  try {
+    await PUT('/api/settings/default_currency', { value: document.getElementById('cfg-currency')?.value || 'SGD' });
+    await PUT('/api/settings/commission_percent_max', { value: document.getElementById('cfg-comm-max')?.value || '1.0' });
+    await PUT('/api/settings/agent_token_expiry_hours', { value: document.getElementById('cfg-agent-token-hours')?.value || '72' });
+    await PUT('/api/settings/commission_rule_types', { value: JSON.stringify(State.settingsDraft.commission_rule_types || []) });
+    State.settings = await GET('/api/settings');
+    showSuccess('财务设置已保存');
+  } catch(e) { showError(e.message); }
+  finally { releaseSubmit('saveFinanceSettings'); }
+}
+
+async function saveAdmEvalSettings() {
+  if (!acquireSubmit('saveAdmEvalSettings')) return;
+  try {
+    // A-Level grade conversion
+    const alevel = {}; document.querySelectorAll('#cfg-grade-alevel input[data-grade]').forEach(el => { alevel[el.dataset.grade] = parseInt(el.value)||0; });
+    await PUT('/api/settings/grade_conversion_alevel', { value: JSON.stringify(alevel) });
+    // IB grade conversion
+    const ib = {}; document.querySelectorAll('#cfg-grade-ib input[data-grade]').forEach(el => { ib[el.dataset.grade] = parseInt(el.value)||0; });
+    await PUT('/api/settings/grade_conversion_ib', { value: JSON.stringify(ib) });
+    // Competitiveness weights
+    const cw = {}; ['academic','language','activities','awards','leadership'].forEach(k => { cw[k] = parseFloat(document.getElementById('cfg-cw-'+k)?.value)||0; });
+    await PUT('/api/settings/competitiveness_weights', { value: JSON.stringify(cw) });
+    // Admission scoring
+    const factorsStr = document.getElementById('cfg-as-factors')?.value || '';
+    await PUT('/api/settings/admission_scoring', { value: JSON.stringify({
+      prior_rate: parseFloat(document.getElementById('cfg-as-prior')?.value)||0.3,
+      sample_size: parseInt(document.getElementById('cfg-as-sample')?.value)||30,
+      low_pass_multiplier: parseFloat(document.getElementById('cfg-as-lowmult')?.value)||0.6,
+      score_factors: factorsStr.split(',').map(s=>parseFloat(s.trim())).filter(n=>!isNaN(n))
+    }) });
+    // Default weights
+    await PUT('/api/settings/default_weight_academic', { value: document.getElementById('cfg-dw-academic')?.value || '0.6' });
+    await PUT('/api/settings/default_weight_language', { value: document.getElementById('cfg-dw-language')?.value || '0.25' });
+    await PUT('/api/settings/default_weight_extra', { value: document.getElementById('cfg-dw-extra')?.value || '0.15' });
+    State.settings = await GET('/api/settings');
+    showSuccess('录取评估设置已保存');
+  } catch(e) { showError(e.message); }
+  finally { releaseSubmit('saveAdmEvalSettings'); }
+}
+
+async function saveEssaySettings() {
+  if (!acquireSubmit('saveEssaySettings')) return;
+  try {
+    await PUT('/api/settings/essay_types', { value: JSON.stringify(State.settingsDraft.essay_types || []) });
+    await PUT('/api/settings/essay_statuses', { value: JSON.stringify(State.settingsDraft.essay_statuses || []) });
+    await PUT('/api/settings/essay_annotation_statuses', { value: JSON.stringify(State.settingsDraft.essay_annotation_statuses || []) });
+    State.settings = await GET('/api/settings');
+    showSuccess('文书设置已保存');
+  } catch(e) { showError(e.message); }
+  finally { releaseSubmit('saveEssaySettings'); }
+}
+
+async function saveActivitySettings() {
+  if (!acquireSubmit('saveActivitySettings')) return;
+  try {
+    await PUT('/api/settings/activity_categories', { value: JSON.stringify(State.settingsDraft.activity_categories || []) });
+    await PUT('/api/settings/activity_impact_levels', { value: JSON.stringify(State.settingsDraft.activity_impact_levels || []) });
+    // Impact weight map
+    const iw = {}; ['international','national','province','city','school'].forEach(k => { iw[k] = parseInt(document.getElementById('cfg-iw-'+k)?.value)||0; });
+    await PUT('/api/settings/impact_weight_map', { value: JSON.stringify(iw) });
+    await PUT('/api/settings/leadership_score_per_item', { value: document.getElementById('cfg-leadership-per')?.value || '25' });
+    State.settings = await GET('/api/settings');
+    showSuccess('活动设置已保存');
+  } catch(e) { showError(e.message); }
+  finally { releaseSubmit('saveActivitySettings'); }
+}
+
+async function saveAgentSettings() {
+  if (!acquireSubmit('saveAgentSettings')) return;
+  try {
+    await PUT('/api/settings/agent_request_defaults', { value: JSON.stringify({
+      remind_days_before: parseInt(document.getElementById('cfg-ard-remind')?.value)||3,
+      overdue_interval_days: parseInt(document.getElementById('cfg-ard-interval')?.value)||2,
+      max_overdue_reminders: parseInt(document.getElementById('cfg-ard-max')?.value)||5
+    }) });
+    State.settings = await GET('/api/settings');
+    showSuccess('代理设置已保存');
+  } catch(e) { showError(e.message); }
+  finally { releaseSubmit('saveAgentSettings'); }
+}
+
+async function saveMaterialSettings() {
+  if (!acquireSubmit('saveMaterialSettings')) return;
+  try {
+    await PUT('/api/settings/material_statuses', { value: JSON.stringify(State.settingsDraft.material_statuses || []) });
+    State.settings = await GET('/api/settings');
+    showSuccess('材料设置已保存');
+  } catch(e) { showError(e.message); }
+  finally { releaseSubmit('saveMaterialSettings'); }
+}
+
+async function saveStudentSettings() {
+  if (!acquireSubmit('saveStudentSettings')) return;
+  try {
+    await PUT('/api/settings/valid_grade_levels', { value: JSON.stringify(State.settingsDraft.valid_grade_levels || []) });
+    await PUT('/api/settings/valid_student_statuses', { value: JSON.stringify(State.settingsDraft.valid_student_statuses || []) });
+    await PUT('/api/settings/student_name_max_length', { value: document.getElementById('cfg-name-maxlen')?.value || '200' });
+    // Grade rank map
+    const grm = {}; document.querySelectorAll('#cfg-grade-rank input[data-grade]').forEach(el => { grm[el.dataset.grade] = parseInt(el.value)||0; });
+    await PUT('/api/settings/grade_rank_map', { value: JSON.stringify(grm) });
+    State.settings = await GET('/api/settings');
+    showSuccess('学生设置已保存');
+  } catch(e) { showError(e.message); }
+  finally { releaseSubmit('saveStudentSettings'); }
+}
+
+async function saveNotificationSettings() {
+  if (!acquireSubmit('saveNotificationSettings')) return;
+  try {
+    await PUT('/api/settings/auto_escalate_overdue_hours', { value: document.getElementById('cfg-esc-hours')?.value || '24' });
+    await PUT('/api/settings/audit_query_default_limit', { value: document.getElementById('cfg-audit-default')?.value || '200' });
+    await PUT('/api/settings/audit_query_max_limit', { value: document.getElementById('cfg-audit-max')?.value || '1000' });
+    await PUT('/api/settings/audit_export_max_records', { value: document.getElementById('cfg-audit-export')?.value || '5000' });
+    State.settings = await GET('/api/settings');
+    showSuccess('通知设置已保存');
+  } catch(e) { showError(e.message); }
+  finally { releaseSubmit('saveNotificationSettings'); }
+}
+
+async function saveSecuritySettings() {
+  if (!acquireSubmit('saveSecuritySettings')) return;
+  try {
+    await PUT('/api/settings/password_min_length', { value: document.getElementById('cfg-pwd-min')?.value || '6' });
+    await PUT('/api/settings/password_max_length', { value: document.getElementById('cfg-pwd-max')?.value || '128' });
+    await PUT('/api/settings/toast_delay_ms', { value: document.getElementById('cfg-toast-delay')?.value || '3000' });
+    await PUT('/api/settings/max_batch_programs', { value: document.getElementById('cfg-batch-max')?.value || '50' });
+    await PUT('/api/settings/default_timezone', { value: document.getElementById('cfg-default-tz')?.value || 'Europe/London' });
+    await PUT('/api/settings/default_application_route', { value: document.getElementById('cfg-def-route')?.value || 'UK-UG' });
+    await PUT('/api/settings/default_grade_type_used', { value: document.getElementById('cfg-def-grade-type')?.value || 'Predicted' });
+    await PUT('/api/settings/default_application_status', { value: document.getElementById('cfg-def-app-status')?.value || 'Pending' });
+    await PUT('/api/settings/application_statuses', { value: JSON.stringify(State.settingsDraft.application_statuses || []) });
+    await PUT('/api/settings/reference_task_keywords', { value: JSON.stringify(State.settingsDraft.reference_task_keywords || []) });
+    State.settings = await GET('/api/settings');
+    showSuccess('安全与高级设置已保存');
+  } catch(e) { showError(e.message); }
+  finally { releaseSubmit('saveSecuritySettings'); }
 }
 
 async function deleteTemplateFromSettings(templateId, name) {

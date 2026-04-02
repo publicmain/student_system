@@ -99,6 +99,133 @@ function getSubjectList() {
   return [];
 }
 
+// ── 入学管理 ──
+function getIntakeCaseStatuses() {
+  try { const v = JSON.parse(State.settings.intake_case_statuses || '[]'); if (Array.isArray(v) && v.length) return v; } catch(e) {}
+  return ['registered','collecting_docs','contract_signed','visa_in_progress','ipa_received','paid','arrived','oriented','closed'];
+}
+function getIntakeAllowedTransitions() {
+  try { const v = JSON.parse(State.settings.intake_allowed_transitions || '{}'); if (typeof v === 'object' && Object.keys(v).length) return v; } catch(e) {}
+  return { registered:['collecting_docs'], collecting_docs:['registered','contract_signed'], contract_signed:['collecting_docs','visa_in_progress'], visa_in_progress:['contract_signed','ipa_received'], ipa_received:['visa_in_progress','paid'], paid:['ipa_received','arrived'], arrived:['paid','oriented'], oriented:['arrived','closed'], closed:[] };
+}
+function getIntakeAutoTasks() {
+  try { const v = JSON.parse(State.settings.intake_auto_tasks || '{}'); if (typeof v === 'object' && Object.keys(v).length) return v; } catch(e) {}
+  return { collect_docs_days:14, visa_submit_days:14, fee_followup_days:7, fee_receipt_days:14, arrival_confirm_days:7, accommodation_days:14, orientation_days:3, student_pass_days:7, survey_days:14 };
+}
+function getIpaReminderDays() {
+  try { const v = JSON.parse(State.settings.intake_ipa_reminder_days || '[]'); if (Array.isArray(v) && v.length) return v; } catch(e) {}
+  return [30, 14, 3];
+}
+function getIntakeYearRange() {
+  try { const v = JSON.parse(State.settings.intake_year_range || '{}'); if (v.min && v.max) return v; } catch(e) {}
+  return { min: 2000, max: 2100 };
+}
+
+// ── 签证与到校 ──
+function getVisaDocumentTypes() {
+  try { const v = JSON.parse(State.settings.visa_document_types || '[]'); if (Array.isArray(v) && v.length) return v; } catch(e) {}
+  return ['passport','offer_letter','ipa','insurance','accommodation'];
+}
+function getArrivalChecklist() {
+  try { const v = JSON.parse(State.settings.arrival_checklist || '[]'); if (Array.isArray(v) && v.length) return v; } catch(e) {}
+  return ['airport_pickup','accommodation_check','sim_card','bank_account','orientation'];
+}
+
+// ── 财务配置 ──
+function getDefaultCurrency() { return State.settings.default_currency || 'SGD'; }
+function getCommissionRuleTypes() {
+  try { const v = JSON.parse(State.settings.commission_rule_types || '[]'); if (Array.isArray(v) && v.length) return v; } catch(e) {}
+  return ['percent','fixed'];
+}
+
+// ── 录取评估 ──
+function getGradeConversionALevel() {
+  try { const v = JSON.parse(State.settings.grade_conversion_alevel || '{}'); if (typeof v === 'object' && Object.keys(v).length) return v; } catch(e) {}
+  return { 'A*': 100, 'A': 90, 'B': 80, 'C': 70, 'D': 60, 'E': 50, 'U': 0 };
+}
+function getGradeConversionIB() {
+  try { const v = JSON.parse(State.settings.grade_conversion_ib || '{}'); if (typeof v === 'object' && Object.keys(v).length) return v; } catch(e) {}
+  return { '7': 100, '6': 85, '5': 70, '4': 55, '3': 40, '2': 25, '1': 10 };
+}
+function getCompetitivenessWeights() {
+  try { const v = JSON.parse(State.settings.competitiveness_weights || '{}'); if (typeof v === 'object' && Object.keys(v).length) return v; } catch(e) {}
+  return { academic: 0.3, language: 0.25, activities: 0.2, awards: 0.1, leadership: 0.15 };
+}
+function getAdmissionScoring() {
+  try { const v = JSON.parse(State.settings.admission_scoring || '{}'); if (typeof v === 'object' && Object.keys(v).length) return v; } catch(e) {}
+  return { prior_rate: 0.30, sample_size: 30, score_factors: [1.8, 1.4, 1.0, 0.7, 0.4], low_pass_multiplier: 0.6 };
+}
+
+// ── 文书管理 ──
+function getEssayTypes() {
+  try { const v = JSON.parse(State.settings.essay_types || '[]'); if (Array.isArray(v) && v.length) return v; } catch(e) {}
+  return ['main','supplement','personal_statement','why_school','diversity','activity'];
+}
+function getEssayStatuses() {
+  try { const v = JSON.parse(State.settings.essay_statuses || '[]'); if (Array.isArray(v) && v.length) return v; } catch(e) {}
+  return ['collecting_material','draft','review','revision','final','submitted'];
+}
+function getEssayAnnotationStatuses() {
+  try { const v = JSON.parse(State.settings.essay_annotation_statuses || '[]'); if (Array.isArray(v) && v.length) return v; } catch(e) {}
+  return ['open','accepted','rejected'];
+}
+
+// ── 课外活动 ──
+function getActivityCategories() {
+  try { const v = JSON.parse(State.settings.activity_categories || '[]'); if (Array.isArray(v) && v.length) return v; } catch(e) {}
+  return ['academic_competition','club_leadership','volunteer','internship','sports','arts','personal_project','research','other'];
+}
+function getActivityImpactLevels() {
+  try { const v = JSON.parse(State.settings.activity_impact_levels || '[]'); if (Array.isArray(v) && v.length) return v; } catch(e) {}
+  return ['school','city','province','national','international'];
+}
+function getImpactWeightMap() {
+  try { const v = JSON.parse(State.settings.impact_weight_map || '{}'); if (typeof v === 'object' && Object.keys(v).length) return v; } catch(e) {}
+  return { international: 100, national: 80, province: 60, city: 40, school: 20 };
+}
+
+// ── 学生管理 ──
+function getValidGradeLevels() {
+  try { const v = JSON.parse(State.settings.valid_grade_levels || '[]'); if (Array.isArray(v) && v.length) return v; } catch(e) {}
+  return ['G9','G10','G11','G12','G13','Year 9','Year 10','Year 11','Year 12','Year 13','9','10','11','12','13','其他'];
+}
+function getValidStudentStatuses() {
+  try { const v = JSON.parse(State.settings.valid_student_statuses || '[]'); if (Array.isArray(v) && v.length) return v; } catch(e) {}
+  return ['active','inactive','graduated','deleted'];
+}
+function getGradeRankMap() {
+  try { const v = JSON.parse(State.settings.grade_rank_map || '{}'); if (typeof v === 'object' && Object.keys(v).length) return v; } catch(e) {}
+  return { 'A*': 100, 'A': 90, 'B': 75, 'C': 60, 'D': 45, 'E': 30, 'U': 10 };
+}
+
+// ── 材料管理 ──
+function getMaterialStatuses() {
+  try { const v = JSON.parse(State.settings.material_statuses || '[]'); if (Array.isArray(v) && v.length) return v; } catch(e) {}
+  return ['未提交','已提交','已审核','需补充'];
+}
+
+// ── 申请管理 ──
+function getApplicationStatuses() {
+  try { const v = JSON.parse(State.settings.application_statuses || '[]'); if (Array.isArray(v) && v.length) return v; } catch(e) {}
+  return ['Pending','Submitted','Conditional Offer','Unconditional Offer','Rejected','Withdrawn','Firm','Insurance'];
+}
+function getReferenceTaskKeywords() {
+  try { const v = JSON.parse(State.settings.reference_task_keywords || '[]'); if (Array.isArray(v) && v.length) return v; } catch(e) {}
+  return ['reference%','推荐信%','参考人%'];
+}
+
+// ── 通知与审计 ──
+function getAutoEscalateOverdueHours() { return parseInt(State.settings.auto_escalate_overdue_hours) || 24; }
+function getAuditQueryDefaultLimit() { return parseInt(State.settings.audit_query_default_limit) || 200; }
+function getAuditQueryMaxLimit() { return parseInt(State.settings.audit_query_max_limit) || 1000; }
+
+// ── 系统安全 ──
+function getPasswordMinLength() { return parseInt(State.settings.password_min_length) || 6; }
+function getPasswordMaxLength() { return parseInt(State.settings.password_max_length) || 128; }
+function getToastDelay() { return parseInt(State.settings.toast_delay_ms) || 3000; }
+function getMaxBatchPrograms() { return parseInt(State.settings.max_batch_programs) || 50; }
+function getDefaultTimezone() { return State.settings.default_timezone || 'Europe/London'; }
+
 // ════════════════════════════════════════════════════════
 //  API 辅助
 // ════════════════════════════════════════════════════════

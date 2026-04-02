@@ -6,7 +6,20 @@ const express = require('express');
 module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   const router = express.Router();
 
-  const VALID_GRADE_LEVELS = ['G9','G10','G11','G12','G13','Year 9','Year 10','Year 11','Year 12','Year 13','9','10','11','12','13','其他'];
+  function _getSetting(key, fallback) {
+    try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? JSON.parse(r[0].values[0][0]) : fallback; } catch(e) { return fallback; }
+  }
+  function _getSettingRaw(key, fallback) {
+    try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? r[0].values[0][0] : fallback; } catch(e) { return fallback; }
+  }
+
+  function _getValidGradeLevels() { return _getSetting('valid_grade_levels', ['G9','G10','G11','G12','G13','Year 9','Year 10','Year 11','Year 12','Year 13','9','10','11','12','13','其他']); }
+  function _getValidStudentStatuses() { return _getSetting('valid_student_statuses', ['active','inactive','graduated','deleted']); }
+  function _getStudentNameMaxLength() { return parseInt(_getSettingRaw('student_name_max_length', '200')); }
+  function _getGradeRankMap() { return _getSetting('grade_rank_map', { 'A*': 100, 'A': 90, 'B': 75, 'C': 60, 'D': 45, 'E': 30, 'U': 10 }); }
+  function _getImpactWeightMap() { return _getSetting('impact_weight_map', { international: 100, national: 80, province: 60, city: 40, school: 20 }); }
+  function _getCompetitivenessWeights() { return _getSetting('competitiveness_weights', { academic: 0.3, language: 0.25, activities: 0.2, awards: 0.1, leadership: 0.15 }); }
+  function _getLeadershipScorePerItem() { return parseInt(_getSettingRaw('leadership_score_per_item', '25')); }
 
   router.get('/students', requireAuth, (req, res) => {
     const { grade, exam_board, search } = req.query;
@@ -22,9 +35,19 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
       where.push('s.id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?)');
       params.push(req.session.user.linked_id);
     }
+    // 规划师只看自己负责的学生
+    if (req.session.user.role === 'counselor') {
+      where.push('s.id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?)');
+      params.push(req.session.user.linked_id);
+    }
     // 家长只看自己关联的学生
     if (req.session.user.role === 'parent') {
       where.push('s.id IN (SELECT student_id FROM student_parents WHERE parent_id=?)');
+      params.push(req.session.user.linked_id);
+    }
+    // 招生人员只看自己负责的入学案例关联的学生
+    if (req.session.user.role === 'intake_staff') {
+      where.push('(s.id IN (SELECT student_id FROM intake_cases WHERE case_owner_staff_id=? AND student_id IS NOT NULL))');
       params.push(req.session.user.linked_id);
     }
     if (grade) { where.push('s.grade_level=?'); params.push(grade); }
@@ -62,12 +85,12 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   router.post('/students', requireRole('principal','counselor'), (req, res) => {
     const { name, grade_level, enrol_date, exam_board, notes, date_of_birth, agent_id } = req.body;
     if (!name || !grade_level) return res.status(400).json({ error: '姓名和年级必填' });
-    if (typeof name !== 'string' || name.trim().length === 0 || name.length > 200) return res.status(400).json({ error: '学生姓名格式不合法' });
-    if (!VALID_GRADE_LEVELS.includes(grade_level)) return res.status(400).json({ error: `年级必须是以下之一: ${VALID_GRADE_LEVELS.join(', ')}` });
+    if (typeof name !== 'string' || name.trim().length === 0 || name.length > _getStudentNameMaxLength()) return res.status(400).json({ error: '学生姓名格式不合法' });
+    if (!_getValidGradeLevels().includes(grade_level)) return res.status(400).json({ error: `年级必须是以下之一: ${_getValidGradeLevels().join(', ')}` });
     const id = uuidv4();
     const now = new Date().toISOString();
     db.run(`INSERT INTO students (id,name,grade_level,enrol_date,exam_board,status,notes,created_at,updated_at,date_of_birth,agent_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [id, name, grade_level, enrol_date, exam_board, 'active', notes||'', now, now, date_of_birth||null, agent_id||null]);
+      [id, name.trim(), grade_level, enrol_date||null, exam_board||null, 'active', notes||'', now, now, date_of_birth||null, agent_id||null]);
     audit(req, 'CREATE', 'students', id, { name });
     res.json({ id });
   });
@@ -131,7 +154,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
 
   router.put('/students/:id', requireRole('principal','counselor'), (req, res) => {
     const { id } = req.params;
-    const { name, grade_level, enrol_date, exam_board, notes, status, date_of_birth, agent_id, _partial } = req.body;
+    const { name, grade_level, enrol_date, exam_board, notes, status, date_of_birth, agent_id, _partial, _expected_updated_at } = req.body;
     if (_partial) {
       // 局部更新：仅更新传入的非 undefined 字段
       if (agent_id !== undefined) {
@@ -140,20 +163,29 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
       audit(req, 'UPDATE', 'students', id, { agent_id });
       return res.json({ ok: true });
     }
-    if (!name || typeof name !== 'string' || name.trim().length === 0 || name.length > 200) {
-      return res.status(400).json({ error: '学生姓名不能为空且不超过200字符' });
+    const _maxLen = _getStudentNameMaxLength();
+    if (!name || typeof name !== 'string' || name.trim().length === 0 || name.length > _maxLen) {
+      return res.status(400).json({ error: `学生姓名不能为空且不超过${_maxLen}字符` });
     }
-    if (grade_level && !VALID_GRADE_LEVELS.includes(grade_level)) {
-      return res.status(400).json({ error: `年级必须是以下之一: ${VALID_GRADE_LEVELS.join(', ')}` });
+    if (grade_level && !_getValidGradeLevels().includes(grade_level)) {
+      return res.status(400).json({ error: `年级必须是以下之一: ${_getValidGradeLevels().join(', ')}` });
     }
-    const VALID_STATUS = ['active','inactive','graduated','deleted'];
+    const VALID_STATUS = _getValidStudentStatuses();
     if (status && !VALID_STATUS.includes(status)) {
       return res.status(400).json({ error: `状态必须是以下之一: ${VALID_STATUS.join(', ')}` });
     }
+    // 乐观锁：如果客户端传了 _expected_updated_at，检查是否与数据库一致
+    if (_expected_updated_at) {
+      const current = db.get('SELECT updated_at FROM students WHERE id=?', [id]);
+      if (current && current.updated_at !== _expected_updated_at) {
+        return res.status(409).json({ error: '数据已被其他用户修改，请刷新后重试', current_updated_at: current.updated_at });
+      }
+    }
+    const now = new Date().toISOString();
     db.run(`UPDATE students SET name=?,grade_level=?,enrol_date=?,exam_board=?,notes=?,status=?,updated_at=?,date_of_birth=?,agent_id=? WHERE id=?`,
-      [name.trim(), grade_level, enrol_date, exam_board, notes, status||'active', new Date().toISOString(), date_of_birth||null, agent_id||null, id]);
+      [name.trim(), grade_level, enrol_date, exam_board, notes, status||'active', now, date_of_birth||null, agent_id||null, id]);
     audit(req, 'UPDATE', 'students', id, { name });
-    res.json({ ok: true });
+    res.json({ ok: true, updated_at: now });
   });
 
   router.delete('/students/:id', requireRole('principal'), (req, res) => {
@@ -177,12 +209,14 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   });
 
   router.post('/students/:id/assessments', requireRole('principal','counselor'), (req, res) => {
-    const { assess_date, assess_type, subject, score, max_score, percentile, notes } = req.body;
+    const { assess_date, assess_type, subject, score, max_score, percentile, notes, sub_scores, target_score, next_test_date, next_target_score } = req.body;
+    if (!assess_date || !assess_type) return res.status(400).json({ error: '评估日期和类型必填' });
     const student = db.get('SELECT id FROM students WHERE id=?', [req.params.id]);
     if (!student) return res.status(404).json({ error: '学生不存在' });
     const aid = uuidv4();
-    db.run(`INSERT INTO admission_assessments VALUES (?,?,?,?,?,?,?,?,?,?)`,
-      [aid, req.params.id, assess_date, assess_type, subject, score, max_score||100, percentile||null, notes||'', new Date().toISOString()]);
+    db.run(`INSERT INTO admission_assessments (id, student_id, assess_date, assess_type, subject, score, max_score, percentile, notes, created_at, sub_scores, target_score, next_test_date, next_target_score) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [aid, req.params.id, assess_date, assess_type, subject, score, max_score||100, percentile||null, notes||'', new Date().toISOString(), sub_scores ? (typeof sub_scores === 'string' ? sub_scores : JSON.stringify(sub_scores)) : null, target_score||null, next_test_date||null, next_target_score||null]);
+    audit(req, 'CREATE', 'admission_assessments', aid, { assess_type, subject, student_id: req.params.id });
     res.json({ id: aid });
   });
 
@@ -311,8 +345,12 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   // ── PUT /students/:id/profile-ext ──
   router.put('/students/:id/profile-ext', requireAuth, requireRole('principal','counselor','mentor'), (req, res) => {
     const sid = req.params.id;
-    const { mbti, holland_code, academic_interests, career_goals, major_preferences, strengths, weaknesses, notes } = req.body;
-    const existing = db.get('SELECT id FROM student_profiles_ext WHERE student_id=?', [sid]);
+    const { mbti, holland_code, academic_interests, career_goals, major_preferences, strengths, weaknesses, notes, _expected_updated_at } = req.body;
+    const existing = db.get('SELECT id, updated_at FROM student_profiles_ext WHERE student_id=?', [sid]);
+    // 乐观锁
+    if (_expected_updated_at && existing && existing.updated_at && existing.updated_at !== _expected_updated_at) {
+      return res.status(409).json({ error: '数据已被其他用户修改，请刷新后重试', current_updated_at: existing.updated_at });
+    }
     if (existing) {
       db.run(`UPDATE student_profiles_ext SET mbti=?, holland_code=?, academic_interests=?, career_goals=?, major_preferences=?, strengths=?, weaknesses=?, notes=?, updated_at=datetime('now') WHERE student_id=?`,
         [mbti||null, holland_code||null, JSON.stringify(academic_interests||[]), career_goals||null, JSON.stringify(major_preferences||[]), JSON.stringify(strengths||[]), JSON.stringify(weaknesses||[]), notes||null, sid]);
@@ -373,7 +411,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
 
     // 学术: 基于 exam_sittings 的预估/实际成绩
     const exams = db.all('SELECT predicted_grade, actual_grade FROM exam_sittings WHERE student_id=?', [sid]);
-    const gradeRank = { 'A*': 100, 'A': 90, 'B': 75, 'C': 60, 'D': 45, 'E': 30, 'U': 10 };
+    const gradeRank = _getGradeRankMap();
     let academicScore = 0;
     if (exams.length) {
       const grades = exams.map(e => gradeRank[(e.actual_grade || e.predicted_grade || '').toUpperCase()] || 0);
@@ -390,7 +428,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
 
     // 活动: 数量 + 影响力
     const activities = db.all('SELECT impact_level FROM student_activities WHERE student_id=?', [sid]);
-    const impactWeight = { international: 100, national: 80, province: 60, city: 40, school: 20 };
+    const impactWeight = _getImpactWeightMap();
     let activityScore = 0;
     if (activities.length) {
       const impactScores = activities.map(a => impactWeight[a.impact_level] || 20);
@@ -399,14 +437,15 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
 
     // 领导力: 有 leadership 角色的活动
     const leadership = db.all("SELECT id FROM student_activities WHERE student_id=? AND (category='club_leadership' OR role LIKE '%leader%' OR role LIKE '%president%' OR role LIKE '%captain%' OR role LIKE '%founder%' OR role LIKE '%主席%' OR role LIKE '%社长%' OR role LIKE '%队长%' OR role LIKE '%创始%')", [sid]);
-    const leadershipScore = Math.min(100, leadership.length * 25);
+    const leadershipScore = Math.min(100, leadership.length * _getLeadershipScorePerItem());
 
     // 文书: 基于 essays 的完成率
     const essays = db.all('SELECT status FROM essays WHERE student_id=?', [sid]);
     const essayDone = essays.filter(e => ['final','submitted'].includes(e.status)).length;
     const essayScore = essays.length ? Math.round((essayDone / essays.length) * 100) : 0;
 
-    const overall = Math.round((academicScore * 0.3 + testScore * 0.25 + activityScore * 0.2 + leadershipScore * 0.1 + essayScore * 0.15));
+    const cw = _getCompetitivenessWeights();
+    const overall = Math.round((academicScore * (cw.academic||0.3) + testScore * (cw.language||0.25) + activityScore * (cw.activities||0.2) + leadershipScore * (cw.awards||0.1) + essayScore * (cw.leadership||0.15)));
 
     res.json({
       academics: academicScore,

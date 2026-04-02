@@ -824,72 +824,149 @@ async function renderParentPortal(params = {}) {
 // ════════════════════════════════════════════════════════
 async function renderStudentList() {
   const mc = document.getElementById('main-content');
-  mc.innerHTML = `<div class="p-3"><div class="skeleton" style="height:36px;width:260px;border-radius:6px;margin-bottom:1rem"></div><table class="table"><tbody>${skeletonTableRows(5,8)}</tbody></table></div>`;
+  mc.innerHTML = `<div class="page-loading"><div class="spinner-border text-primary"></div></div>`;
   try {
     const students = await GET('/api/students');
     const isIntakeStaff = State.user.role === 'intake_staff';
-
-    const renderRows = (list) => list.map(s => `<tr>
-                <td class="fw-semibold">${isIntakeStaff ? escapeHtml(s.name) : `<a href="#" class="student-name-link fw-semibold" onclick="navigate('student-detail',{studentId:'${s.id}'})">${escapeHtml(s.name)}</a>`}</td>
-                <td>${escapeHtml(s.grade_level)}</td>
-                <td>${fmtDate(s.enrol_date)}</td>
-                <td><span class="badge bg-light text-dark border">${escapeHtml(s.exam_board||'—')}</span></td>
-                ${!isIntakeStaff ? `
-                  <td class="small text-muted">${escapeHtml((s.mentors||'').substring(0,20)||'—')}</td>
-                  <td class="small">${escapeHtml((s.targets||'').substring(0,30)||'—')}</td>` : ''}
-                  <td>
-                  ${isIntakeStaff
-                    ? `<button class="btn btn-sm btn-outline-primary" onclick="navigate('intake-cases',{student_id:'${s.id}'})"><i class="bi bi-folder2-open me-1"></i>查看案例</button>`
-                    : `<button class="action-icon-btn" title="查看" onclick="navigate('student-detail',{studentId:'${s.id}'})"><i class="bi bi-eye"></i></button>
-                       ${hasRole('principal','counselor') ? `<button class="action-icon-btn" title="编辑" onclick="openStudentModal('${s.id}')"><i class="bi bi-pencil"></i></button>` : ''}
-                       ${hasRole('principal') ? `<button class="action-icon-btn danger" title="删除" data-sid="${escapeHtml(s.id)}" data-sname="${escapeHtml(s.name)}" onclick="deleteStudent(this.dataset.sid,this.dataset.sname)"><i class="bi bi-trash"></i></button>` : ''}`
-                  }
-                </td>
-              </tr>`).join('') || '<tr><td colspan="10" class="text-center text-muted py-3">暂无匹配学生</td></tr>';
+    const canEdit = hasRole('principal','counselor');
 
     mc.innerHTML = `
     <div class="page-header">
       <h4><i class="bi bi-person-vcard me-2"></i>${isIntakeStaff ? '学生查询' : '学生管理'}</h4>
-      <div class="d-flex gap-2 align-items-center">
-        <input class="form-control form-control-sm" id="studentListSearch" placeholder="搜索姓名..." style="width:160px" oninput="window._stuListFilter(this.value)">
-        <select class="form-select form-select-sm" id="studentListGrade" style="width:120px" onchange="window._stuListFilter(document.getElementById('studentListSearch').value)">
-          <option value="">全部年级</option>
-          <option value="G9">G9</option><option value="G10">G10</option>
-          <option value="G11">G11</option><option value="G12">G12</option><option value="G13">G13</option>
-          <option value="Year 9">Year 9</option><option value="Year 10">Year 10</option>
-          <option value="Year 11">Year 11</option><option value="Year 12">Year 12</option><option value="Year 13">Year 13</option>
-          <option value="其他">其他</option>
-        </select>
-        ${hasRole('principal','counselor') ? `<button class="btn btn-primary btn-sm" onclick="openStudentModal()"><i class="bi bi-plus-lg me-1"></i>新增学生</button>` : ''}
-      </div>
+      ${canEdit ? `<button class="btn btn-primary btn-sm" onclick="openStudentModal()"><i class="bi bi-plus-lg me-1"></i>新增学生</button>` : ''}
     </div>
     ${isIntakeStaff ? '<div class="alert alert-info py-2 small mb-3"><i class="bi bi-info-circle me-1"></i>此页面为只读查询，点击"查看案例"可进入入学管理详情</div>' : ''}
-    <div class="card">
-      <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-hover mb-0">
-            <thead class="table-light">
-              <tr><th>姓名</th><th>年级</th><th>入学日期</th><th>考试局</th>
-              ${!isIntakeStaff ? '<th>导师</th><th>目标院校</th>' : ''}
-              <th>操作</th></tr>
-            </thead>
-            <tbody id="studentListTbody">${renderRows(students)}</tbody>
-          </table>
+
+    <div class="md-layout" style="height:calc(100vh - ${isIntakeStaff?'180':'140'}px)">
+      <!-- 左侧学生列表 -->
+      <div class="md-list">
+        <div class="md-list-header">
+          <input class="form-control form-control-sm" id="studentListSearch" placeholder="搜索姓名..." oninput="window._stuListFilter()">
+          <select class="form-select form-select-sm mt-2" id="studentListGrade" onchange="window._stuListFilter()">
+            <option value="">全部年级</option>
+            <option value="G9">G9</option><option value="G10">G10</option>
+            <option value="G11">G11</option><option value="G12">G12</option><option value="G13">G13</option>
+            <option value="Year 9">Year 9</option><option value="Year 10">Year 10</option>
+            <option value="Year 11">Year 11</option><option value="Year 12">Year 12</option><option value="Year 13">Year 13</option>
+            <option value="其他">其他</option>
+          </select>
+          <div class="text-muted mt-1" style="font-size:11px" id="stuListCount">${students.length} 名学生</div>
+        </div>
+        <div class="md-list-body" id="studentListBody">
+          ${_renderStudentListItems(students, isIntakeStaff)}
+        </div>
+      </div>
+
+      <!-- 右侧详情面板 -->
+      <div class="md-detail" id="studentListDetail">
+        <div class="md-empty-detail">
+          <i class="bi bi-person-vcard" style="font-size:2.5rem;opacity:.3"></i>
+          <p class="text-muted mt-2">选择左侧学生查看详情</p>
         </div>
       </div>
     </div>`;
 
-    window._stuListFilter = (search) => {
+    window._allStudents = students;
+    window._stuListFilter = () => {
+      const search = (document.getElementById('studentListSearch')?.value||'').toLowerCase();
       const grade = document.getElementById('studentListGrade')?.value || '';
       const filtered = students.filter(s =>
-        (!search || s.name.toLowerCase().includes(search.toLowerCase())) &&
+        (!search || s.name.toLowerCase().includes(search)) &&
         (!grade || s.grade_level === grade)
       );
-      const tbody = document.getElementById('studentListTbody');
-      if (tbody) tbody.innerHTML = renderRows(filtered);
+      const body = document.getElementById('studentListBody');
+      if (body) body.innerHTML = _renderStudentListItems(filtered, isIntakeStaff);
+      const cnt = document.getElementById('stuListCount');
+      if (cnt) cnt.textContent = `${filtered.length} 名学生`;
     };
   } catch(e) {
     mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function _renderStudentListItems(students, isIntakeStaff) {
+  if (!students || students.length === 0) return '<div class="md-empty-detail" style="padding:2rem"><i class="bi bi-person-vcard" style="font-size:1.5rem;opacity:.3"></i><p class="text-muted small mt-1">暂无学生</p></div>';
+  return students.map(s => `
+    <div class="md-item" onclick="${isIntakeStaff ? `navigate('intake-cases',{student_id:'${s.id}'})` : `_selectStudent('${s.id}',this)`}" data-sid="${s.id}">
+      <div class="d-flex justify-content-between align-items-center">
+        <span class="md-item-name">${escapeHtml(s.name)}</span>
+        ${s.overdue_count > 0 ? `<span class="badge badge-soft-danger" style="font-size:10px">${s.overdue_count}逾期</span>` : ''}
+      </div>
+      <div class="md-item-sub">${escapeHtml(s.grade_level)} · ${escapeHtml(s.exam_board||'—')}${s.mentors ? ` · ${escapeHtml(s.mentors.substring(0,15))}` : ''}</div>
+    </div>`).join('');
+}
+
+async function _selectStudent(id, el) {
+  document.querySelectorAll('#studentListBody .md-item').forEach(i => i.classList.remove('active'));
+  if (el) el.classList.add('active');
+  const panel = document.getElementById('studentListDetail');
+  panel.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
+  try {
+    const [detail, tasks] = await Promise.all([
+      GET(`/api/students/${id}`),
+      GET(`/api/students/${id}/tasks`),
+    ]);
+    const s = detail.student;
+    const canEdit = hasRole('principal','counselor');
+    const pending = tasks.filter(t => t.status !== 'done');
+    const overdue = pending.filter(t => isOverdue(t.due_date, t.status));
+    panel.innerHTML = `
+      <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+          <h5 class="mb-1 fw-bold">${escapeHtml(s.name)}</h5>
+          <div class="d-flex gap-1 flex-wrap">
+            <span class="badge badge-soft-secondary">${escapeHtml(s.grade_level)}</span>
+            <span class="badge badge-soft-info">${escapeHtml(s.exam_board||'—')}</span>
+            ${s.enrol_date ? `<span class="badge bg-light text-dark border">入学 ${fmtDate(s.enrol_date)}</span>` : ''}
+          </div>
+        </div>
+        <div class="d-flex gap-1">
+          ${canEdit ? `<button class="action-icon-btn" title="编辑" onclick="openStudentModal('${id}')"><i class="bi bi-pencil"></i></button>` : ''}
+          ${hasRole('principal') ? `<button class="action-icon-btn danger" title="删除" onclick="deleteStudent('${id}','${escapeHtml(s.name)}')"><i class="bi bi-trash"></i></button>` : ''}
+          <button class="btn btn-primary btn-sm" onclick="navigate('student-detail',{studentId:'${id}'})"><i class="bi bi-box-arrow-up-right me-1"></i>完整档案</button>
+        </div>
+      </div>
+
+      <!-- KPI -->
+      <div class="row g-2 mb-3">
+        <div class="col-3"><div class="stat-card accent-primary" style="padding:.75rem 1rem .75rem 1.25rem"><div class="stat-value" style="font-size:1.5rem">${pending.length}</div><div class="stat-label">待办</div></div></div>
+        <div class="col-3"><div class="stat-card ${overdue.length>0?'accent-danger':'accent-success'}" style="padding:.75rem 1rem .75rem 1.25rem"><div class="stat-value" style="font-size:1.5rem;${overdue.length>0?'color:var(--danger)':''}">${overdue.length}</div><div class="stat-label">逾期</div></div></div>
+        <div class="col-3"><div class="stat-card accent-info" style="padding:.75rem 1rem .75rem 1.25rem"><div class="stat-value" style="font-size:1.5rem">${detail.applications.length}</div><div class="stat-label">申请</div></div></div>
+        <div class="col-3"><div class="stat-card accent-warning" style="padding:.75rem 1rem .75rem 1.25rem"><div class="stat-value" style="font-size:1.5rem">${detail.subjects.length}</div><div class="stat-label">选科</div></div></div>
+      </div>
+
+      ${s.notes ? `<div class="alert alert-light small py-2 mb-3"><i class="bi bi-sticky me-1"></i>${escapeHtml(s.notes)}</div>` : ''}
+
+      <!-- 导师 -->
+      ${detail.mentors.length > 0 ? `<div class="card mb-3"><div class="card-header fw-semibold small py-2"><i class="bi bi-person-check me-1 text-warning"></i>导师/规划师</div><div class="card-body p-0">${detail.mentors.map(m=>`<div class="px-3 py-2 border-bottom d-flex align-items-center gap-2"><div class="avatar-sm">${escapeHtml(m.staff_name.charAt(0))}</div><div><div class="small fw-semibold">${escapeHtml(m.staff_name)}</div><div class="text-muted" style="font-size:11px">${escapeHtml(m.role)}</div></div></div>`).join('')}</div></div>` : ''}
+
+      <!-- 目标院校 -->
+      ${detail.targets.length > 0 ? `<div class="card mb-3"><div class="card-header fw-semibold small py-2"><i class="bi bi-mortarboard me-1 text-primary"></i>目标院校 <span class="badge badge-soft-secondary ms-1">${detail.targets.length}</span></div><div class="card-body p-0"><table class="table table-sm mb-0"><tbody>${detail.targets.map(t=>`<tr><td class="small fw-semibold">${escapeHtml(t.uni_name)}</td><td class="small text-muted">${escapeHtml(t.department||'—')}</td><td>${tierBadge(t.tier)}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+
+      <!-- 待办任务 -->
+      <div class="card mb-3">
+        <div class="card-header fw-semibold small py-2 d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-list-check me-1 text-warning"></i>待办任务 <span class="badge badge-soft-warning ms-1">${pending.length}</span></span>
+          ${canEdit || hasRole('mentor') ? `<button class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size:11px" onclick="openTaskModal('${id}')"><i class="bi bi-plus"></i></button>` : ''}
+        </div>
+        <div class="card-body p-0" style="max-height:250px;overflow-y:auto">
+          ${pending.length === 0 ? '<div class="text-center text-muted small py-3"><i class="bi bi-check-circle text-success me-1"></i>所有任务已完成</div>' :
+          pending.slice(0,8).map(t => {
+            const od = isOverdue(t.due_date, t.status);
+            return `<div class="border-bottom px-3 py-2 d-flex justify-content-between align-items-center">
+              <div style="min-width:0"><div class="small ${od?'text-danger fw-bold':''} text-truncate">${escapeHtml(t.title)}</div><small class="text-muted">${fmtDate(t.due_date)||'无期限'} · ${escapeHtml(t.category||'其他')}</small></div>
+              ${od ? '<span class="badge badge-soft-danger" style="font-size:10px">逾期</span>' : `<span class="badge badge-soft-secondary" style="font-size:10px">${escapeHtml(t.status)}</span>`}
+            </div>`;
+          }).join('')}
+          ${pending.length > 8 ? `<div class="text-center py-2"><a href="#" onclick="event.preventDefault();navigate('student-detail',{studentId:'${id}',activeTab:'tab-timeline'})" class="small text-primary">查看全部 ${pending.length} 项 →</a></div>` : ''}
+        </div>
+      </div>
+
+      <!-- 申请概览 -->
+      ${detail.applications.length > 0 ? `<div class="card"><div class="card-header fw-semibold small py-2"><i class="bi bi-send me-1 text-primary"></i>申请院校 <span class="badge badge-soft-primary ms-1">${detail.applications.length}</span></div><div class="card-body p-0"><table class="table table-sm mb-0"><tbody>${detail.applications.slice(0,5).map(a=>`<tr><td class="small fw-semibold">${escapeHtml(a.uni_name||'—')}</td><td class="small text-muted">${escapeHtml(a.department||'—')}</td><td>${statusBadge(a.status)}</td></tr>`).join('')}</tbody></table>${detail.applications.length>5?`<div class="text-center py-2"><a href="#" onclick="event.preventDefault();navigate('student-detail',{studentId:'${id}',activeTab:'tab-apps'})" class="small text-primary">查看全部 →</a></div>`:''}</div></div>` : ''}
+    `;
+  } catch(e) {
+    panel.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
   }
 }
 

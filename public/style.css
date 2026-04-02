@@ -1581,9 +1581,18 @@ body.dark-mode .timeline-node.done { background: #14532d; border-color: #22c55e;
    ═══════════════════════════════════════════════════ */
 .overview-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
+  grid-template-columns: repeat(3, 1fr);
+  gap: .875rem;
   align-items: start;
+}
+@media (max-width: 992px) {
+  .overview-grid { grid-template-columns: repeat(2, 1fr); }
+  .overview-card[data-span="3"] { grid-column: span 2; }
+}
+@media (max-width: 576px) {
+  .overview-grid { grid-template-columns: 1fr; }
+  .overview-card[data-span="2"],
+  .overview-card[data-span="3"] { grid-column: span 1; }
 }
 .overview-card {
   grid-column: span 1;
@@ -1592,13 +1601,8 @@ body.dark-mode .timeline-node.done { background: #14532d; border-color: #22c55e;
 .overview-card[data-span="2"] {
   grid-column: span 2;
 }
-.overview-card.drag-over {
-  outline: 2px dashed var(--primary);
-  outline-offset: 2px;
-  border-radius: var(--radius-md);
-}
-.overview-card.dragging {
-  opacity: 0.4;
+.overview-card[data-span="3"] {
+  grid-column: span 3;
 }
 .ov-card {
   background: var(--surface-1);
@@ -1620,20 +1624,6 @@ body.dark-mode .timeline-node.done { background: #14532d; border-color: #22c55e;
   background: var(--surface-2);
   user-select: none;
 }
-.ov-drag-handle {
-  color: var(--text-tertiary);
-  cursor: grab;
-  font-size: 1rem;
-  line-height: 1;
-  padding: 2px 3px;
-  border-radius: 4px;
-  transition: color var(--ease-fast), background var(--ease-fast);
-}
-.ov-drag-handle:hover {
-  color: var(--text-secondary);
-  background: var(--surface-3);
-}
-.ov-drag-handle:active { cursor: grabbing; }
 .ov-card-title {
   flex: 1;
   font-size: .875rem;
@@ -2119,9 +2109,6 @@ body.dark-mode .intake-detail-panel::-webkit-scrollbar-thumb { background: #4755
 .bar-fill-medium { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
 .bar-fill-high   { background: linear-gradient(90deg, #4ade80, #22c55e); }
 
-/* ── 拖拽把手弱化 ── */
-.ov-drag-handle { color: #cbd5e1 !important; font-size: .75rem !important; opacity: .4; transition: opacity var(--ease-fast); }
-.ov-card:hover .ov-drag-handle { opacity: .8; }
 
 /* ── 操作图标按钮（表格内）── */
 .action-icon-btn {

@@ -1041,7 +1041,7 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
       <div class="tab-pane fade show active" id="tab-overview">
         <div class="overview-grid" id="overview-grid">
 
-          <!-- 基本信息 -->
+          <!-- Row 1: 基本信息 | 入学评估 | 竞争力 -->
           <div class="overview-card" data-card-id="basic" data-span="1">
             <div class="ov-card">
               <div class="ov-card-header">
@@ -1061,35 +1061,10 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
             </div>
           </div>
 
-          <!-- 导师/规划师 -->
-          <div class="overview-card" data-card-id="mentor" data-span="1">
-            <div class="ov-card">
-              <div class="ov-card-header">
-<span class="ov-card-title"><i class="bi bi-person-check text-warning"></i>导师 / 规划师</span>
-                <div class="ov-card-actions">
-                  ${canEdit ? `<button class="ov-card-btn" onclick="openAssignMentorModal('${id}')" title="分配导师"><i class="bi bi-plus-lg"></i></button>` : ''}
-                </div>
-              </div>
-              <div class="ov-card-body p-0">
-                ${mentors.length === 0
-                  ? `<div class="ov-empty"><i class="bi bi-person-check"></i><span>暂未分配导师</span></div>`
-                  : mentors.map(m => `<div class="ov-row-item">
-                      <div class="ov-avatar">${escapeHtml(m.staff_name.charAt(0))}</div>
-                      <div style="flex:1;min-width:0">
-                        <div style="font-size:.875rem;font-weight:600;color:var(--text-primary)">${escapeHtml(m.staff_name)}</div>
-                        <div style="font-size:.78rem;color:var(--text-tertiary)">${escapeHtml(m.role)}</div>
-                      </div>
-                      ${canEdit ? `<button class="ov-card-btn" style="color:#dc2626" onclick="removeMentor('${m.id}','${id}')" title="移除"><i class="bi bi-x-circle"></i></button>` : ''}
-                    </div>`).join('')}
-              </div>
-            </div>
-          </div>
-
-          <!-- 入学评估 -->
           <div class="overview-card" data-card-id="assessment" data-span="1">
             <div class="ov-card">
               <div class="ov-card-header">
-<span class="ov-card-title"><i class="bi bi-graph-up text-success"></i>入学评估</span>
+                <span class="ov-card-title"><i class="bi bi-graph-up text-success"></i>入学评估</span>
                 <div class="ov-card-actions">
                   ${canEdit ? `<button class="ov-card-btn" onclick="openAssessmentModal('${id}')" title="添加评估"><i class="bi bi-plus-lg"></i></button>` : ''}
                 </div>
@@ -1111,11 +1086,44 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
             </div>
           </div>
 
-          <!-- 选科记录 -->
+          <div class="overview-card" data-card-id="competitiveness" data-span="1">
+            <div class="ov-card">
+              <div class="ov-card-header">
+                <span class="ov-card-title"><i class="bi bi-speedometer2 text-success"></i>竞争力</span>
+                <div class="ov-card-actions"></div>
+              </div>
+              <div class="ov-card-body" id="competitiveness-card"><div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div></div>
+            </div>
+          </div>
+
+          <!-- Row 2: 导师 | 选科 | 画像标签 -->
+          <div class="overview-card" data-card-id="mentor" data-span="1">
+            <div class="ov-card">
+              <div class="ov-card-header">
+                <span class="ov-card-title"><i class="bi bi-person-check text-warning"></i>导师 / 规划师</span>
+                <div class="ov-card-actions">
+                  ${canEdit ? `<button class="ov-card-btn" onclick="openAssignMentorModal('${id}')" title="分配导师"><i class="bi bi-plus-lg"></i></button>` : ''}
+                </div>
+              </div>
+              <div class="ov-card-body p-0">
+                ${mentors.length === 0
+                  ? `<div class="ov-empty"><i class="bi bi-person-check"></i><span>暂未分配导师</span></div>`
+                  : mentors.map(m => `<div class="ov-row-item">
+                      <div class="ov-avatar">${escapeHtml(m.staff_name.charAt(0))}</div>
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:.875rem;font-weight:600;color:var(--text-primary)">${escapeHtml(m.staff_name)}</div>
+                        <div style="font-size:.78rem;color:var(--text-tertiary)">${escapeHtml(m.role)}</div>
+                      </div>
+                      ${canEdit ? `<button class="ov-card-btn" style="color:#dc2626" onclick="removeMentor('${m.id}','${id}')" title="移除"><i class="bi bi-x-circle"></i></button>` : ''}
+                    </div>`).join('')}
+              </div>
+            </div>
+          </div>
+
           <div class="overview-card" data-card-id="subjects" data-span="1">
             <div class="ov-card">
               <div class="ov-card-header">
-<span class="ov-card-title"><i class="bi bi-book text-info"></i>选科记录</span>
+                <span class="ov-card-title"><i class="bi bi-book text-info"></i>选科记录</span>
                 <div class="ov-card-actions">
                   ${canEdit ? `<button class="ov-card-btn" onclick="openSubjectModal('${id}')" title="添加科目"><i class="bi bi-plus-lg"></i></button>` : ''}
                 </div>
@@ -1135,11 +1143,23 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
             </div>
           </div>
 
-          <!-- 目标院校 -->
+          <div class="overview-card" data-card-id="profile-tags" data-span="1">
+            <div class="ov-card">
+              <div class="ov-card-header">
+                <span class="ov-card-title"><i class="bi bi-tags text-info"></i>画像标签</span>
+                <div class="ov-card-actions">
+                  ${canEdit ? `<button class="ov-card-btn" onclick="openProfileExtModal('${id}')" title="编辑画像"><i class="bi bi-pencil"></i></button>` : ''}
+                </div>
+              </div>
+              <div class="ov-card-body" id="profile-tags-card"><div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div></div>
+            </div>
+          </div>
+
+          <!-- Row 3: 目标院校 (span 2) | 荣誉亮点 -->
           <div class="overview-card" data-card-id="targets" data-span="2">
             <div class="ov-card">
               <div class="ov-card-header">
-<span class="ov-card-title"><i class="bi bi-mortarboard text-danger"></i>目标院校</span>
+                <span class="ov-card-title"><i class="bi bi-mortarboard text-danger"></i>目标院校</span>
                 <div class="ov-card-actions">
                   ${canEdit ? `<button class="ov-card-btn" onclick="openTargetModal('${id}')" title="添加院校"><i class="bi bi-plus-lg"></i></button>` : ''}
                 </div>
@@ -1167,11 +1187,21 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
             </div>
           </div>
 
-          <!-- 家长/监护人 -->
-          <div class="overview-card" data-card-id="parents" data-span="2">
+          <div class="overview-card" data-card-id="awards" data-span="1">
             <div class="ov-card">
               <div class="ov-card-header">
-<span class="ov-card-title"><i class="bi bi-people text-secondary"></i>家长 / 监护人</span>
+                <span class="ov-card-title"><i class="bi bi-award text-warning"></i>荣誉亮点</span>
+                <div class="ov-card-actions"></div>
+              </div>
+              <div class="ov-card-body" id="awards-card"><div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div></div>
+            </div>
+          </div>
+
+          <!-- Row 4: 家长 (full width) -->
+          <div class="overview-card" data-card-id="parents" data-span="3">
+            <div class="ov-card">
+              <div class="ov-card-header">
+                <span class="ov-card-title"><i class="bi bi-people text-secondary"></i>家长 / 监护人</span>
                 <div class="ov-card-actions">
                   ${canEdit ? `<button class="ov-card-btn" onclick="openParentModal('${id}')" title="添加家长"><i class="bi bi-plus-lg"></i></button>` : ''}
                 </div>
@@ -1191,43 +1221,6 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
                       </div>`).join('')}
                     </div>`}
               </div>
-            </div>
-          </div>
-
-          <!-- 画像标签 -->
-          <div class="overview-card" data-card-id="profile-tags" data-span="1">
-            <div class="ov-card">
-              <div class="ov-card-header">
-<span class="ov-card-title"><i class="bi bi-tags text-info"></i>画像标签</span>
-                <div class="ov-card-actions">
-                  ${canEdit ? `<button class="ov-card-btn" onclick="openProfileExtModal('${id}')" title="编辑画像"><i class="bi bi-pencil"></i></button>` : ''}
-                </div>
-              </div>
-              <div class="ov-card-body" id="profile-tags-card"><div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div></div>
-            </div>
-          </div>
-
-          <!-- 竞争力摘要 -->
-          <div class="overview-card" data-card-id="competitiveness" data-span="1">
-            <div class="ov-card">
-              <div class="ov-card-header">
-<span class="ov-card-title"><i class="bi bi-graph-up text-success"></i>竞争力</span>
-                <div class="ov-card-actions">
-                </div>
-              </div>
-              <div class="ov-card-body" id="competitiveness-card"><div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div></div>
-            </div>
-          </div>
-
-          <!-- 荣誉亮点 -->
-          <div class="overview-card" data-card-id="awards" data-span="1">
-            <div class="ov-card">
-              <div class="ov-card-header">
-<span class="ov-card-title"><i class="bi bi-award text-warning"></i>荣誉亮点</span>
-                <div class="ov-card-actions">
-                </div>
-              </div>
-              <div class="ov-card-body" id="awards-card"><div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div></div>
             </div>
           </div>
 

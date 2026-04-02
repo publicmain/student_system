@@ -994,30 +994,90 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
     const { student, assessments, subjects, targets, mentors, applications, parents, agentInfo } = detail;
     const canEdit = hasRole('principal','counselor');
 
+    // ── Computed data ──
+    const pending = tasks.filter(t => t.status !== 'done');
+    const overdue = pending.filter(t => isOverdue(t.due_date, t.status));
+    const upcoming = pending.filter(t => !isOverdue(t.due_date, t.status)).sort((a,b)=>(a.due_date||'').localeCompare(b.due_date||'')).slice(0,5);
+    const urgentTasks = [...overdue.slice(0,5), ...upcoming].slice(0,6);
+
+    // Stage detection: which stages have data
+    const hasSubjects = subjects.length > 0;
+    const hasAssessments = assessments.length > 0;
+    const hasApps = applications.length > 0;
+    const hasOffer = applications.some(a => ['offer','conditional_offer','conditional','unconditional','firm','enrolled'].includes(a.status));
+    const stages = [
+      { key: 'subjects', label: '选科', done: hasSubjects },
+      { key: 'tests', label: '标化', done: hasAssessments },
+      { key: 'activities', label: '活动', done: false },
+      { key: 'essays', label: '文书', done: false },
+      { key: 'apps', label: '申请', done: hasApps },
+      { key: 'offer', label: 'Offer', done: hasOffer },
+    ];
+    // Mark current = first non-done
+    let currentFound = false;
+    stages.forEach(s => { if (!s.done && !currentFound) { s.current = true; currentFound = true; } });
+
+    // Collect empty sections for sidebar pending area
+    const emptyItems = [];
+    if (mentors.length === 0) emptyItems.push({ label: '导师', action: canEdit ? `openAssignMentorModal('${id}')` : null });
+    if (subjects.length === 0) emptyItems.push({ label: '选科', action: canEdit ? `openSubjectModal('${id}')` : null });
+    if (parents.length === 0) emptyItems.push({ label: '家长', action: canEdit ? `openParentModal('${id}')` : null });
+
     mc.innerHTML = `
-    <div class="page-header">
-      <div class="d-flex align-items-center gap-2">
-        <button class="btn btn-outline-secondary btn-sm" onclick="navigate(State.previousPage||(hasRole('student')?'student-portal':hasRole('parent')?'parent-portal':'students'))"><i class="bi bi-arrow-left"></i></button>
-        <h4 class="mb-0"><i class="bi bi-person-fill me-2 text-primary"></i>${escapeHtml(student.name)}</h4>
-        <span class="badge bg-secondary">${escapeHtml(student.grade_level)}</span>
-        <span class="badge bg-info">${escapeHtml(student.exam_board||'—')}</span>
-        ${isUnder14(student.date_of_birth) ? `<span class="badge bg-warning text-dark" title="未满14周岁，需监护人同意"><i class="bi bi-shield-exclamation me-1"></i>未满14岁·合规</span>` : ''}
+    <!-- ═══ Hero Header ═══ -->
+    <div class="stu-hero">
+      <div class="stu-hero-top">
+        <div class="stu-hero-identity">
+          <button class="btn btn-outline-secondary btn-sm" style="padding:4px 8px" onclick="navigate(State.previousPage||(hasRole('student')?'student-portal':hasRole('parent')?'parent-portal':'students'))"><i class="bi bi-arrow-left"></i></button>
+          <h4>${escapeHtml(student.name)}</h4>
+          <span class="badge badge-soft-secondary">${escapeHtml(student.grade_level)}</span>
+          <span class="badge badge-soft-info">${escapeHtml(student.exam_board||'—')}</span>
+          ${isUnder14(student.date_of_birth) ? `<span class="badge badge-soft-warning" title="未满14周岁"><i class="bi bi-shield-exclamation me-1"></i>未满14岁</span>` : ''}
+        </div>
+        <div class="stu-hero-actions">
+          ${canEdit ? `
+            <button class="btn btn-outline-secondary btn-sm" onclick="openStudentModal('${id}')"><i class="bi bi-pencil me-1"></i>编辑</button>
+            <div class="dropdown">
+              <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-three-dots me-1"></i>更多</button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="#" onclick="event.preventDefault();openAssignMentorModal('${id}')"><i class="bi bi-person-plus me-1"></i>分配导师</a></li>
+                <li><a class="dropdown-item" href="#" onclick="event.preventDefault();openTimelineModal('${id}')"><i class="bi bi-magic me-1"></i>生成时间线</a></li>
+                <li><a class="dropdown-item" href="#" onclick="event.preventDefault();openConsentModal('${id}')"><i class="bi bi-shield-check me-1"></i>监护人同意</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="#" onclick="event.preventDefault();exportStudentPDF('${id}')"><i class="bi bi-file-pdf me-1"></i>导出PDF</a></li>
+              </ul>
+            </div>
+          ` : ''}
+          ${hasRole('parent','student') ? `<button class="btn btn-outline-primary btn-sm" onclick="openFeedbackModal('${id}')"><i class="bi bi-chat me-1"></i>反馈</button>` : ''}
+        </div>
       </div>
-      <div class="d-flex gap-2">
-        ${canEdit ? `
-          <button class="btn btn-outline-muted btn-sm" onclick="openStudentModal('${id}')"><i class="bi bi-pencil me-1"></i>编辑</button>
-          <button class="btn btn-outline-muted btn-sm" onclick="openAssignMentorModal('${id}')"><i class="bi bi-person-plus me-1"></i>分配导师</button>
-          <button class="btn btn-primary btn-sm" onclick="openTimelineModal('${id}')"><i class="bi bi-magic me-1"></i>生成时间线</button>
-          <button class="btn btn-outline-muted btn-sm" onclick="openConsentModal('${id}')"><i class="bi bi-shield-check me-1"></i>监护人同意</button>
-        ` : ''}
-        ${hasRole('parent','student') ? `<button class="btn btn-outline-primary btn-sm" onclick="openFeedbackModal('${id}')"><i class="bi bi-chat me-1"></i>提交反馈</button>` : ''}
+
+      <!-- Stage Progress -->
+      <div class="stu-stage-bar">
+        ${stages.map((s, i) => `
+          <div class="stu-stage-step">
+            <div style="display:flex;flex-direction:column;align-items:center">
+              <div class="stu-stage-dot ${s.done ? 'done' : s.current ? 'current' : ''}">${s.done ? '<i class="bi bi-check2"></i>' : (i+1)}</div>
+              <div class="stu-stage-label ${s.done ? 'done' : s.current ? 'current' : ''}">${s.label}</div>
+            </div>
+            ${i < stages.length - 1 ? `<div class="stu-stage-line ${s.done ? 'done' : ''}" style="margin:0 4px;margin-bottom:14px"></div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+
+      <!-- Alert Strip -->
+      <div class="stu-alert-strip">
+        ${overdue.length > 0 ? `<span class="stu-alert-chip danger"><i class="bi bi-exclamation-circle-fill"></i>${overdue.length} 项逾期</span>` : ''}
+        ${pending.length > 0 ? `<span class="stu-alert-chip warning"><i class="bi bi-list-check"></i>${pending.length} 项待办</span>` : `<span class="stu-alert-chip success"><i class="bi bi-check-circle-fill"></i>任务已清</span>`}
+        ${applications.length > 0 ? `<span class="stu-alert-chip info"><i class="bi bi-send-fill"></i>${applications.length} 所申请中</span>` : ''}
+        ${student.notes ? `<span class="stu-alert-chip info" style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(student.notes)}"><i class="bi bi-sticky-fill"></i>${escapeHtml(student.notes)}</span>` : ''}
       </div>
     </div>
 
-    <!-- Tabs: 主要 + 更多 -->
-    <ul class="nav nav-tabs mb-3" id="student-tabs">
+    <!-- ═══ Tabs ═══ -->
+    <ul class="nav nav-tabs mt-3 mb-0" id="student-tabs" style="padding:0 .5rem">
       <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-overview">概览</a></li>
-      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-timeline">任务 ${tasks.filter(t=>t.status!=='done').length?`<span class="badge badge-soft-primary ms-1">${tasks.filter(t=>t.status!=='done').length}</span>`:''}</a></li>
+      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-timeline">任务 ${pending.length?`<span class="badge badge-soft-primary ms-1">${pending.length}</span>`:''}</a></li>
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-apps">申请 ${applications.length?`<span class="badge badge-soft-primary ms-1">${applications.length}</span>`:''}</a></li>
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-materials">材料 ${materials.length?`<span class="badge badge-soft-primary ms-1">${materials.length}</span>`:''}</a></li>
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-activities"><i class="bi bi-trophy me-1"></i>活动</a></li>
@@ -1037,193 +1097,171 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
     </ul>
 
     <div class="tab-content" id="student-tab-content">
-      <!-- 概览 -->
+      <!-- ═══ Overview — Cockpit Layout ═══ -->
       <div class="tab-pane fade show active" id="tab-overview">
-        <div class="overview-grid" id="overview-grid">
+        <div class="stu-cockpit">
 
-          <!-- Row 1: 基本信息 | 入学评估 | 竞争力 -->
-          <div class="overview-card" data-card-id="basic" data-span="1">
-            <div class="ov-card">
-              <div class="ov-card-header">
-                <span class="ov-card-title"><i class="bi bi-person-fill text-primary"></i>基本信息</span>
-                <div class="ov-card-actions"></div>
-              </div>
-              <div class="ov-card-body">
-                <table class="ov-info-table">
-                  <tr><th>姓名</th><td>${escapeHtml(student.name)}</td></tr>
-                  <tr><th>年级</th><td>${escapeHtml(student.grade_level)}</td></tr>
-                  <tr><th>考试局</th><td>${escapeHtml(student.exam_board||'—')}</td></tr>
-                  <tr><th>入学日期</th><td>${fmtDate(student.enrol_date)}</td></tr>
-                  <tr><th>出生日期</th><td>${fmtDate(student.date_of_birth)||'—'}${isUnder14(student.date_of_birth) ? ' <span class="badge bg-warning text-dark ms-1" style="font-size:.7rem">未满14岁</span>' : ''}</td></tr>
-                  ${student.notes ? `<tr><th>备注</th><td style="color:var(--text-secondary);font-size:.82rem">${escapeHtml(student.notes)}</td></tr>` : ''}
-                </table>
-              </div>
+          <!-- ── LEFT: Main Zone ── -->
+          <div class="stu-main">
+
+            <!-- Urgent Tasks -->
+            <div class="stu-main-section">
+              <div class="stu-section-title">紧急关注</div>
+              ${urgentTasks.length === 0
+                ? `<div style="color:var(--text-tertiary);font-size:.82rem;padding:.5rem 0"><i class="bi bi-check-circle text-success me-1"></i>暂无紧急任务</div>`
+                : urgentTasks.map(t => {
+                    const od = isOverdue(t.due_date, t.status);
+                    return `<div class="stu-task-row">
+                      <div class="stu-task-title ${od?'overdue':''}">${escapeHtml(t.title)}</div>
+                      <div class="stu-task-meta">${fmtDate(t.due_date)||'无期限'}</div>
+                      ${od ? '<span class="badge badge-soft-danger" style="font-size:.65rem">逾期</span>' : '<span class="badge badge-soft-secondary" style="font-size:.65rem">待办</span>'}
+                    </div>`;
+                  }).join('')}
+              ${pending.length > 6 ? `<div style="padding:.4rem .75rem"><a href="#" onclick="event.preventDefault();document.querySelector('a[href=\\'#tab-timeline\\']').click()" class="small text-primary">查看全部 ${pending.length} 项任务 →</a></div>` : ''}
             </div>
+
+            <!-- Applications -->
+            ${applications.length > 0 ? `
+            <div class="stu-main-section">
+              <div class="stu-section-title">申请进度</div>
+              ${applications.map(a => `<div class="stu-app-row">
+                <div class="stu-app-uni">${escapeHtml(a.uni_name||'—')}</div>
+                <div class="stu-app-dept">${escapeHtml(a.department||'—')}</div>
+                ${statusBadge(a.status)}
+              </div>`).join('')}
+            </div>` : ''}
+
+            <!-- Target Universities (in main when has data) -->
+            ${targets.length > 0 ? `
+            <div class="stu-main-section">
+              <div class="stu-section-title">目标院校 <span class="badge badge-soft-secondary ms-1" style="font-size:.6rem;text-transform:none;letter-spacing:0">${targets.length}</span></div>
+              ${targets.map(t => `<div class="stu-app-row">
+                <div class="stu-app-uni">${escapeHtml(t.uni_name)}</div>
+                <div class="stu-app-dept">${escapeHtml(t.department||'—')}</div>
+                ${tierBadge(t.tier)}
+                ${canEdit ? `<button class="stu-sb-btn" style="color:#dc2626" onclick="deleteTarget('${t.id}','${id}')"><i class="bi bi-trash"></i></button>` : ''}
+              </div>`).join('')}
+              ${canEdit ? `<div style="padding:.4rem .75rem"><button class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size:.75rem" onclick="openTargetModal('${id}')"><i class="bi bi-plus me-1"></i>添加院校</button></div>` : ''}
+            </div>` : ''}
+
+            <!-- Competitiveness -->
+            <div class="stu-main-section">
+              <div class="stu-section-title">竞争力分析</div>
+              <div id="competitiveness-card"><div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div></div>
+            </div>
+
           </div>
 
-          <div class="overview-card" data-card-id="assessment" data-span="1">
-            <div class="ov-card">
-              <div class="ov-card-header">
-                <span class="ov-card-title"><i class="bi bi-graph-up text-success"></i>入学评估</span>
-                <div class="ov-card-actions">
-                  ${canEdit ? `<button class="ov-card-btn" onclick="openAssessmentModal('${id}')" title="添加评估"><i class="bi bi-plus-lg"></i></button>` : ''}
+          <!-- ── RIGHT: Sidebar ── -->
+          <div class="stu-sidebar">
+
+            <!-- Basic Info -->
+            <div class="stu-sb-module">
+              <div class="stu-sb-title"><span><i class="bi bi-person"></i>基本档案</span></div>
+              <table class="stu-sb-table">
+                <tr><th>年级</th><td>${escapeHtml(student.grade_level)}</td></tr>
+                <tr><th>考试局</th><td>${escapeHtml(student.exam_board||'—')}</td></tr>
+                <tr><th>入学</th><td>${fmtDate(student.enrol_date)||'—'}</td></tr>
+                ${student.date_of_birth ? `<tr><th>出生</th><td>${fmtDate(student.date_of_birth)}${isUnder14(student.date_of_birth) ? ' <span class="badge badge-soft-warning" style="font-size:.6rem">未满14岁</span>' : ''}</td></tr>` : ''}
+                ${student.notes ? `<tr><th>备注</th><td style="font-size:.78rem;color:var(--text-secondary)">${escapeHtml(student.notes)}</td></tr>` : ''}
+              </table>
+            </div>
+
+            <!-- Team -->
+            <div class="stu-sb-module">
+              <div class="stu-sb-title">
+                <span><i class="bi bi-people"></i>团队</span>
+                ${canEdit ? `<button class="stu-sb-btn" onclick="openAssignMentorModal('${id}')" title="分配"><i class="bi bi-plus-lg"></i></button>` : ''}
+              </div>
+              ${mentors.length === 0
+                ? `<div style="font-size:.78rem;color:var(--text-tertiary)">暂未分配导师</div>`
+                : mentors.map(m => `<div class="stu-sb-team-row">
+                    <div class="stu-sb-team-avatar">${escapeHtml(m.staff_name.charAt(0))}</div>
+                    <div style="min-width:0">
+                      <div style="font-size:.8rem;font-weight:600">${escapeHtml(m.staff_name)}</div>
+                      <div style="font-size:.7rem;color:var(--text-tertiary)">${escapeHtml(m.role)}</div>
+                    </div>
+                    ${canEdit ? `<button class="stu-sb-btn" style="color:#dc2626;margin-left:auto" onclick="removeMentor('${m.id}','${id}')"><i class="bi bi-x"></i></button>` : ''}
+                  </div>`).join('')}
+            </div>
+
+            <!-- Assessments -->
+            ${assessments.length > 0 ? `
+            <div class="stu-sb-module">
+              <div class="stu-sb-title">
+                <span><i class="bi bi-graph-up"></i>入学评估</span>
+                ${canEdit ? `<button class="stu-sb-btn" onclick="openAssessmentModal('${id}')"><i class="bi bi-plus-lg"></i></button>` : ''}
+              </div>
+              ${assessments.map(a => `<div class="stu-sb-assess">
+                <div>
+                  <div style="font-size:.8rem;font-weight:600">${escapeHtml(a.assess_type)}</div>
+                  <div style="font-size:.7rem;color:var(--text-tertiary)">${escapeHtml(a.subject||'')} · ${fmtDate(a.assess_date)}</div>
                 </div>
-              </div>
-              <div class="ov-card-body p-0">
-                ${assessments.length === 0
-                  ? `<div class="ov-empty"><i class="bi bi-graph-up"></i><span>暂无评估记录</span></div>`
-                  : assessments.map(a => `<div class="ov-row-item">
-                      <div style="flex:1;min-width:0">
-                        <div style="font-size:.875rem;font-weight:600;color:var(--text-primary)">${escapeHtml(a.assess_type)}</div>
-                        <div style="font-size:.78rem;color:var(--text-tertiary)">${escapeHtml(a.subject||'—')} · ${fmtDate(a.assess_date)}</div>
-                      </div>
-                      <div style="text-align:right;flex-shrink:0">
-                        <div class="ov-score">${a.score}<small style="color:var(--text-tertiary);font-size:.75rem;font-weight:400"> / ${a.max_score}</small></div>
-                        ${a.percentile ? `<div style="font-size:.75rem;color:var(--text-tertiary)">${a.percentile}%ile</div>` : ''}
-                      </div>
-                    </div>`).join('')}
-              </div>
-            </div>
-          </div>
-
-          <div class="overview-card" data-card-id="competitiveness" data-span="1">
-            <div class="ov-card">
-              <div class="ov-card-header">
-                <span class="ov-card-title"><i class="bi bi-speedometer2 text-success"></i>竞争力</span>
-                <div class="ov-card-actions"></div>
-              </div>
-              <div class="ov-card-body" id="competitiveness-card"><div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div></div>
-            </div>
-          </div>
-
-          <!-- Row 2: 导师 | 选科 | 画像标签 -->
-          <div class="overview-card" data-card-id="mentor" data-span="1">
-            <div class="ov-card">
-              <div class="ov-card-header">
-                <span class="ov-card-title"><i class="bi bi-person-check text-warning"></i>导师 / 规划师</span>
-                <div class="ov-card-actions">
-                  ${canEdit ? `<button class="ov-card-btn" onclick="openAssignMentorModal('${id}')" title="分配导师"><i class="bi bi-plus-lg"></i></button>` : ''}
+                <div style="text-align:right">
+                  <span class="stu-sb-assess-score">${a.score}</span><span style="font-size:.72rem;color:var(--text-tertiary)">/${a.max_score}</span>
+                  ${a.percentile ? `<div style="font-size:.68rem;color:var(--text-tertiary)">${a.percentile}%ile</div>` : ''}
                 </div>
-              </div>
-              <div class="ov-card-body p-0">
-                ${mentors.length === 0
-                  ? `<div class="ov-empty"><i class="bi bi-person-check"></i><span>暂未分配导师</span></div>`
-                  : mentors.map(m => `<div class="ov-row-item">
-                      <div class="ov-avatar">${escapeHtml(m.staff_name.charAt(0))}</div>
-                      <div style="flex:1;min-width:0">
-                        <div style="font-size:.875rem;font-weight:600;color:var(--text-primary)">${escapeHtml(m.staff_name)}</div>
-                        <div style="font-size:.78rem;color:var(--text-tertiary)">${escapeHtml(m.role)}</div>
-                      </div>
-                      ${canEdit ? `<button class="ov-card-btn" style="color:#dc2626" onclick="removeMentor('${m.id}','${id}')" title="移除"><i class="bi bi-x-circle"></i></button>` : ''}
-                    </div>`).join('')}
-              </div>
-            </div>
-          </div>
+              </div>`).join('')}
+            </div>` : ''}
 
-          <div class="overview-card" data-card-id="subjects" data-span="1">
-            <div class="ov-card">
-              <div class="ov-card-header">
-                <span class="ov-card-title"><i class="bi bi-book text-info"></i>选科记录</span>
-                <div class="ov-card-actions">
-                  ${canEdit ? `<button class="ov-card-btn" onclick="openSubjectModal('${id}')" title="添加科目"><i class="bi bi-plus-lg"></i></button>` : ''}
-                </div>
+            <!-- Subjects -->
+            ${subjects.length > 0 ? `
+            <div class="stu-sb-module">
+              <div class="stu-sb-title">
+                <span><i class="bi bi-book"></i>选科</span>
+                ${canEdit ? `<button class="stu-sb-btn" onclick="openSubjectModal('${id}')"><i class="bi bi-plus-lg"></i></button>` : ''}
               </div>
-              <div class="ov-card-body">
-                ${subjects.length === 0
-                  ? `<div class="ov-empty" style="padding:.75rem"><i class="bi bi-book"></i><span>暂无选科记录</span></div>`
-                  : `<div style="display:flex;flex-wrap:wrap;gap:.5rem">
-                      ${subjects.map(s => `<span class="ov-subject-tag">
-                        <strong>${escapeHtml(s.code)}</strong>
-                        ${s.level ? `<span style="color:var(--text-secondary)">${escapeHtml(s.level)}</span>` : ''}
-                        <span style="color:var(--text-tertiary);font-size:.75rem">${escapeHtml(s.exam_board||'')}</span>
-                        ${canEdit ? `<button class="tag-remove" onclick="removeSubject('${s.id}','${id}')" title="移除"><i class="bi bi-x"></i></button>` : ''}
-                      </span>`).join('')}
-                    </div>`}
+              <div style="display:flex;flex-wrap:wrap;gap:.35rem">
+                ${subjects.map(s => `<span class="ov-subject-tag" style="font-size:.72rem;padding:.2rem .5rem">
+                  <strong>${escapeHtml(s.code)}</strong>
+                  ${s.level ? `<span style="color:var(--text-secondary)">${escapeHtml(s.level)}</span>` : ''}
+                  ${canEdit ? `<button class="tag-remove" onclick="removeSubject('${s.id}','${id}')"><i class="bi bi-x"></i></button>` : ''}
+                </span>`).join('')}
               </div>
-            </div>
-          </div>
+            </div>` : ''}
 
-          <div class="overview-card" data-card-id="profile-tags" data-span="1">
-            <div class="ov-card">
-              <div class="ov-card-header">
-                <span class="ov-card-title"><i class="bi bi-tags text-info"></i>画像标签</span>
-                <div class="ov-card-actions">
-                  ${canEdit ? `<button class="ov-card-btn" onclick="openProfileExtModal('${id}')" title="编辑画像"><i class="bi bi-pencil"></i></button>` : ''}
-                </div>
+            <!-- Profile Tags -->
+            <div class="stu-sb-module">
+              <div class="stu-sb-title">
+                <span><i class="bi bi-tags"></i>画像</span>
+                ${canEdit ? `<button class="stu-sb-btn" onclick="openProfileExtModal('${id}')"><i class="bi bi-pencil"></i></button>` : ''}
               </div>
-              <div class="ov-card-body" id="profile-tags-card"><div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div></div>
+              <div id="profile-tags-card"><div class="text-center text-muted py-1 small"><div class="spinner-border spinner-border-sm"></div></div></div>
             </div>
-          </div>
 
-          <!-- Row 3: 目标院校 (span 2) | 荣誉亮点 -->
-          <div class="overview-card" data-card-id="targets" data-span="2">
-            <div class="ov-card">
-              <div class="ov-card-header">
-                <span class="ov-card-title"><i class="bi bi-mortarboard text-danger"></i>目标院校</span>
-                <div class="ov-card-actions">
-                  ${canEdit ? `<button class="ov-card-btn" onclick="openTargetModal('${id}')" title="添加院校"><i class="bi bi-plus-lg"></i></button>` : ''}
-                </div>
-              </div>
-              <div class="ov-card-body p-0">
-                ${targets.length === 0
-                  ? `<div class="ov-empty"><i class="bi bi-mortarboard"></i><span>暂无目标院校，点击右上角 + 添加</span></div>`
-                  : `<table style="width:100%;border-collapse:collapse;font-size:.875rem">
-                      <thead><tr style="background:var(--surface-2)">
-                        <th style="padding:.5rem 1rem;color:var(--text-tertiary);font-weight:500">院校</th>
-                        <th style="padding:.5rem 1rem;color:var(--text-tertiary);font-weight:500">专业 / 方向</th>
-                        <th style="padding:.5rem 1rem;color:var(--text-tertiary);font-weight:500">梯度</th>
-                        ${canEdit ? '<th style="padding:.5rem 1rem;width:40px"></th>' : ''}
-                      </tr></thead>
-                      <tbody>
-                        ${targets.map(t => `<tr style="border-top:1px solid var(--border)">
-                          <td style="padding:.6rem 1rem;font-weight:500;color:var(--text-primary)">${escapeHtml(t.uni_name)}</td>
-                          <td style="padding:.6rem 1rem;color:var(--text-secondary)">${escapeHtml(t.department||'—')}</td>
-                          <td style="padding:.6rem 1rem">${tierBadge(t.tier)}</td>
-                          ${canEdit ? `<td style="padding:.6rem 1rem"><button class="ov-card-btn" style="color:#dc2626" onclick="deleteTarget('${t.id}','${id}')"><i class="bi bi-trash"></i></button></td>` : ''}
-                        </tr>`).join('')}
-                      </tbody>
-                    </table>`}
-              </div>
+            <!-- Awards -->
+            <div class="stu-sb-module">
+              <div class="stu-sb-title"><span><i class="bi bi-award"></i>荣誉</span></div>
+              <div id="awards-card"><div class="text-center text-muted py-1 small"><div class="spinner-border spinner-border-sm"></div></div></div>
             </div>
-          </div>
 
-          <div class="overview-card" data-card-id="awards" data-span="1">
-            <div class="ov-card">
-              <div class="ov-card-header">
-                <span class="ov-card-title"><i class="bi bi-award text-warning"></i>荣誉亮点</span>
-                <div class="ov-card-actions"></div>
+            <!-- Parents -->
+            ${parents.length > 0 ? `
+            <div class="stu-sb-module">
+              <div class="stu-sb-title">
+                <span><i class="bi bi-people"></i>家长</span>
+                ${canEdit ? `<button class="stu-sb-btn" onclick="openParentModal('${id}')"><i class="bi bi-plus-lg"></i></button>` : ''}
               </div>
-              <div class="ov-card-body" id="awards-card"><div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div></div>
-            </div>
-          </div>
+              ${parents.map(p => `<div style="font-size:.78rem;padding:.3rem 0;${parents.indexOf(p)>0?'border-top:1px solid color-mix(in srgb, var(--border) 50%, transparent)':''}">
+                <div style="font-weight:600">${escapeHtml(p.name)} <span style="font-weight:400;color:var(--text-tertiary);font-size:.72rem">${escapeHtml(p.relation||'')}</span></div>
+                ${p.phone ? `<div style="color:var(--text-secondary);font-size:.72rem"><i class="bi bi-telephone me-1"></i>${escapeHtml(p.phone)}</div>` : ''}
+                ${p.email ? `<div style="color:var(--text-secondary);font-size:.72rem"><i class="bi bi-envelope me-1"></i>${escapeHtml(p.email)}</div>` : ''}
+              </div>`).join('')}
+            </div>` : ''}
 
-          <!-- Row 4: 家长 (full width) -->
-          <div class="overview-card" data-card-id="parents" data-span="3">
-            <div class="ov-card">
-              <div class="ov-card-header">
-                <span class="ov-card-title"><i class="bi bi-people text-secondary"></i>家长 / 监护人</span>
-                <div class="ov-card-actions">
-                  ${canEdit ? `<button class="ov-card-btn" onclick="openParentModal('${id}')" title="添加家长"><i class="bi bi-plus-lg"></i></button>` : ''}
-                </div>
+            <!-- Pending Items — consolidated empty states -->
+            ${emptyItems.length > 0 ? `
+            <div class="stu-sb-module">
+              <div class="stu-sb-title"><span>待补充信息</span></div>
+              <div class="stu-pending-items">
+                ${emptyItems.map(item => item.action
+                  ? `<span class="stu-pending-chip" style="cursor:pointer" onclick="${item.action}"><i class="bi bi-plus-circle"></i>${item.label}</span>`
+                  : `<span class="stu-pending-chip"><i class="bi bi-dash-circle"></i>${item.label}</span>`
+                ).join('')}
               </div>
-              <div class="ov-card-body">
-                ${parents.length === 0
-                  ? `<div class="ov-empty" style="padding:.75rem"><i class="bi bi-people"></i><span>暂无家长信息</span></div>`
-                  : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.75rem">
-                      ${parents.map(p => `<div class="ov-parent-card">
-                        <div style="font-weight:600;color:var(--text-primary);margin-bottom:.3rem">
-                          ${escapeHtml(p.name)}
-                          <span style="font-weight:400;color:var(--text-tertiary);font-size:.8rem;margin-left:.3rem">${escapeHtml(p.relation||'')}</span>
-                        </div>
-                        ${p.phone ? `<div style="color:var(--text-secondary)"><i class="bi bi-telephone me-1"></i>${escapeHtml(p.phone)}</div>` : ''}
-                        ${p.email ? `<div style="color:var(--text-secondary);word-break:break-all"><i class="bi bi-envelope me-1"></i>${escapeHtml(p.email)}</div>` : ''}
-                        ${p.wechat ? `<div style="color:var(--text-secondary)"><i class="bi bi-wechat me-1"></i>${escapeHtml(p.wechat)}</div>` : ''}
-                      </div>`).join('')}
-                    </div>`}
-              </div>
-            </div>
-          </div>
+            </div>` : ''}
 
+          </div>
         </div>
       </div>
 
@@ -1349,9 +1387,6 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
       </div>
     </div>`;
 
-    // 初始化概览卡片拖拽
-    initOverviewDrag();
-
     // 激活指定标签页（如 tab-timeline）
     activateTab(activeTab);
 
@@ -1406,83 +1441,7 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
 }
 
 // ════════════════════════════════════════════════════════
-//  概览卡片拖拽 & 布局持久化
-// ════════════════════════════════════════════════════════
-function initOverviewDrag() {
-  const grid = document.getElementById('overview-grid');
-  if (!grid) return;
-
-  // 应用已保存布局（顺序 + 宽度）
-  const saved = JSON.parse(localStorage.getItem('student-overview-layout') || '[]');
-  if (saved.length > 0) {
-    saved.forEach(({ id, span }) => {
-      const card = grid.querySelector(`[data-card-id="${id}"]`);
-      if (card) {
-        card.dataset.span = span;
-        card.style.gridColumn = `span ${span}`;
-      }
-    });
-    // 按保存顺序重排 DOM
-    saved.forEach(({ id }) => {
-      const card = grid.querySelector(`[data-card-id="${id}"]`);
-      if (card) grid.appendChild(card);
-    });
-  } else {
-    // 应用默认 data-span
-    grid.querySelectorAll('.overview-card').forEach(card => {
-      card.style.gridColumn = `span ${card.dataset.span || 1}`;
-    });
-  }
-
-  // 拖拽逻辑
-  let dragSrc = null;
-  grid.querySelectorAll('.overview-card').forEach(card => {
-    card.addEventListener('dragstart', e => {
-      dragSrc = card;
-      e.dataTransfer.effectAllowed = 'move';
-      setTimeout(() => card.classList.add('dragging'), 0);
-    });
-    card.addEventListener('dragend', () => {
-      card.classList.remove('dragging');
-      grid.querySelectorAll('.overview-card').forEach(c => c.classList.remove('drag-over'));
-      dragSrc = null;
-      saveOverviewLayout();
-    });
-    card.addEventListener('dragover', e => {
-      e.preventDefault();
-      if (!dragSrc || dragSrc === card) return;
-      const rect = card.getBoundingClientRect();
-      const mid = rect.top + rect.height / 2;
-      card.classList.add('drag-over');
-      if (e.clientY < mid) grid.insertBefore(dragSrc, card);
-      else grid.insertBefore(dragSrc, card.nextSibling);
-    });
-    card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
-  });
-}
-
-function saveOverviewLayout() {
-  const grid = document.getElementById('overview-grid');
-  if (!grid) return;
-  const layout = [...grid.querySelectorAll('.overview-card')].map(c => ({
-    id: c.dataset.cardId,
-    span: parseInt(c.dataset.span) || 1,
-  }));
-  localStorage.setItem('student-overview-layout', JSON.stringify(layout));
-}
-
-function toggleCardSpan(cardId) {
-  const card = document.querySelector(`[data-card-id="${cardId}"]`);
-  if (!card) return;
-  const current = parseInt(card.dataset.span) || 1;
-  const next = current === 1 ? 2 : 1;
-  card.dataset.span = next;
-  card.style.gridColumn = `span ${next}`;
-  saveOverviewLayout();
-}
-
-// ════════════════════════════════════════════════════════
-//  概览新卡片异步加载
+//  概览模块异步加载
 // ════════════════════════════════════════════════════════
 async function loadOverviewProfileTags(studentId) {
   const el = document.getElementById('profile-tags-card');
@@ -1490,7 +1449,7 @@ async function loadOverviewProfileTags(studentId) {
   try {
     const p = await GET(`/api/students/${studentId}/profile-ext`);
     if (!p || (!p.mbti && !p.holland_code && !p.academic_interests && !p.strengths)) {
-      el.innerHTML = `<div class="ov-empty" style="padding:.75rem"><i class="bi bi-tags"></i><span>暂无画像数据，点击编辑添加</span></div>`;
+      el.innerHTML = `<div style="font-size:.78rem;color:var(--text-tertiary)">暂无画像数据</div>`;
       return;
     }
     let html = '';
@@ -1511,7 +1470,7 @@ async function loadOverviewProfileTags(studentId) {
     if (p.career_goals) html += `<div class="mt-1 small text-muted"><i class="bi bi-bullseye me-1"></i>${escapeHtml(p.career_goals)}</div>`;
     el.innerHTML = `<div style="padding:.5rem">${html}</div>`;
   } catch(e) {
-    el.innerHTML = `<div class="ov-empty" style="padding:.75rem"><i class="bi bi-tags"></i><span>暂无画像数据</span></div>`;
+    el.innerHTML = `<div style="font-size:.78rem;color:var(--text-tertiary)">暂无画像数据</div>`;
   }
 }
 
@@ -1521,23 +1480,27 @@ async function loadOverviewCompetitiveness(studentId) {
   try {
     const c = await GET(`/api/students/${studentId}/competitiveness`);
     if (!c || (c.academics === 0 && c.tests === 0 && c.activities === 0 && c.leadership === 0 && c.essays === 0)) {
-      el.innerHTML = `<div class="ov-empty" style="padding:.75rem"><i class="bi bi-graph-up"></i><span>暂无竞争力数据</span></div>`;
+      el.innerHTML = `<div style="font-size:.78rem;color:var(--text-tertiary);padding:.25rem 0"><i class="bi bi-graph-up me-1"></i>暂无竞争力数据</div>`;
       return;
     }
-    const dimensions = { academics: c.academics, tests: c.tests, activities: c.activities, leadership: c.leadership, essays: c.essays };
-    const dimLabels = { academics: '学术', tests: '标化', activities: '活动', leadership: '领导力', essays: '文书' };
-    const dimColors = { academics: 'primary', tests: 'info', activities: 'success', leadership: 'warning', essays: 'danger' };
-    let bars = '';
-    for (const [k, v] of Object.entries(dimensions)) {
-      const pct = Math.round(v);
-      const fillClass = pct >= 70 ? 'bar-fill-high' : pct >= 30 ? 'bar-fill-medium' : 'bar-fill-low';
-      bars += `<div class="mb-2"><div class="d-flex justify-content-between small mb-1"><span>${dimLabels[k]||k}</span><span class="fw-semibold">${pct}%</span></div><div class="competitiveness-bar"><div class="bar-fill ${fillClass}" style="width:${pct}%"></div></div></div>`;
-    }
+    const dims = [
+      ['academics', '学术', c.academics], ['tests', '标化', c.tests],
+      ['activities', '活动', c.activities], ['leadership', '领导力', c.leadership],
+      ['essays', '文书', c.essays]
+    ];
     const overall = c.overall;
-    const overallClass = overall >= 70 ? 'badge-soft-success' : overall >= 40 ? 'badge-soft-warning' : 'badge-soft-danger';
-    el.innerHTML = `<div style="padding:.5rem">${bars}<div class="mt-2 text-center"><span class="badge ${overallClass}">综合: ${overall}%</span></div></div>`;
+    const overallClass = overall >= 70 ? 'success' : overall >= 40 ? 'warning' : 'danger';
+    let bars = dims.map(([k, label, v]) => {
+      const pct = Math.round(v);
+      const cls = pct >= 70 ? 'high' : pct >= 30 ? 'medium' : 'low';
+      return `<div class="stu-comp-row"><div class="stu-comp-label">${label}</div><div class="stu-comp-bar"><div class="stu-comp-fill ${cls}" style="width:${pct}%"></div></div><div class="stu-comp-pct">${pct}%</div></div>`;
+    }).join('');
+    el.innerHTML = `<div style="display:flex;align-items:center;gap:1rem;margin-bottom:.75rem">
+      <div style="font-size:2rem;font-weight:800;color:var(--text-primary);line-height:1">${overall}<span style="font-size:.875rem;font-weight:500;color:var(--text-tertiary)">%</span></div>
+      <div style="font-size:.75rem;color:var(--text-tertiary)">综合竞争力<br><span class="badge badge-soft-${overallClass}" style="font-size:.65rem">${overall >= 70 ? '优秀' : overall >= 40 ? '中等' : '待提升'}</span></div>
+    </div>${bars}`;
   } catch(e) {
-    el.innerHTML = `<div class="ov-empty" style="padding:.75rem"><i class="bi bi-graph-up"></i><span>暂无竞争力数据</span></div>`;
+    el.innerHTML = `<div style="font-size:.78rem;color:var(--text-tertiary);padding:.25rem 0"><i class="bi bi-graph-up me-1"></i>暂无竞争力数据</div>`;
   }
 }
 
@@ -1547,7 +1510,7 @@ async function loadOverviewAwards(studentId) {
   try {
     const awards = await GET(`/api/students/${studentId}/awards`);
     if (!awards || awards.length === 0) {
-      el.innerHTML = `<div class="ov-empty" style="padding:.75rem"><i class="bi bi-award"></i><span>暂无荣誉记录</span></div>`;
+      el.innerHTML = `<div style="font-size:.78rem;color:var(--text-tertiary)">暂无荣誉记录</div>`;
       return;
     }
     const top3 = awards.slice(0, 3);

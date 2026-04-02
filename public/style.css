@@ -1579,169 +1579,317 @@ body.dark-mode .timeline-node.done { background: #14532d; border-color: #22c55e;
 /* ═══════════════════════════════════════════════════
    Overview Grid — 可拖拽卡片布局
    ═══════════════════════════════════════════════════ */
-.overview-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: .875rem;
-  align-items: start;
-}
-@media (max-width: 992px) {
-  .overview-grid { grid-template-columns: repeat(2, 1fr); }
-  .overview-card[data-span="3"] { grid-column: span 2; }
-}
-@media (max-width: 576px) {
-  .overview-grid { grid-template-columns: 1fr; }
-  .overview-card[data-span="2"],
-  .overview-card[data-span="3"] { grid-column: span 1; }
-}
-.overview-card {
-  grid-column: span 1;
-  transition: opacity var(--ease-normal);
-}
-.overview-card[data-span="2"] {
-  grid-column: span 2;
-}
-.overview-card[data-span="3"] {
-  grid-column: span 3;
-}
-.ov-card {
+/* ═══ Student Cockpit — Hero Header ═══ */
+.stu-hero {
   background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow var(--ease-normal);
-  overflow: hidden;
-}
-.ov-card:hover {
-  box-shadow: var(--shadow-md);
-}
-.ov-card-header {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-  padding: .75rem 1rem;
   border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
-  user-select: none;
+  padding: 1.25rem 1.5rem 1rem;
+  margin: -16px -16px 0;
 }
-.ov-card-title {
-  flex: 1;
-  font-size: .875rem;
-  font-weight: 600;
-  color: var(--text-primary);
+.stu-hero-top {
   display: flex;
   align-items: center;
-  gap: .4rem;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: .75rem;
 }
-.ov-card-actions {
-  display: flex;
-  align-items: center;
-  gap: .25rem;
-}
-.ov-card-btn {
-  background: none;
-  border: none;
-  padding: 3px 6px;
-  border-radius: 5px;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  font-size: .875rem;
-  line-height: 1;
-  transition: color var(--ease-fast), background var(--ease-fast);
-}
-.ov-card-btn:hover {
-  color: var(--primary);
-  background: var(--primary-light);
-}
-.ov-card-body {
-  padding: 1rem;
-}
-.ov-card-body.p-0 { padding: 0; }
-/* Info table */
-.ov-info-table {
-  width: 100%;
-  font-size: .875rem;
-  border-collapse: collapse;
-}
-.ov-info-table tr + tr td,
-.ov-info-table tr + tr th { border-top: 1px solid var(--border); }
-.ov-info-table th {
-  padding: .5rem .75rem .5rem 0;
-  color: var(--text-tertiary);
-  font-weight: 500;
-  white-space: nowrap;
-  width: 35%;
-}
-.ov-info-table td {
-  padding: .5rem 0;
-  color: var(--text-primary);
-}
-/* Row item (mentors, assessments etc) */
-.ov-row-item {
+.stu-hero-identity {
   display: flex;
   align-items: center;
   gap: .75rem;
-  padding: .6rem 1rem;
-  border-bottom: 1px solid var(--border);
+  min-width: 0;
 }
-.ov-row-item:last-child { border-bottom: none; }
-/* Mini avatar */
-.ov-avatar {
-  width: 34px; height: 34px;
+.stu-hero-identity h4 { margin: 0; font-weight: 700; font-size: 1.25rem; white-space: nowrap; }
+.stu-hero-identity .badge { font-size: .7rem; font-weight: 500; }
+.stu-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-shrink: 0;
+}
+/* Stage indicator */
+.stu-stage-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: .75rem;
+}
+.stu-stage-step {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.stu-stage-dot {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .6rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  border: 2px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-tertiary);
+  transition: all var(--ease-normal);
+}
+.stu-stage-dot.done {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.stu-stage-dot.current {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb, 79,70,229), .15);
+}
+.stu-stage-line {
+  width: 32px;
+  height: 2px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.stu-stage-line.done { background: var(--primary); }
+.stu-stage-label {
+  font-size: .68rem;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+  text-align: center;
+  white-space: nowrap;
+}
+.stu-stage-label.current { color: var(--primary); font-weight: 600; }
+.stu-stage-label.done { color: var(--text-secondary); }
+/* Alert strip */
+.stu-alert-strip {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.stu-alert-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .25rem .7rem;
+  border-radius: var(--radius-pill);
+  font-size: .75rem;
+  font-weight: 600;
+}
+.stu-alert-chip.danger { background: #fef2f2; color: #dc2626; }
+.stu-alert-chip.warning { background: #fffbeb; color: #d97706; }
+.stu-alert-chip.info { background: #eff6ff; color: #2563eb; }
+.stu-alert-chip.success { background: #f0fdf4; color: #16a34a; }
+
+/* ═══ Student Cockpit — 2-zone layout ═══ */
+.stu-cockpit {
+  display: flex;
+  gap: 1.5rem;
+  padding-top: 1.25rem;
+  align-items: flex-start;
+}
+.stu-main {
+  flex: 1;
+  min-width: 0;
+}
+.stu-sidebar {
+  width: 320px;
+  flex-shrink: 0;
+}
+@media (max-width: 992px) {
+  .stu-cockpit { flex-direction: column; }
+  .stu-sidebar { width: 100%; }
+}
+
+/* Section titles — uppercase, spaced, muted */
+.stu-section-title {
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: .625rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.stu-section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Main-zone sections — no card shell, clean separation */
+.stu-main-section {
+  margin-bottom: 1.5rem;
+}
+.stu-main-section:last-child { margin-bottom: 0; }
+
+/* Task row — compact actionable item */
+.stu-task-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .5rem .75rem;
+  border-radius: var(--radius-sm);
+  transition: background var(--ease-fast);
+}
+.stu-task-row:hover { background: var(--surface-2); }
+.stu-task-row + .stu-task-row { border-top: 1px solid var(--border); }
+.stu-task-title { flex: 1; min-width: 0; font-size: .82rem; }
+.stu-task-title.overdue { color: #dc2626; font-weight: 600; }
+.stu-task-meta { font-size: .72rem; color: var(--text-tertiary); white-space: nowrap; }
+
+/* Application row */
+.stu-app-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .5rem .75rem;
+  border-radius: var(--radius-sm);
+}
+.stu-app-row + .stu-app-row { border-top: 1px solid var(--border); }
+.stu-app-uni { font-size: .82rem; font-weight: 600; color: var(--text-primary); min-width: 100px; }
+.stu-app-dept { flex: 1; font-size: .78rem; color: var(--text-secondary); min-width: 0; }
+
+/* Competitiveness compact bars */
+.stu-comp-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .4rem;
+}
+.stu-comp-row:last-child { margin-bottom: 0; }
+.stu-comp-label { font-size: .75rem; color: var(--text-secondary); width: 48px; flex-shrink: 0; text-align: right; }
+.stu-comp-bar { flex: 1; height: 6px; background: var(--surface-3); border-radius: 3px; overflow: hidden; }
+.stu-comp-fill { height: 100%; border-radius: 3px; transition: width .6s ease; }
+.stu-comp-fill.high { background: #16a34a; }
+.stu-comp-fill.medium { background: #2563eb; }
+.stu-comp-fill.low { background: #d1d5db; }
+.stu-comp-pct { font-size: .72rem; font-weight: 600; width: 32px; text-align: right; color: var(--text-secondary); }
+
+/* ═══ Sidebar modules — borderless, compact ═══ */
+.stu-sb-module {
+  margin-bottom: 1.25rem;
+}
+.stu-sb-module:last-child { margin-bottom: 0; }
+.stu-sb-title {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: .5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.stu-sb-title i { color: var(--text-tertiary); margin-right: .35rem; }
+.stu-sb-btn {
+  background: none;
+  border: none;
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: .75rem;
+  transition: color var(--ease-fast), background var(--ease-fast);
+}
+.stu-sb-btn:hover { color: var(--primary); background: var(--primary-light); }
+/* Sidebar info table — more compact */
+.stu-sb-table {
+  width: 100%;
+  font-size: .8rem;
+  border-collapse: collapse;
+}
+.stu-sb-table th {
+  padding: .3rem 0;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  width: 70px;
+  vertical-align: top;
+}
+.stu-sb-table td {
+  padding: .3rem 0;
+  color: var(--text-primary);
+}
+.stu-sb-table tr + tr th,
+.stu-sb-table tr + tr td { border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent); }
+/* Sidebar team row */
+.stu-sb-team-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .35rem 0;
+}
+.stu-sb-team-row + .stu-sb-team-row { border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent); }
+.stu-sb-team-avatar {
+  width: 28px; height: 28px;
   border-radius: 50%;
   background: var(--primary-light);
   color: var(--primary);
   display: flex; align-items: center; justify-content: center;
   font-weight: 700;
-  font-size: .8rem;
+  font-size: .7rem;
   flex-shrink: 0;
 }
-/* Empty micro */
-.ov-empty {
+/* Sidebar target list */
+.stu-sb-target {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-  color: var(--text-tertiary);
+  gap: .5rem;
+  padding: .3rem 0;
   font-size: .8rem;
-  gap: .4rem;
 }
-.ov-empty i { font-size: 1.5rem; }
-/* Subject tags */
-.ov-subject-tag {
+.stu-sb-target + .stu-sb-target { border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent); }
+/* Sidebar assessment */
+.stu-sb-assess {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .35rem 0;
+  font-size: .8rem;
+}
+.stu-sb-assess + .stu-sb-assess { border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent); }
+.stu-sb-assess-score { font-weight: 700; color: var(--primary); font-size: .9rem; }
+/* Pending items — consolidated empty state */
+.stu-pending-items {
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: .75rem;
+}
+.stu-pending-chip {
   display: inline-flex;
   align-items: center;
-  gap: .3rem;
-  padding: .25rem .6rem;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  gap: .25rem;
+  padding: .2rem .55rem;
+  background: var(--surface-1);
+  border: 1px dashed var(--border);
   border-radius: var(--radius-pill);
-  font-size: .8rem;
-  color: var(--text-primary);
+  font-size: .72rem;
+  color: var(--text-tertiary);
+  margin: .15rem;
+}
+
+/* Legacy ov- classes kept for other pages */
+.ov-card-btn {
+  background: none; border: none; padding: 3px 6px; border-radius: 5px;
+  color: var(--text-tertiary); cursor: pointer; font-size: .875rem; line-height: 1;
+  transition: color var(--ease-fast), background var(--ease-fast);
+}
+.ov-card-btn:hover { color: var(--primary); background: var(--primary-light); }
+.ov-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 1.5rem; color: var(--text-tertiary); font-size: .8rem; gap: .4rem;
+}
+.ov-empty i { font-size: 1.5rem; }
+.ov-score { font-size: 1.1rem; font-weight: 700; color: var(--primary); }
+.ov-subject-tag {
+  display: inline-flex; align-items: center; gap: .3rem; padding: .25rem .6rem;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-pill);
+  font-size: .8rem; color: var(--text-primary);
 }
 .ov-subject-tag .tag-remove {
-  background: none; border: none; padding: 0;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  font-size: .7rem;
-  line-height: 1;
-  margin-left: .1rem;
+  background: none; border: none; padding: 0; color: var(--text-tertiary);
+  cursor: pointer; font-size: .7rem; line-height: 1; margin-left: .1rem;
 }
 .ov-subject-tag .tag-remove:hover { color: #dc2626; }
-/* Score badge */
-.ov-score {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--primary);
-}
-/* Parent card mini */
-.ov-parent-card {
-  padding: .65rem .9rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: .82rem;
-}
 
 /* ═══ Intake Master-Detail Layout ═══ */
 .intake-master-detail {

@@ -277,22 +277,27 @@ async function renderCounselorWorkbench() {
         <div class="md-empty-detail">
           <i class="bi bi-person-vcard" style="font-size:2.5rem;opacity:.3"></i>
           <p class="text-muted mt-2">选择左侧学生查看详情</p>
-          <div class="row g-3 w-100 mt-3" style="max-width:500px">
-            <div class="col-6">
-              <div class="card">
-                <div class="card-header fw-semibold small py-2"><i class="bi bi-chat-dots me-1 text-warning"></i>待处理反馈 <span class="badge badge-soft-warning ms-1">${feedback.length}</span></div>
-                <div class="card-body p-0" style="max-height:200px;overflow-y:auto">
-                  ${feedback.length === 0 ? '<div class="text-center text-muted small py-3">暂无</div>' :
-                  feedback.slice(0,3).map(f => `<div class="border-bottom px-2 py-1"><span class="small fw-semibold">${escapeHtml(f.student_name)}</span><p class="small text-muted mb-0" style="font-size:11px">${escapeHtml(f.content.substring(0,40))}...</p></div>`).join('')}
-                  ${feedback.length > 3 ? `<div class="text-center py-1"><a href="#" onclick="event.preventDefault();navigate('feedback-list')" class="small">查看全部 →</a></div>` : ''}
+          <div class="row g-3 w-100 mt-3" style="max-width:700px">
+            <div class="col-md-6 col-12">
+              <div class="card h-100">
+                <div class="card-header fw-semibold small py-2 d-flex justify-content-between align-items-center">
+                  <span><i class="bi bi-chat-dots me-1 text-warning"></i>待处理反馈 <span class="badge badge-soft-warning ms-1">${feedback.length}</span></span>
+                  ${feedback.length > 0 ? '<a href="#" onclick="event.preventDefault();navigate(\'feedback-list\')" class="small text-primary text-decoration-none">全部 <i class="bi bi-chevron-right"></i></a>' : ''}
+                </div>
+                <div class="card-body p-0" style="max-height:320px;overflow-y:auto">
+                  ${feedback.length === 0 ? '<div class="text-center text-muted small py-4"><i class="bi bi-check-circle d-block mb-1" style="font-size:1.5rem;opacity:.4"></i>暂无待处理反馈</div>' :
+                  feedback.slice(0,6).map(f => '<div class="workbench-item border-bottom px-3 py-2" onclick="navigate(\'feedback-list\')"><div class="d-flex justify-content-between align-items-start"><span class="small fw-semibold">'+escapeHtml(f.student_name)+'</span><small class="text-muted" style="font-size:10px;white-space:nowrap">'+escapeHtml(f.created_at ? f.created_at.substring(0,10) : '')+'</small></div><p class="small text-muted mb-0 text-truncate" style="font-size:12px">'+escapeHtml(f.content.substring(0,60))+'</p></div>').join('')}
                 </div>
               </div>
             </div>
-            <div class="col-6">
-              <div class="card">
-                <div class="card-header fw-semibold small py-2"><i class="bi bi-clock-history me-1 text-danger"></i>近期截止</div>
-                <div class="card-body p-0" id="upcoming-tasks" style="max-height:200px;overflow-y:auto">
-                  <div class="text-center py-2"><div class="spinner-border spinner-border-sm"></div></div>
+            <div class="col-md-6 col-12">
+              <div class="card h-100">
+                <div class="card-header fw-semibold small py-2 d-flex justify-content-between align-items-center">
+                  <span><i class="bi bi-clock-history me-1 text-danger"></i>近期截止</span>
+                  <span class="badge badge-soft-danger ms-1" id="upcoming-count"></span>
+                </div>
+                <div class="card-body p-0" id="upcoming-tasks" style="max-height:320px;overflow-y:auto">
+                  <div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div>
                 </div>
               </div>
             </div>
@@ -397,16 +402,22 @@ async function loadUpcomingTasks() {
     if (isNavStale(navGen)) return;
     const tasks = taskArrays.flat();
     tasks.sort((a,b) => new Date(a.due_date) - new Date(b.due_date));
-    const upcoming = tasks.slice(0,5);
+    const upcoming = tasks.slice(0,8);
+    const countEl = document.getElementById('upcoming-count');
+    if (countEl) countEl.textContent = tasks.length > 0 ? tasks.length : '';
     if (upcoming.length === 0) {
-      el.innerHTML = '<div class="text-center text-muted small py-3">暂无近期任务</div>';
+      el.innerHTML = '<div class="text-center text-muted small py-4"><i class="bi bi-check-circle d-block mb-1" style="font-size:1.5rem;opacity:.4"></i>暂无近期任务</div>';
     } else {
       el.innerHTML = upcoming.map(t => {
         const overdue = isOverdue(t.due_date, t.status);
-        return `<div class="border-bottom px-2 py-1">
-          <div class="small ${overdue?'text-danger fw-bold':''} text-truncate">${escapeHtml(t.title.substring(0,20))}</div>
-          <div class="d-flex justify-content-between"><small class="text-muted" style="font-size:10px">${escapeHtml(t.student_name)}</small><small class="text-muted" style="font-size:10px">${fmtDate(t.due_date)}</small></div>
-        </div>`;
+        const sid = t.student_id || '';
+        return '<div class="workbench-item border-bottom px-3 py-2" onclick="selectCounselorStudent(\''+sid+'\',null)">'
+          +'<div class="d-flex justify-content-between align-items-start">'
+          +'<span class="small fw-semibold text-truncate '+(overdue?'text-danger':'')+'">'+escapeHtml(t.title.substring(0,30))+'</span>'
+          +'<small class="'+(overdue?'text-danger fw-bold':'text-muted')+'" style="font-size:10px;white-space:nowrap">'+fmtDate(t.due_date)+'</small>'
+          +'</div>'
+          +'<small class="text-muted" style="font-size:11px">'+escapeHtml(t.student_name)+'</small>'
+          +'</div>';
       }).join('');
     }
   } catch(e) {}
@@ -3321,10 +3332,37 @@ function bindEvents() {
   });
 
 
-  // 侧边栏切换
+  // 侧边栏切换（桌面折叠 + 手机滑出）
   document.getElementById('sidebar-toggle').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.toggle('collapsed');
-    document.getElementById('main-content').classList.toggle('sidebar-collapsed');
+    const sb = document.getElementById('sidebar');
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) {
+      sb.classList.toggle('mobile-open');
+      let overlay = document.querySelector('.mobile-overlay');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.className = 'mobile-overlay';
+        document.body.appendChild(overlay);
+        overlay.addEventListener('click', () => {
+          sb.classList.remove('mobile-open');
+          overlay.classList.remove('show');
+        });
+      }
+      overlay.classList.toggle('show', sb.classList.contains('mobile-open'));
+    } else {
+      sb.classList.toggle('collapsed');
+      document.getElementById('main-content').classList.toggle('sidebar-collapsed');
+    }
+  });
+  // 点击导航项时自动关闭手机侧边栏
+  document.querySelectorAll('.sidebar .nav-item').forEach(el => {
+    el.addEventListener('click', () => {
+      if (window.innerWidth <= 768) {
+        document.getElementById('sidebar').classList.remove('mobile-open');
+        const ov = document.querySelector('.mobile-overlay');
+        if (ov) ov.classList.remove('show');
+      }
+    });
   });
 
   // 导航项
@@ -3553,26 +3591,23 @@ async function renderTemplates() {
 // 预览模板（展开所有任务项）
 async function previewTemplate(templateId) {
   try {
-    const { template, items } = await GET(`/api/templates/${templateId}`);
-    const html = `
-      <div class="fw-bold mb-2">${template.name}</div>
-      <p class="small text-muted">${template.description||''}</p>
-      <table class="table table-sm">
-        <thead class="table-light"><tr><th>#</th><th>任务</th><th>分类</th><th>提前天数</th><th>优先级</th></tr></thead>
-        <tbody>
-          ${items.map((item,i) => `<tr>
-            <td>${i+1}</td>
-            <td>${escapeHtml(item.title)}</td>
-            <td><span class="badge bg-secondary">${escapeHtml(item.category)}</span></td>
-            <td>${item.days_before_deadline >= 0 ? '提前 '+item.days_before_deadline+' 天' : '截止后 '+Math.abs(item.days_before_deadline)+' 天'}</td>
-            <td>${item.priority==='high'?'<span class="badge bg-danger">高</span>':item.priority==='low'?'<span class="badge bg-secondary">低</span>':'<span class="badge bg-light text-dark">普通</span>'}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>`;
-    document.getElementById('confirm-body').innerHTML = html;
-    document.getElementById('confirm-ok').style.display = 'none';
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('confirm-modal')).show();
-    setTimeout(() => { document.getElementById('confirm-ok').style.display = ''; }, 100);
+    const { template, items } = await GET('/api/templates/'+templateId);
+    const html = '<div class="fw-bold mb-2" style="font-size:1.05rem">'+escapeHtml(template.name)+'</div>'
+      +(template.description ? '<p class="small text-muted">'+escapeHtml(template.description)+'</p>' : '')
+      +'<div class="table-responsive"><table class="table table-sm table-hover mb-0">'
+      +'<thead class="table-light"><tr><th style="width:40px">#</th><th>任务</th><th>分类</th><th>提前天数</th><th>优先级</th></tr></thead>'
+      +'<tbody>'
+      +items.map(function(item,i){
+        var daysText = item.days_before_deadline >= 0 ? '提前 '+item.days_before_deadline+' 天' : '截止后 '+Math.abs(item.days_before_deadline)+' 天';
+        var priBadge = item.priority==='high'?'<span class="badge bg-danger">高</span>':item.priority==='low'?'<span class="badge bg-secondary">低</span>':'<span class="badge bg-light text-dark">普通</span>';
+        return '<tr><td>'+( i+1)+'</td><td>'+escapeHtml(item.title)+'</td><td><span class="badge bg-secondary">'+escapeHtml(item.category)+'</span></td><td>'+daysText+'</td><td>'+priBadge+'</td></tr>';
+      }).join('')
+      +'</tbody></table></div>';
+    // 使用 showModal 代替 confirm-modal，支持更大区域和滚动
+    showModal('模板预览: '+escapeHtml(template.name), html, function(){ return true; }, '关闭', 'lg');
+    // 隐藏不需要的取消按钮
+    var okBtn = document.getElementById('generic-form-ok');
+    if (okBtn) { okBtn.className = 'btn btn-secondary'; }
   } catch(e) { showError(e.message); }
 }
 
@@ -3813,7 +3848,7 @@ async function renderSettings() {
     </div>
     <div class="settings-layout">
       <div class="settings-nav">
-        <div class="nav flex-column nav-pills" id="settings-tabs" role="tablist" style="max-height:calc(100vh - 200px);overflow-y:auto">
+        <div class="nav flex-column nav-pills" id="settings-tabs" role="tablist">
           <small class="text-muted px-2 py-1 d-block fw-bold" style="font-size:10px;letter-spacing:1px">基础设置</small>
           <a class="nav-link active" href="#stab-appearance" data-bs-toggle="tab"><i class="bi bi-palette me-1"></i>外观与显示</a>
           <a class="nav-link" href="#stab-system" data-bs-toggle="tab"><i class="bi bi-building me-1"></i>系统信息</a>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { api } from '../lib/api.js'
 
 const STATUS_COLUMNS = [
@@ -59,8 +59,16 @@ export function useCommandCenter() {
   }
   const init = initFromURL()
   const [search, setSearch] = useState(init.search)
+  const [debouncedSearch, setDebouncedSearch] = useState(init.search)
   const [filters, setFilters] = useState(init.filters)
   const [viewMode, setViewMode] = useState(init.viewMode)
+
+  // Debounce search input (250ms)
+  const debounceRef = useRef(null)
+  useEffect(() => {
+    debounceRef.current = setTimeout(() => setDebouncedSearch(search), 250)
+    return () => clearTimeout(debounceRef.current)
+  }, [search])
 
   // 同步筛选条件到 URL（不触发页面跳转）
   useEffect(() => {
@@ -104,11 +112,11 @@ export function useCommandCenter() {
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
-  // Apply client-side filters
+  // Apply client-side filters (uses debounced search for performance)
   const filteredApps = useMemo(() => {
     let list = Array.isArray(apps) ? apps : []
-    if (search) {
-      const q = search.toLowerCase()
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase()
       list = list.filter(a =>
         (a.uni_name || '').toLowerCase().includes(q) ||
         (a.department || '').toLowerCase().includes(q) ||
@@ -119,9 +127,19 @@ export function useCommandCenter() {
     if (filters.cycle_year) list = list.filter(a => String(a.cycle_year) === String(filters.cycle_year))
     if (filters.route)      list = list.filter(a => a.route === filters.route)
     if (filters.tier)       list = list.filter(a => a.tier === filters.tier)
-    if (filters.status)     list = list.filter(a => a.status === filters.status)
+    if (filters.status) {
+      // Status groups for stat card click-to-filter
+      const STATUS_GROUPS = {
+        '_offer': ['offer', 'conditional_offer', 'unconditional_offer', 'offer_received'],
+        '_submitted': ['applied', 'submitted'],
+        '_risk': ['pending'],
+      }
+      const group = STATUS_GROUPS[filters.status]
+      if (group) list = list.filter(a => group.includes(a.status))
+      else list = list.filter(a => a.status === filters.status)
+    }
     return list
-  }, [apps, search, filters])
+  }, [apps, debouncedSearch, filters])
 
   // Group by Kanban columns
   const kanbanData = useMemo(() => {

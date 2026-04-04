@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import clsx from 'clsx'
 
-export default function StatCard({ icon: Icon, label, value, color = 'brand', delay = 0 }) {
+export default function StatCard({ icon: Icon, label, value, color = 'brand', delay = 0, onClick, active }) {
   const colorMap = {
     brand:  'text-brand-600 bg-brand-50 dark:bg-brand-600/10',
     blue:   'text-blue-600 bg-blue-50 dark:bg-blue-600/10',
@@ -16,7 +16,12 @@ export default function StatCard({ icon: Icon, label, value, color = 'brand', de
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay }}
-      className="bg-white dark:bg-slate-800 rounded-card border border-surface-3 dark:border-slate-700 p-4 flex items-center gap-3"
+      onClick={onClick}
+      className={clsx(
+        'bg-white dark:bg-slate-800 rounded-card border border-surface-3 dark:border-slate-700 p-4 flex items-center gap-3',
+        onClick && 'cursor-pointer hover:shadow-md hover:border-brand-400 transition-all',
+        active && 'ring-2 ring-brand-500/30 border-brand-500',
+      )}
     >
       <div className={clsx('w-10 h-10 rounded-xl flex items-center justify-center', colorMap[color] || colorMap.brand)}>
         <Icon size={20} />

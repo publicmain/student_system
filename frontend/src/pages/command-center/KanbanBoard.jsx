@@ -41,14 +41,23 @@ export default function KanbanBoard({ columns, onStatusChange, healthMap }) {
     const newStatus = targetCol.statuses[0]
     const appId = active.id
 
-    // Find current status
+    // Find current status and app info
     let currentStatus = null
+    let appInfo = null
     for (const col of columns) {
       const found = col.apps.find(a => String(a.id) === String(appId))
-      if (found) { currentStatus = found.status; break }
+      if (found) { currentStatus = found.status; appInfo = found; break }
     }
 
     if (currentStatus !== newStatus) {
+      // Confirm irreversible transitions
+      const HIGH_RISK = ['enrolled', 'declined', 'rejected', 'withdrawn']
+      if (HIGH_RISK.includes(newStatus)) {
+        const name = appInfo?.student_name || '该学生'
+        const uni = appInfo?.uni_name || '该院校'
+        const label = targetCol.label
+        if (!window.confirm(`确认将「${name} - ${uni}」移至「${label}」？此操作难以撤销。`)) return
+      }
       onStatusChange(appId, newStatus)
     }
   }, [columns, onStatusChange])

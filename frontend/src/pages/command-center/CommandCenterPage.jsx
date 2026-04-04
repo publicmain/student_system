@@ -64,7 +64,7 @@ export default function CommandCenterPage() {
         </motion.div>
 
         {/* Stat Cards */}
-        <StatCards stats={cc.stats} riskCount={cc.riskAlerts.length} />
+        <StatCards stats={cc.stats} riskCount={cc.riskAlerts.length} filters={cc.filters} onFiltersChange={cc.setFilters} />
 
         {/* Filter Bar */}
         <FilterBar

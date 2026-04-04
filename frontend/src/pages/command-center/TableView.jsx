@@ -75,7 +75,7 @@ export default function TableView({ apps, onStatusChange }) {
     >
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="bg-surface-0 dark:bg-slate-800/80 border-b border-surface-2 dark:border-slate-700">
               {columns.map(col => (
                 <th
@@ -115,7 +115,8 @@ export default function TableView({ apps, onStatusChange }) {
                 return (
                   <tr
                     key={app.id}
-                    className="border-b border-surface-2 dark:border-slate-700/50 hover:bg-surface-0 dark:hover:bg-slate-800/60 transition-colors"
+                    onClick={() => { window.location.hash = 'student-detail/' + app.student_id }}
+                    className="border-b border-surface-2 dark:border-slate-700/50 hover:bg-surface-0 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
                   >
                     <td className="px-3 py-2.5 font-medium text-ink-primary dark:text-slate-100 whitespace-nowrap">
                       {app.student_name || '—'}

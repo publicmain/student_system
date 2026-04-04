@@ -18,7 +18,11 @@ export default function FilterBar({
   viewMode, onViewModeChange,
   onToggleAI, aiOpen,
   readOnly,
+  allApps,
 }) {
+  // Compute counts for each filter option
+  const apps = Array.isArray(allApps) ? allApps : []
+  const countBy = (key, val) => apps.filter(a => a[key] === val).length
   const toggleFilter = (key, value) => {
     onFiltersChange(prev => ({
       ...prev,
@@ -44,24 +48,29 @@ export default function FilterBar({
             value={search}
             onChange={e => onSearchChange(e.target.value)}
             placeholder="搜索院校/学生..."
-            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-surface-3 dark:border-slate-600 bg-white dark:bg-slate-800 text-ink-primary dark:text-slate-100 placeholder:text-ink-tertiary dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
+            className="w-full pl-8 pr-7 py-1.5 text-xs rounded-lg border border-surface-3 dark:border-slate-600 bg-white dark:bg-slate-800 text-ink-primary dark:text-slate-100 placeholder:text-ink-tertiary dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
           />
+          {search && (
+            <button onClick={() => onSearchChange('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-tertiary hover:text-ink-primary dark:hover:text-slate-200 transition-colors">
+              <X size={12} />
+            </button>
+          )}
         </div>
 
         {/* Cycle Year Chips */}
         {filterOptions.cycleYears.map(y => (
-          <Chip key={y} label={String(y)} active={filters.cycle_year === y} onClick={() => toggleFilter('cycle_year', y)} />
+          <Chip key={y} label={String(y)} count={countBy('cycle_year', y)} active={filters.cycle_year === y} onClick={() => toggleFilter('cycle_year', y)} />
         ))}
 
         {/* Route Chips */}
         {filterOptions.routes.map(r => (
-          <Chip key={r} label={r} active={filters.route === r} onClick={() => toggleFilter('route', r)} />
+          <Chip key={r} label={r} count={countBy('route', r)} active={filters.route === r} onClick={() => toggleFilter('route', r)} />
         ))}
 
         {/* Tier Chips */}
         {filterOptions.tiers.map(t => (
           <Chip key={t} label={t === 'reach' ? '冲刺' : t === 'target' ? '匹配' : t === 'safety' ? '保底' : t}
-                active={filters.tier === t} onClick={() => toggleFilter('tier', t)} />
+                count={countBy('tier', t)} active={filters.tier === t} onClick={() => toggleFilter('tier', t)} />
         ))}
 
         {hasFilters && (

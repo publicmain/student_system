@@ -78,6 +78,7 @@ export default function CommandCenterPage() {
           onToggleAI={() => ai.setOpen(o => !o)}
           aiOpen={ai.open}
           readOnly={isMentor}
+          allApps={cc.allApps}
         />
 
         {/* Empty state for new counselors */}

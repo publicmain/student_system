@@ -38,15 +38,44 @@ export function useCommandCenter() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // Filters
-  const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState({
-    cycle_year: null,
-    route: null,
-    tier: null,
-    status: null,
-  })
-  const [viewMode, setViewMode] = useState('kanban') // kanban | table | timeline
+  // 从 URL 参数恢复筛选状态
+  const initFromURL = () => {
+    const hash = window.location.hash || ''
+    const qIdx = hash.indexOf('?')
+    if (qIdx === -1) return { search: '', filters: { cycle_year: null, route: null, tier: null, status: null }, viewMode: 'kanban' }
+    const params = new URLSearchParams(hash.slice(qIdx + 1))
+    return {
+      search: params.get('q') || '',
+      filters: {
+        cycle_year: params.get('year') || null,
+        route: params.get('route') || null,
+        tier: params.get('tier') || null,
+        status: params.get('status') || null,
+      },
+      viewMode: params.get('view') || 'kanban',
+    }
+  }
+  const init = initFromURL()
+  const [search, setSearch] = useState(init.search)
+  const [filters, setFilters] = useState(init.filters)
+  const [viewMode, setViewMode] = useState(init.viewMode)
+
+  // 同步筛选条件到 URL（不触发页面跳转）
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (search) params.set('q', search)
+    if (filters.cycle_year) params.set('year', filters.cycle_year)
+    if (filters.route) params.set('route', filters.route)
+    if (filters.tier) params.set('tier', filters.tier)
+    if (filters.status) params.set('status', filters.status)
+    if (viewMode !== 'kanban') params.set('view', viewMode)
+    const qs = params.toString()
+    const base = 'command-center'
+    const newHash = qs ? `${base}?${qs}` : base
+    if (window.location.hash !== '#' + newHash) {
+      history.replaceState(null, '', '#' + newHash)
+    }
+  }, [search, filters, viewMode])
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -152,7 +181,8 @@ export function useCommandCenter() {
       if (prevStatus !== null) {
         setApps(prev => prev.map(a => String(a.id) === id ? { ...a, status: prevStatus } : a))
       }
-      console.error('状态更新失败:', e.message)
+      // 向用户展示转换被拒绝的原因
+      alert('状态变更失败: ' + e.message)
     }
   }, [])
 

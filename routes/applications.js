@@ -111,6 +111,40 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
       return res.status(400).json({ error: '无效的申请状态值' });
     }
 
+    // 状态转换矩阵：定义每个状态允许转换到的目标状态
+    const STATUS_TRANSITIONS = {
+      draft:                ['pending', 'withdrawn', 'deleted'],
+      pending:              ['applied', 'submitted', 'withdrawn', 'declined', 'deleted'],
+      applied:              ['submitted', 'offer', 'conditional_offer', 'unconditional_offer', 'rejected', 'waitlisted', 'withdrawn', 'deleted'],
+      submitted:            ['offer', 'conditional_offer', 'unconditional_offer', 'rejected', 'waitlisted', 'withdrawn', 'deleted'],
+      offer:                ['accepted', 'firm', 'insurance', 'declined', 'withdrawn', 'deleted'],
+      conditional_offer:    ['unconditional_offer', 'accepted', 'firm', 'insurance', 'declined', 'withdrawn', 'deleted'],
+      unconditional_offer:  ['accepted', 'firm', 'insurance', 'declined', 'withdrawn', 'deleted'],
+      accepted:             ['firm', 'insurance', 'enrolled', 'declined', 'withdrawn', 'deleted'],
+      firm:                 ['enrolled', 'declined', 'withdrawn', 'deleted'],
+      insurance:            ['enrolled', 'declined', 'withdrawn', 'deleted'],
+      waitlisted:           ['offer', 'conditional_offer', 'unconditional_offer', 'rejected', 'declined', 'withdrawn', 'deleted'],
+      enrolled:             ['withdrawn', 'deleted'],
+      declined:             ['deleted'],
+      rejected:             ['deleted'],
+      withdrawn:            ['pending', 'deleted'], // 允许重新激活
+    };
+    if (status !== undefined) {
+      const currentApp = db.get('SELECT status FROM applications WHERE id=?', [req.params.id]);
+      if (currentApp && currentApp.status !== status) {
+        const allowed = STATUS_TRANSITIONS[currentApp.status];
+        if (allowed && !allowed.includes(status)) {
+          const statusLabels = { pending:'准备中', applied:'已提交', submitted:'已提交', offer:'Offer', conditional_offer:'有条件录取', unconditional_offer:'无条件录取', accepted:'已接受', firm:'Firm', insurance:'Insurance', enrolled:'已入学', declined:'已拒绝', rejected:'被拒绝', withdrawn:'已撤回', waitlisted:'等候名单', draft:'草稿', deleted:'已删除' };
+          return res.status(422).json({
+            error: `无法从「${statusLabels[currentApp.status] || currentApp.status}」直接转换为「${statusLabels[status] || status}」，请按正常流程操作`,
+            current: currentApp.status,
+            target: status,
+            allowed: allowed
+          });
+        }
+      }
+    }
+
     // UCAS Reference Gating: UK-UG applications cannot be marked 'applied' unless a Reference task is done
     if (status === 'applied' && (route || '') === 'UK-UG') {
       const app = db.get('SELECT * FROM applications WHERE id=?', [req.params.id]);

@@ -71,7 +71,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     db.run(`UPDATE file_exchange_records SET status='sent', access_token=?, upload_token=?, sent_at=datetime('now'), student_email=COALESCE(?,student_email), student_name=COALESCE(?,student_name), updated_at=datetime('now') WHERE id=?`,
       [accessToken, uploadToken, email||null, sname||null, req.params.id]);
     const ic = db.get('SELECT student_name, program_name FROM intake_cases WHERE id=?', [rec.case_id]);
-    const host = `${req.protocol}://${req.get('host')}`;
+    const host = (process.env.APP_URL || `${req.protocol}://${req.get('host')}`);
     const viewUrl = `${host}/s/fx/${accessToken}`;
     fxLog(req.params.id, rec.case_id, 'sent', 'admin', req.session.user.name||req.session.user.username, `发送给 ${sname||'—'} (${email||'无邮件'})`, req.ip);
     audit(req, 'FX_SEND', 'file_exchange_records', req.params.id, { email, request_reply: rec.request_reply });
@@ -151,7 +151,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
         return res.status(429).json({ error: `催办过于频繁，下次可催办时间：${nextTime.toLocaleString('zh-CN')}` });
       }
     }
-    const host = `${req.protocol}://${req.get('host')}`;
+    const host = (process.env.APP_URL || `${req.protocol}://${req.get('host')}`);
     const viewUrl = `${host}/s/fx/${rec.access_token}`;
     fxLog(req.params.id, rec.case_id, 'reminded', 'admin', req.session.user.name||req.session.user.username, `催办邮件已发至 ${email}`, req.ip);
     const _em2 = brandedEmail(

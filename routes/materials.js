@@ -4,6 +4,10 @@
 module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload, fileStorage, moveUploadedFile, ALLOWED_EXTENSIONS, path, fs }) {
   const router = require('express').Router();
 
+  function _getSetting(key, fallback) {
+    try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? JSON.parse(r[0].values[0][0]) : fallback; } catch(e) { return fallback; }
+  }
+
   // ── Materials CRUD ─────────────────────────────────────
 
   router.get('/students/:id/materials', requireAuth, (req, res) => {
@@ -46,7 +50,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     const { title, status, notes, reviewed_by, version } = req.body;
     const now = new Date().toISOString();
     const reviewed_at = reviewed_by ? now : null;
-    const _submittedStatus = (() => { try { const r = db.exec("SELECT value FROM settings WHERE key='material_statuses'"); if (r.length) { const arr = JSON.parse(r[0].values[0][0]); return arr[1] || '已提交'; } return '已提交'; } catch(e) { return '已提交'; } })();
+    const _materialStatuses = _getSetting('material_statuses', ['未提交','已提交','已审核','需补充']);
+    const _submittedStatus = _materialStatuses[1] || '已提交';
     const submitted_at = status === _submittedStatus ? now : null;
     db.run(`UPDATE material_items SET title=?,status=?,notes=?,reviewed_by=?,reviewed_at=?,submitted_at=?,version=?,updated_at=? WHERE id=?`,
       [title, status, notes, reviewed_by||null, reviewed_at, submitted_at, version||1, now, req.params.id]);
@@ -191,12 +196,54 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     res.json({ ok: true });
   });
 
-  router.get('/feedback', requireRole('principal','counselor'), (req, res) => {
-    const rows = db.all(`
-      SELECT f.*, s.name as student_name FROM feedback f
-      JOIN students s ON s.id=f.student_id
-      WHERE f.status='pending' ORDER BY f.created_at DESC LIMIT 50`);
-    res.json(rows);
+  router.get('/feedback', requireAuth, (req, res) => {
+    const u = req.session.user;
+    // principal 和 counselor 可查看全部待处理反馈
+    if (u.role === 'principal' || u.role === 'counselor') {
+      const rows = db.all(`
+        SELECT f.*, s.name as student_name FROM feedback f
+        JOIN students s ON s.id=f.student_id
+        WHERE f.status='pending' ORDER BY f.created_at DESC LIMIT 50`);
+      return res.json(rows);
+    }
+    // mentor 可查看自己提交的反馈
+    if (u.role === 'mentor') {
+      const rows = db.all(`
+        SELECT f.*, s.name as student_name FROM feedback f
+        JOIN students s ON s.id=f.student_id
+        WHERE f.from_role='mentor' AND f.from_id=?
+        ORDER BY f.created_at DESC LIMIT 50`, [u.linked_id]);
+      return res.json(rows);
+    }
+    // student 可查看自己的反馈
+    if (u.role === 'student') {
+      const rows = db.all(`
+        SELECT f.*, s.name as student_name FROM feedback f
+        JOIN students s ON s.id=f.student_id
+        WHERE f.student_id=?
+        ORDER BY f.created_at DESC LIMIT 50`, [u.linked_id]);
+      return res.json(rows);
+    }
+    // parent 可查看自己孩子的反馈
+    if (u.role === 'parent') {
+      const rows = db.all(`
+        SELECT f.*, s.name as student_name FROM feedback f
+        JOIN students s ON s.id=f.student_id
+        WHERE f.student_id IN (SELECT student_id FROM student_parents WHERE parent_id=?)
+        ORDER BY f.created_at DESC LIMIT 50`, [u.linked_id]);
+      return res.json(rows);
+    }
+    // intake_staff 可查看自己提交的反馈
+    if (u.role === 'intake_staff') {
+      const rows = db.all(`
+        SELECT f.*, s.name as student_name FROM feedback f
+        JOIN students s ON s.id=f.student_id
+        WHERE f.from_role='intake_staff' AND f.from_id=?
+        ORDER BY f.created_at DESC LIMIT 50`, [u.linked_id]);
+      return res.json(rows);
+    }
+    // 其他角色（student_admin, agent）无权限
+    return res.status(403).json({ error: '权限不足' });
   });
 
   return router;

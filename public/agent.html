@@ -1317,10 +1317,22 @@ async function init(){
     renderWelcome()}catch(e){showError(e.message)}}
 
 function showError(msg){
+  const errorMap={
+    'TOKEN_INVALID':{icon:'bi-key',title:'Link Invalid',desc:'This link is not valid. Please contact your counselor for a new link.'},
+    'TOKEN_EXPIRED':{icon:'bi-clock-history',title:'Link Expired',desc:'This link has expired. Please contact your counselor to receive a new link.'},
+    'TOKEN_REVOKED':{icon:'bi-x-octagon',title:'Link Revoked',desc:'This link has been revoked. A new link may have been sent to your email.'},
+    'REQUEST_NOT_FOUND':{icon:'bi-folder-x',title:'Request Not Found',desc:'The associated request could not be found. Please contact your counselor.'},
+    'REQUEST_CANCELLED':{icon:'bi-slash-circle',title:'Request Cancelled',desc:'This material request has been cancelled.'},
+    'REQUEST_COMPLETED':{icon:'bi-check-circle',title:'Request Completed',desc:'This material request has already been completed. No further action is needed.'},
+    'TOO_MANY_REQUESTS':{icon:'bi-hourglass-split',title:'Too Many Requests',desc:'Please wait a moment and try again.'},
+  };
+  const info=errorMap[msg]||{icon:'bi-shield-lock',title:'Access Denied',desc:msg};
   document.getElementById('app').innerHTML=`<div class="err-page"><div>
-    <i class="bi bi-shield-lock" style="font-size:3.5rem;color:var(--crimson)"></i>
-    <h5 class="mt-3" style="color:var(--crimson)">Access Denied</h5>
-    <p style="color:var(--txt2)">${esc(msg)}</p></div></div>`}
+    <i class="bi ${esc(info.icon)}" style="font-size:3.5rem;color:var(--crimson)"></i>
+    <h5 class="mt-3" style="color:var(--crimson)">${esc(info.title)}</h5>
+    <p style="color:var(--txt2);max-width:400px">${esc(info.desc)}</p>
+    <p style="color:var(--txt3);font-size:.75rem;margin-top:16px">If you need assistance, please contact your counselor or email support.</p>
+    </div></div>`}
 
 init();
 </script>

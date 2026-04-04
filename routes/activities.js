@@ -10,14 +10,21 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? JSON.parse(r[0].values[0][0]) : fallback; } catch(e) { return fallback; }
   }
 
-  // 权限检查
+  // 权限检查（按角色隔离数据范围）
   function _checkAccess(req, sid) {
     const u = req.session.user;
+    if (u.role === 'principal') return null; // 全局访问
     if (u.role === 'student' && u.linked_id !== sid) return '无权访问';
     if (u.role === 'parent') {
       const sp = db.get('SELECT student_id FROM student_parents WHERE student_id=? AND parent_id=?', [sid, u.linked_id]);
       if (!sp) return '无权访问';
     }
+    if (u.role === 'counselor' || u.role === 'mentor') {
+      const assigned = db.get('SELECT 1 FROM mentor_assignments WHERE student_id=? AND staff_id=? AND end_date IS NULL', [sid, u.linked_id]);
+      if (!assigned) return '无权访问';
+    }
+    // intake_staff, student_admin, agent 无权访问课外活动
+    if (['intake_staff','student_admin','agent'].includes(u.role)) return '无权访问';
     return null;
   }
 

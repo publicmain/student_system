@@ -7,6 +7,10 @@ const bcrypt = require('bcryptjs');
 module.exports = function({ db, uuidv4, audit, requireAuth, loginAttempts, pwdChangeAttempts, LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_MS, PWD_CHANGE_MAX, BCRYPT_COST }) {
   const router = express.Router();
 
+  function _getSettingRaw(key, fallback) {
+    try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? r[0].values[0][0] : fallback; } catch(e) { return fallback; }
+  }
+
   // POST /api/auth/login
   router.post('/login', (req, res) => {
     const { username, password } = req.body;
@@ -59,8 +63,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, loginAttempts, pwdCh
       return res.status(429).json({ error: `密码修改失败次数过多，请 ${Math.ceil((pr.resetAt - now) / 60000)} 分钟后重试` });
     }
     const { old_password, new_password } = req.body;
-    const _pwdMin = (() => { try { const r = db.exec("SELECT value FROM settings WHERE key='password_min_length'"); return r.length ? parseInt(r[0].values[0][0]) : 6; } catch(e) { return 6; } })();
-    const _pwdMax = (() => { try { const r = db.exec("SELECT value FROM settings WHERE key='password_max_length'"); return r.length ? parseInt(r[0].values[0][0]) : 128; } catch(e) { return 128; } })();
+    const _pwdMin = parseInt(_getSettingRaw('password_min_length', '6'));
+    const _pwdMax = parseInt(_getSettingRaw('password_max_length', '128'));
     if (!new_password || new_password.length < _pwdMin || new_password.length > _pwdMax) {
       return res.status(400).json({ error: `新密码长度须在 ${_pwdMin}-${_pwdMax} 位之间` });
     }

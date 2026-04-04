@@ -6,7 +6,7 @@ const express = require('express');
 module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, bcrypt, BCRYPT_COST }) {
   const router = express.Router();
 
-  router.get('/staff', requireAuth, (req, res) => {
+  router.get('/staff', requireRole('principal','counselor','mentor','intake_staff'), (req, res) => {
     const staff = db.all(`
       SELECT st.*,
         COUNT(DISTINCT ma.student_id) as current_students

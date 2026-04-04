@@ -3326,6 +3326,7 @@ function bindEvents() {
   document.getElementById('logout-btn').addEventListener('click', async () => {
     await POST('/api/auth/logout');
     State.user = null;
+    window.location.hash = '';
     document.getElementById('app').classList.add('d-none');
     document.getElementById('login-page').classList.remove('d-none');
     document.getElementById('login-password').value = '';
@@ -3469,7 +3470,7 @@ function initApp() {
       const qIdx = hash.indexOf('?');
       const hashPage = qIdx >= 0 ? hash.substring(0, qIdx) : hash;
       const hashQuery = qIdx >= 0 ? hash.substring(qIdx + 1) : '';
-      if (hashPage && PAGES[hashPage]) {
+      if (hashPage && PAGES[hashPage] && canAccessPage(hashPage)) {
         const params = {};
         if (hashQuery) new URLSearchParams(hashQuery).forEach((v, k) => { params[k] = v; });
         navigate(hashPage, params);
@@ -3509,6 +3510,9 @@ function exportPDF() {
 function injectPrintBtn() {
   const header = document.querySelector('.page-header');
   if (!header || header.querySelector('.print-btn')) return;
+  // 如果页面已有自定义导出按钮，不重复注入
+  const existing = header.querySelectorAll('button');
+  for (const b of existing) { if (b.textContent.includes('导出') || b.textContent.includes('PDF')) return; }
   const btn = document.createElement('button');
   btn.className = 'btn btn-outline-secondary btn-sm print-btn';
   btn.innerHTML = '<i class="bi bi-printer me-1"></i>导出PDF';
@@ -4742,6 +4746,24 @@ async function renderSettings() {
     if (anchorsTab) anchorsTab.addEventListener('shown.bs.tab', renderAnchorEventsList, { once: false });
     const escalTab = document.querySelector('a[href="#stab-escalation"]');
     if (escalTab) escalTab.addEventListener('shown.bs.tab', loadEscalationPolicy, { once: false });
+
+    // ── BUG-M04: Counselor 只读模式 ──
+    if (State.user && State.user.role === 'counselor') {
+      const settingsArea = mc.querySelector('.settings-layout');
+      if (settingsArea) {
+        function _applyReadOnly(root) {
+          root.querySelectorAll('button[onclick*="save"], button[onclick*="Save"]').forEach(btn => btn.style.display = 'none');
+          root.querySelectorAll('input, select, textarea').forEach(el => { el.disabled = true; });
+          root.querySelectorAll('button[onclick*="add"], button[onclick*="remove"], button[onclick*="Add"], button[onclick*="Remove"], button[onclick*="delete"], button[onclick*="Delete"]').forEach(btn => btn.style.display = 'none');
+        }
+        _applyReadOnly(settingsArea);
+        // 监听动态加载的内容（如升级策略 tab）
+        new MutationObserver(() => _applyReadOnly(settingsArea)).observe(settingsArea, { childList: true, subtree: true });
+        // 添加只读提示
+        const header = mc.querySelector('.page-header');
+        if (header) header.insertAdjacentHTML('afterend', '<div class="alert alert-info py-2 mb-3"><i class="bi bi-eye me-1"></i>当前为只读模式，仅校长可修改系统设置</div>');
+      }
+    }
 
   } catch(e) {
     mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;

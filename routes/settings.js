@@ -10,7 +10,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   //  SETTINGS (系统设置)
   // ═══════════════════════════════════════════════════════
 
-  router.get('/settings', requireAuth, (_req, res) => {
+  router.get('/settings', requireRole('principal','counselor'), (_req, res) => {
     const rows = db.all('SELECT key, value FROM settings');
     const obj = {};
     rows.forEach(r => { obj[r.key] = r.value; });

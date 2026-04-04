@@ -36,7 +36,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
       db.transaction((runInTx) => {
         const now = new Date().toISOString();
         runInTx(`INSERT INTO intake_cases (id,student_id,student_name,intake_year,program_name,status,case_owner_staff_id,referral_id,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-          [id, null, student_name.trim(), intake_year, program_name, 'registered', case_owner_staff_id||null, referral_id||null, notes||null, now, now]);
+          [id, null, student_name.trim(), intake_year, program_name, (_getSetting('intake_case_statuses', ['registered'])[0] || 'registered'), case_owner_staff_id||null, referral_id||null, notes||null, now, now]);
         runInTx(`INSERT INTO visa_cases (id,case_id,status) VALUES (?,?,?)`, [vcId, id, 'not_started']);
         runInTx(`INSERT INTO arrival_records (id,case_id) VALUES (?,?)`, [arId, id]);
       });
@@ -138,7 +138,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     const arrival = db.get('SELECT * FROM arrival_records WHERE case_id=?', [req.params.id]);
     const survey = db.get('SELECT * FROM post_arrival_surveys WHERE case_id=? ORDER BY created_at DESC LIMIT 1', [req.params.id]);
     // 是否已移交学管（intake_staff 视角：案例进入 oriented/closed 后进入只读交接态）
-    const _stageOrder = ['registered','collecting_docs','contract_signed','visa_in_progress','ipa_received','paid','arrived','oriented','closed'];
+    const _stageOrder = _getSetting('intake_case_statuses', ['registered','collecting_docs','contract_signed','visa_in_progress','ipa_received','paid','arrived','oriented','closed']);
     const phase_handed_off = _stageOrder.indexOf(ic.status) >= 7; // oriented 及以后
     // 案例文件 + 发送记录 + 签字记录（含文件的发送子列表）
     const caseFilesRaw = isStudentAdmin ? [] : db.all('SELECT * FROM case_files WHERE case_id=? ORDER BY created_at DESC', [req.params.id]);
@@ -191,6 +191,10 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
 
     const { company_id, contact_id, title, deadline, notes, items } = req.body;
     if (!company_id || !contact_id) return res.status(400).json({ error: 'company_id and contact_id required' });
+    const company = db.get('SELECT id FROM agents WHERE id=?', [company_id]);
+    if (!company) return res.status(400).json({ error: '中介公司不存在' });
+    const contactCheck = db.get('SELECT id FROM mat_contacts WHERE id=? AND company_id=?', [contact_id, company_id]);
+    if (!contactCheck) return res.status(400).json({ error: '联系人不存在或不属于该公司' });
 
     const requestId = uuidv4();
     db.run(`INSERT INTO mat_requests (id, student_id, company_id, contact_id, counselor_id, title, deadline, notes, status, intake_case_id, created_at, updated_at)
@@ -210,9 +214,9 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
         [uuidv4(), requestId, item.name, item.description || '', item.is_required ? 1 : 0, 'PENDING', idx]);
     });
 
-    // 生成 magic token
+    // 生成 magic token（统一使用 APP_URL，避免反向代理导致链接错误）
     const token = require('crypto').randomBytes(32).toString('hex');
-    const tokenExpiryHours = parseInt(_getSettingRaw('mat_token_expiry_hours', '72'));
+    const tokenExpiryHours = parseInt(_getSettingRaw('agent_token_expiry_hours', '72'));
     const expires = new Date(Date.now() + tokenExpiryHours * 60 * 60 * 1000).toISOString();
     db.run(`INSERT INTO mat_magic_tokens (id, request_id, contact_id, token, status, expires_at, created_at) VALUES (?,?,?,?,?,?,datetime('now'))`,
       [uuidv4(), requestId, contact_id, token, 'ACTIVE', expires]);
@@ -221,7 +225,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     const contact = db.get('SELECT * FROM mat_contacts WHERE id=?', [contact_id]);
     const matReqForEmail = db.get('SELECT * FROM mat_requests WHERE id=?', [requestId]);
     if (contact && contact.email && matReqForEmail) {
-      const link = `${req.protocol}://${req.get('host')}/agent.html?token=${token}`;
+      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+      const link = `${baseUrl}/agent.html?token=${token}`;
       _matSendInviteEmail(matReqForEmail, contact, link, 'invite').catch(e => {
         console.error('[MAT] Invite email failed:', e.message);
       });

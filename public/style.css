@@ -308,7 +308,7 @@ body {
 }
 
 .nav-section-title {
-  color: #475569;
+  color: #94a3b8 !important;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 1.2px;
@@ -1119,6 +1119,7 @@ body {
   /* ── 按钮 ── */
   .btn-group { flex-wrap: wrap; }
   .action-icon-btn { min-width: 36px; min-height: 36px; }
+  .md-detail .btn { white-space: nowrap; }
 
   /* ── 工作台模块 ── */
   .md-empty-detail .row { max-width: 100% !important; }
@@ -2465,6 +2466,14 @@ body.dark-mode .tl-label-current { color: #818cf8; }
   }
   .case-detail-inner { flex-direction: column; }
   .case-side-fixed { width: 100% !important; }
+  /* 移动端 timeline 增大触摸目标 */
+  .tl-dot { width: 26px; height: 26px; font-size: .7rem; }
+  .tl-label { font-size: .6rem; max-width: 56px; overflow: hidden; text-overflow: ellipsis; }
+  .tl-strip { padding: 8px 6px; gap: 2px; }
+  /* 入学案例卡片内按钮不换行 */
+  .intake-detail-panel .btn { white-space: nowrap; }
+  /* 材料列表文件名截断 */
+  .intake-detail-panel .text-truncate { max-width: 120px; display: inline-block; vertical-align: middle; }
 }
 
 /* ═══ Dark mode: Master-Detail ═══ */
@@ -2801,3 +2810,124 @@ body.dark-mode .attention-list li { border-color: var(--border); }
 body.dark-mode .attention-list li:hover { background: var(--surface-2); }
 body.dark-mode .attention-list .att-name { color: var(--text-primary); }
 body.dark-mode .attention-list .att-desc { color: var(--text-secondary); }
+
+/* ═══════════════════════════════════════════════════════
+   补充暗色模式适配
+   ═══════════════════════════════════════════════════════ */
+
+/* ── 登录页 ── */
+body.dark-mode .login-card {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: rgba(255,255,255,0.08);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06);
+}
+body.dark-mode .login-card h2,
+body.dark-mode .login-card .title { color: #f1f5f9; }
+body.dark-mode .login-card .subtitle,
+body.dark-mode .login-card p { color: #94a3b8; }
+body.dark-mode .login-card label { color: #cbd5e1; }
+body.dark-mode .login-card .form-control {
+  background: #0f172a; border-color: #475569; color: #e2e8f0;
+}
+body.dark-mode .login-card .form-control::placeholder { color: #4b5563; }
+
+/* ── 全局: inline bg-light / alert-light / #f8f9fa 覆盖 ── */
+body.dark-mode .bg-light,
+body.dark-mode .alert-light {
+  background-color: var(--surface-2) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border) !important;
+}
+body.dark-mode [style*="background:#f8f9fa"],
+body.dark-mode [style*="background:#fafafa"],
+body.dark-mode [style*="background:#fafbfc"],
+body.dark-mode [style*="background:#f8fafc"],
+body.dark-mode [style*="background:#f8fdf8"],
+body.dark-mode [style*="background: #f8f9fa"],
+body.dark-mode [style*="background: #fafafa"] {
+  background: var(--surface-2) !important;
+  color: var(--text-primary) !important;
+}
+/* 表格 th 的 inline background */
+body.dark-mode th[style*="background:#f8f9fa"] {
+  background: var(--surface-2) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+body.dark-mode td[style*="border:1px solid #dee2e6"] {
+  border-color: var(--border) !important;
+}
+
+/* ── 入学总览仪表盘: 底部卡片 ── */
+body.dark-mode .intake-dash-card,
+body.dark-mode .border.rounded.p-3[style*="background"] {
+  background: var(--surface-1) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ── 入学案例详情: 材料收集区块 ── */
+body.dark-mode .intake-detail-panel .border.rounded {
+  background: var(--surface-1) !important;
+  border-color: var(--border) !important;
+}
+body.dark-mode .intake-detail-panel .border.rounded p,
+body.dark-mode .intake-detail-panel .border.rounded span,
+body.dark-mode .intake-detail-panel .border.rounded div { color: var(--text-primary); }
+body.dark-mode .intake-detail-panel .text-muted { color: var(--text-secondary) !important; }
+
+/* ── badge bg-light ── */
+body.dark-mode .badge.bg-light {
+  background: var(--surface-3) !important;
+  color: var(--text-primary) !important;
+}
+body.dark-mode .badge.bg-light.text-dark { color: var(--text-primary) !important; }
+
+/* ── input-group-text inline styles ── */
+body.dark-mode [style*="background:#f8fafc"].input-group-text,
+body.dark-mode .input-group-text[style] {
+  background: var(--surface-0) !important;
+  border-color: #475569 !important;
+  color: var(--text-secondary) !important;
+}
+
+/* ── 文件发送回复区 ── */
+body.dark-mode #fxReplyWrap {
+  background: var(--surface-1) !important;
+  border-color: var(--border) !important;
+}
+
+/* ── 移交/只读提示条 ── */
+body.dark-mode div[style*="background:#f8fafc"][style*="border-radius"] {
+  background: var(--surface-2) !important;
+  border-color: var(--border) !important;
+  color: var(--text-secondary) !important;
+}
+
+/* ── 通用 text-dark 在暗色下的修正 ── */
+body.dark-mode .text-dark { color: var(--text-primary) !important; }
+body.dark-mode .border { border-color: var(--border) !important; }
+
+/* ── 下拉菜单 ── */
+body.dark-mode .dropdown-menu {
+  background: var(--surface-1); border-color: var(--border); color: var(--text-primary);
+}
+body.dark-mode .dropdown-item { color: var(--text-primary); }
+body.dark-mode .dropdown-item:hover { background: var(--surface-2); }
+
+/* ── popover / tooltip ── */
+body.dark-mode .popover { background: var(--surface-1); border-color: var(--border); }
+body.dark-mode .popover-body { color: var(--text-primary); }
+body.dark-mode .tooltip-inner { background: var(--surface-2); color: var(--text-primary); }
+
+/* ── list-group ── */
+body.dark-mode .list-group-item {
+  background: var(--surface-1); border-color: var(--border); color: var(--text-primary);
+}
+body.dark-mode .list-group-item:hover { background: var(--surface-2); }
+
+/* ── accordion ── */
+body.dark-mode .accordion-item { background: var(--surface-1); border-color: var(--border); }
+body.dark-mode .accordion-button { background: var(--surface-2); color: var(--text-primary); }
+body.dark-mode .accordion-button:not(.collapsed) { background: var(--surface-2); color: var(--primary); }
+body.dark-mode .accordion-body { background: var(--surface-1); color: var(--text-primary); }

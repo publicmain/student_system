@@ -1987,7 +1987,7 @@ function seedData() {
       [uid(),sE,'2024-09-07','英语测评','英语',79,100,71,'',dnow],
       [uid(),sE,'2024-11-05','雅思 IELTS','英语',7.0,9,83,'写作6.5，其余7.0以上',dnow],
     ];
-    for (const a of assessments5) db.run(`INSERT INTO admission_assessments VALUES (?,?,?,?,?,?,?,?,?,?)`, a);
+    for (const a of assessments5) db.run(`INSERT INTO admission_assessments (id,student_id,assess_date,assess_type,subject,score,max_score,percentile,notes,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)`, a);
 
     const getSubjectId5 = (code) => get('SELECT id FROM subjects WHERE code=?', [code])?.id;
     const mathId5=getSubjectId5('MATH'), physId5=getSubjectId5('PHYS'),
@@ -2587,16 +2587,16 @@ function seedData() {
   ]);
 
   // 入学评估
-  db.run(`INSERT INTO admission_assessments VALUES (?,?,?,?,?,?,?,?,?,?)`, [
+  db.run(`INSERT INTO admission_assessments (id,student_id,assess_date,assess_type,subject,score,max_score,percentile,notes,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)`, [
     uuidv4(), stu1, '2024-09-05', '数学测评', '数学', 82.5, 100, 75, '', now
   ]);
-  db.run(`INSERT INTO admission_assessments VALUES (?,?,?,?,?,?,?,?,?,?)`, [
+  db.run(`INSERT INTO admission_assessments (id,student_id,assess_date,assess_type,subject,score,max_score,percentile,notes,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)`, [
     uuidv4(), stu1, '2024-09-05', '英语测评', '英语', 78.0, 100, 65, '', now
   ]);
-  db.run(`INSERT INTO admission_assessments VALUES (?,?,?,?,?,?,?,?,?,?)`, [
+  db.run(`INSERT INTO admission_assessments (id,student_id,assess_date,assess_type,subject,score,max_score,percentile,notes,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)`, [
     uuidv4(), stu2, '2024-09-06', '数学测评', '数学', 91.0, 100, 88, '', now
   ]);
-  db.run(`INSERT INTO admission_assessments VALUES (?,?,?,?,?,?,?,?,?,?)`, [
+  db.run(`INSERT INTO admission_assessments (id,student_id,assess_date,assess_type,subject,score,max_score,percentile,notes,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)`, [
     uuidv4(), stu3, '2023-09-08', '综合测评', '综合', 75.5, 100, 60, '', now
   ]);
 

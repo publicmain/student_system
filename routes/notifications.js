@@ -6,6 +6,13 @@ const express = require('express');
 module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   const router = express.Router();
 
+  function _getSetting(key, fallback) {
+    try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? JSON.parse(r[0].values[0][0]) : fallback; } catch(e) { return fallback; }
+  }
+  function _getSettingRaw(key, fallback) {
+    try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? r[0].values[0][0] : fallback; } catch(e) { return fallback; }
+  }
+
   // ═══════════════════════════════════════════════════════
   //  P1.4 NOTIFICATIONS（通知与升级）
   // ═══════════════════════════════════════════════════════
@@ -89,7 +96,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
 
   router.put('/escalation-policies/:id', requireRole('principal','counselor'), (req, res) => {
     const { name, trigger_days, escalate_to_role, auto_escalate_overdue_hours, apply_to_categories } = req.body;
-    const _defaultEscHours = (() => { try { const r = db.exec("SELECT value FROM settings WHERE key='auto_escalate_overdue_hours'"); return r.length ? parseInt(r[0].values[0][0]) : 24; } catch(e) { return 24; } })();
+    const _defaultEscHours = parseInt(_getSettingRaw('auto_escalate_overdue_hours', '24'));
     db.run('UPDATE escalation_policies SET name=?,trigger_days=?,escalate_to_role=?,auto_escalate_overdue_hours=?,apply_to_categories=? WHERE id=?',
       [name, JSON.stringify(trigger_days||[]), escalate_to_role||'counselor', auto_escalate_overdue_hours||_defaultEscHours,
        apply_to_categories ? JSON.stringify(apply_to_categories) : null, req.params.id]);
@@ -110,8 +117,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     if (start) { where.push("created_at >= ?"); params.push(start); }
     if (end) { where.push("created_at <= ?"); params.push(end + 'T23:59:59'); }
     const whereStr = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    const _auditDefaultLimit = (() => { try { const r = db.exec("SELECT value FROM settings WHERE key='audit_query_default_limit'"); return r.length ? parseInt(r[0].values[0][0]) : 200; } catch(e) { return 200; } })();
-    const _auditMaxLimit = (() => { try { const r = db.exec("SELECT value FROM settings WHERE key='audit_query_max_limit'"); return r.length ? parseInt(r[0].values[0][0]) : 1000; } catch(e) { return 1000; } })();
+    const _auditDefaultLimit = parseInt(_getSettingRaw('audit_query_default_limit', '200'));
+    const _auditMaxLimit = parseInt(_getSettingRaw('audit_query_max_limit', '1000'));
     const safeLimit = Math.min(Math.max(parseInt(limit) || _auditDefaultLimit, 1), _auditMaxLimit);
     params.push(safeLimit);
     const rows = db.all(`SELECT al.*, u.username, u.name as user_name FROM audit_logs al LEFT JOIN users u ON u.id=al.user_id ${whereStr} ORDER BY al.created_at DESC LIMIT ?`, params);
@@ -126,7 +133,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     if (start) { where.push("al.created_at >= ?"); params.push(start); }
     if (end) { where.push("al.created_at <= ?"); params.push(end + 'T23:59:59'); }
     const whereStr = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    const _exportMax = (() => { try { const r = db.exec("SELECT value FROM settings WHERE key='audit_export_max_records'"); return r.length ? parseInt(r[0].values[0][0]) : 5000; } catch(e) { return 5000; } })();
+    const _exportMax = parseInt(_getSettingRaw('audit_export_max_records', '5000'));
     params.push(_exportMax);
     const rows = db.all(`SELECT al.*, u.username, u.name as user_name FROM audit_logs al LEFT JOIN users u ON u.id=al.user_id ${whereStr} ORDER BY al.created_at DESC LIMIT ?`, params);
     const csv = ['时间,操作者,操作,对象类型,对象ID,详情,IP'].concat(

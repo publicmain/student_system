@@ -26,6 +26,10 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     let where = ['s.status="active"'];
     let params = [];
 
+    // agent 和 student_admin 不应通过主 API 访问学生列表
+    if (req.session.user.role === 'agent') return res.status(403).json({ error: '权限不足，请使用代理门户' });
+    if (req.session.user.role === 'student_admin') return res.status(403).json({ error: '权限不足' });
+
     // 学生只能看自己
     if (req.session.user.role === 'student') {
       where.push('s.id=?'); params.push(req.session.user.linked_id);
@@ -102,6 +106,9 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
 
     // 权限检查
     const _u = req.session.user;
+    // agent 和 student_admin 不应通过主 API 查看学生详情
+    if (_u.role === 'agent') return res.status(403).json({ error: '权限不足，请使用代理门户' });
+    if (_u.role === 'student_admin') return res.status(403).json({ error: '权限不足' });
     if (_u.role === 'student' && _u.linked_id !== id) return res.status(403).json({ error: '无权访问' });
     if (_u.role === 'parent') {
       const sp = db.get('SELECT * FROM student_parents WHERE student_id=? AND parent_id=?', [id, _u.linked_id]);
@@ -112,6 +119,11 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
         'SELECT 1 FROM mentor_assignments WHERE student_id=? AND staff_id=? AND end_date IS NULL',
         [id, _u.linked_id || _u.id]);
       if (!assigned) return res.status(403).json({ error: '无权访问' });
+    }
+    // intake_staff 只能查看自己为 case_owner 的学生
+    if (_u.role === 'intake_staff') {
+      const owned = db.get('SELECT 1 FROM intake_cases WHERE student_id=? AND case_owner_staff_id=?', [id, _u.linked_id]);
+      if (!owned) return res.status(403).json({ error: '无权访问' });
     }
 
     const assessments = db.all('SELECT * FROM admission_assessments WHERE student_id=? ORDER BY assess_date DESC', [id]);

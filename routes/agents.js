@@ -6,6 +6,13 @@ const express = require('express');
 module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, requireAgentModule }) {
   const router = express.Router();
 
+  function _getSetting(key, fallback) {
+    try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? JSON.parse(r[0].values[0][0]) : fallback; } catch(e) { return fallback; }
+  }
+  function _getSettingRaw(key, fallback) {
+    try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? r[0].values[0][0] : fallback; } catch(e) { return fallback; }
+  }
+
   // ═══════════════════════════════════════════════════════
   //  AGENTS & REFERRALS
   // ═══════════════════════════════════════════════════════
@@ -112,11 +119,11 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
   router.post('/commission-rules', requireRole('principal'), (req, res) => {
     const { name, type, rate, fixed_amount, currency, applies_to, notes } = req.body;
     if (!name || !type) return res.status(400).json({ error: '缺少 name 或 type' });
-    const _commTypes = (() => { try { const r = db.exec("SELECT value FROM settings WHERE key='commission_rule_types'"); return r.length ? JSON.parse(r[0].values[0][0]) : ['percent','fixed']; } catch(e) { return ['percent','fixed']; } })();
+    const _commTypes = _getSetting('commission_rule_types', ['percent','fixed']);
     if (!_commTypes.includes(type)) return res.status(400).json({ error: `type 必须为 ${_commTypes.join(' 或 ')}` });
     if (type === 'percent') {
       const r = parseFloat(rate);
-      const _maxPct = (() => { try { const r2 = db.exec("SELECT value FROM settings WHERE key='commission_percent_max'"); return r2.length ? parseFloat(r2[0].values[0][0]) : 1.0; } catch(e) { return 1.0; } })();
+      const _maxPct = parseFloat(_getSettingRaw('commission_percent_max', '1.0'));
       if (isNaN(r) || r <= 0 || r > _maxPct) return res.status(400).json({ error: `percent 类型的 rate 必须在 (0, ${_maxPct}] 之间（例如 0.10 表示10%）` });
     }
     if (type === 'fixed') {
@@ -125,7 +132,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     }
     const id = uuidv4();
     db.run(`INSERT INTO commission_rules (id,name,type,rate,fixed_amount,currency,applies_to,notes) VALUES (?,?,?,?,?,?,?,?)`,
-      [id, name, type, rate||null, fixed_amount||null, currency||((() => { try { const r3 = db.exec("SELECT value FROM settings WHERE key='default_currency'"); return r3.length ? r3[0].values[0][0] : 'SGD'; } catch(e) { return 'SGD'; } })()), applies_to||'all', notes||null]);
+      [id, name, type, rate||null, fixed_amount||null, currency||_getSettingRaw('default_currency', 'SGD'), applies_to||'all', notes||null]);
     audit(req, 'CREATE', 'commission_rules', id, { name, type });
     res.json({ id, name, type });
   });
@@ -146,7 +153,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     const commission_amount = rule.type === 'percent' ? base_amount * rule.rate : rule.fixed_amount;
     const id = uuidv4();
     db.run(`INSERT INTO commission_payouts (id,referral_id,invoice_id,rule_id,base_amount,commission_amount,currency) VALUES (?,?,?,?,?,?,?)`,
-      [id, referral_id, invoice_id, rule_id, base_amount, commission_amount, rule.currency||'SGD']);
+      [id, referral_id, invoice_id, rule_id, base_amount, commission_amount, rule.currency||_getSettingRaw('default_currency', 'SGD')]);
     audit(req, 'CREATE', 'commission_payouts', id, { referral_id, base_amount, commission_amount });
     res.json({ id, base_amount, commission_amount, status: 'pending' });
   });

@@ -137,7 +137,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
         db.run(`INSERT INTO survey_links (id,case_id,token) VALUES (?,?,?)`, [uuidv4(), req.params.id, token]);
         link = { token };
       }
-      const surveyUrl = `${req.protocol}://${req.get('host')}/survey/${link.token}`;
+      const _appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+      const surveyUrl = `${_appUrl}/survey/${link.token}`;
       const ic = db.get(`SELECT program_name, student_name FROM intake_cases WHERE id=?`, [req.params.id]);
       res.json({ ok: true, survey_url: surveyUrl });
       sendMail(email,
@@ -153,12 +154,14 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
   apiRouter.post('/intake-cases/:id/survey-link', requireAdmissionModule, (req, res) => {
     const existing = db.get('SELECT * FROM survey_links WHERE case_id=?', [req.params.id]);
     if (existing) {
-      const url = `${req.protocol}://${req.get('host')}/survey/${existing.token}`;
+      const _appUrl2 = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+      const url = `${_appUrl2}/survey/${existing.token}`;
       return res.json({ url, token: existing.token, existing: true });
     }
     const token = uuidv4();
     db.run(`INSERT INTO survey_links (id,case_id,token) VALUES (?,?,?)`, [uuidv4(), req.params.id, token]);
-    const url = `${req.protocol}://${req.get('host')}/survey/${token}`;
+    const _appUrl3 = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const url = `${_appUrl3}/survey/${token}`;
     res.json({ url, token, existing: false });
   });
 

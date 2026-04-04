@@ -6,6 +6,13 @@ const express = require('express');
 module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload, fileStorage, moveUploadedFile, sendMail, escHtml, brandedEmail, crypto, bcrypt, BCRYPT_COST, pdfGenerator, UPLOAD_DIR, fs, path, agentCallAttempts, AGENT_CALL_MAX, AGENT_CALL_WINDOW_MS }) {
   const router = express.Router();
 
+  function _getSetting(key, fallback) {
+    try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? JSON.parse(r[0].values[0][0]) : fallback; } catch(e) { return fallback; }
+  }
+  function _getSettingRaw(key, fallback) {
+    try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? r[0].values[0][0] : fallback; } catch(e) { return fallback; }
+  }
+
   // ═══════════════════════════════════════════════════════
   //  AGENT 自助门户（仅 agent 角色访问自身数据）
   // ═══════════════════════════════════════════════════════
@@ -79,7 +86,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     db.run(`UPDATE mat_magic_tokens SET status='REVOKED' WHERE request_id=? AND status='ACTIVE'`, [requestId]);
     const token = _matGenerateToken();
     const id = uuidv4();
-    const _tokenHours = (() => { try { const r = db.exec("SELECT value FROM settings WHERE key='agent_token_expiry_hours'"); return r.length ? parseInt(r[0].values[0][0]) : 72; } catch(e) { return 72; } })();
+    const _tokenHours = parseInt(_getSettingRaw('agent_token_expiry_hours', '72'));
     const expiresAt = new Date(Date.now() + _tokenHours * 3600 * 1000).toISOString();
     db.run(`INSERT INTO mat_magic_tokens (id,token,request_id,contact_id,status,expires_at) VALUES (?,?,?,?,?,?)`,
       [id, token, requestId, contactId, 'ACTIVE', expiresAt]);
@@ -189,13 +196,13 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
   router.get('/mat-requests', requireAuth, requireRole('principal','counselor','intake_staff'), (req, res) => {
     const { status, company_id } = req.query;
     let sql = `SELECT mr.*,
-      mc.name as company_name, ct.name as contact_name, ct.email as contact_email,
+      a.name as company_name, ct.name as contact_name, ct.email as contact_email,
       s.name as student_name,
       (SELECT count(*) FROM mat_request_items WHERE request_id=mr.id) as item_total,
       (SELECT count(*) FROM mat_request_items WHERE request_id=mr.id AND status='APPROVED') as item_approved
       FROM mat_requests mr
-      JOIN mat_companies mc ON mr.company_id=mc.id
-      JOIN mat_contacts ct ON mr.contact_id=ct.id
+      LEFT JOIN agents a ON mr.company_id=a.id
+      LEFT JOIN mat_contacts ct ON mr.contact_id=ct.id
       LEFT JOIN students s ON mr.student_id=s.id
       WHERE 1=1`;
     const params = [];
@@ -238,11 +245,11 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
 
   router.get('/mat-requests/:id', requireAuth, requireRole('principal','counselor','intake_staff'), (req, res) => {
     const r = db.get(`SELECT mr.*,
-      mc.name as company_name, ct.name as contact_name, ct.email as contact_email, ct.phone as contact_phone,
+      a.name as company_name, ct.name as contact_name, ct.email as contact_email, ct.phone as contact_phone,
       s.name as student_name
       FROM mat_requests mr
-      JOIN mat_companies mc ON mr.company_id=mc.id
-      JOIN mat_contacts ct ON mr.contact_id=ct.id
+      LEFT JOIN agents a ON mr.company_id=a.id
+      LEFT JOIN mat_contacts ct ON mr.contact_id=ct.id
       LEFT JOIN students s ON mr.student_id=s.id
       WHERE mr.id=?`, [req.params.id]);
     if (!r) return res.status(404).json({ error: 'Not found' });
@@ -395,9 +402,9 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     const v = _matValidateToken(token, req.ip);
     if (v.error) return res.status(v.status).json({ error: v.error });
     const contact = db.get(`SELECT id,name,email,phone FROM mat_contacts WHERE id=?`, [v.rec.contact_id]);
-    const r = db.get(`SELECT mr.*,mc.name as company_name FROM mat_requests mr
-      JOIN mat_companies mc ON mr.company_id=mc.id WHERE mr.id=?`, [v.rec.request_id]);
-    if (!r) return res.status(404).json({ error: 'Request not found' });
+    const r = db.get(`SELECT mr.*,a.name as company_name FROM mat_requests mr
+      LEFT JOIN agents a ON mr.company_id=a.id WHERE mr.id=?`, [v.rec.request_id]);
+    if (!r) return res.status(404).json({ error: 'REQUEST_NOT_FOUND' });
     if (['CANCELLED', 'COMPLETED'].includes(r.status)) return res.status(403).json({ error: `REQUEST_${r.status}` });
     r.return_reason = r.return_reason || null;
     r.editable = ['PENDING','IN_PROGRESS','REVISION_NEEDED'].includes(r.status);
@@ -409,10 +416,11 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     if (!_agentRateLimit(token, res)) return;
     const v = _matValidateToken(token, req.ip);
     if (v.error) return res.status(v.status).json({ error: v.error });
-    const r = db.get(`SELECT mr.*,mc.name as company_name,ct.name as contact_name
-      FROM mat_requests mr JOIN mat_companies mc ON mr.company_id=mc.id
-      JOIN mat_contacts ct ON mr.contact_id=ct.id WHERE mr.id=?`, [v.rec.request_id]);
-    if (['CANCELLED', 'COMPLETED'].includes(r?.status)) return res.status(403).json({ error: `REQUEST_${r.status}` });
+    const r = db.get(`SELECT mr.*,a.name as company_name,ct.name as contact_name
+      FROM mat_requests mr LEFT JOIN agents a ON mr.company_id=a.id
+      LEFT JOIN mat_contacts ct ON mr.contact_id=ct.id WHERE mr.id=?`, [v.rec.request_id]);
+    if (!r) return res.status(404).json({ error: 'REQUEST_NOT_FOUND' });
+    if (['CANCELLED', 'COMPLETED'].includes(r.status)) return res.status(403).json({ error: `REQUEST_${r.status}` });
     r.items = db.all(`SELECT * FROM mat_request_items WHERE request_id=? ORDER BY sort_order`, [v.rec.request_id]);
     r.uif = db.get(`SELECT * FROM mat_uif_submissions WHERE request_id=?`, [v.rec.request_id])
              || { data: '{}', status: 'DRAFT' };
@@ -658,7 +666,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
       const contact = db.get(`SELECT name,email FROM mat_contacts WHERE id=?`, [mr.contact_id]);
       const tk = db.get(`SELECT token FROM mat_magic_tokens WHERE request_id=? AND status='ACTIVE'`, [req.params.id]);
       if (contact?.email && tk) {
-        const link = `${req.protocol}://${req.get('host')}/agent.html?token=${tk.token}`;
+        const _baseUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+        const link = `${_baseUrl}/agent.html?token=${tk.token}`;
 
         let sections = '';
         sections += `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:14px;margin:0 0 16px;">
@@ -724,7 +733,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
         const tk = db.get(`SELECT token FROM mat_magic_tokens WHERE request_id=? AND status='ACTIVE' ORDER BY created_at DESC LIMIT 1`, [mr.id]);
         const contact = db.get(`SELECT c.name, c.email FROM mat_contacts c JOIN mat_requests mr ON mr.contact_id=c.id WHERE mr.id=?`, [mr.id]);
         if (tk && contact) {
-          const link = `${req.protocol}://${req.get('host')}/agent.html?token=${tk.token}`;
+          const _baseUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+          const link = `${_baseUrl}/agent.html?token=${tk.token}`;
           const itemList = added.map(a => `<li>${escHtml(a.name)}${a.is_required ? ' <span style="color:#dc2626">(必须)</span>' : ' (可选)'}</li>`).join('');
           const _em = brandedEmail(
             `<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:6px;padding:14px;margin:0 0 16px;">

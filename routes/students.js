@@ -203,6 +203,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   router.delete('/students/:id', requireRole('principal'), (req, res) => {
     const { id } = req.params;
     db.run('UPDATE students SET status="deleted" WHERE id=?', [id]);
+    db.run("UPDATE applications SET status='withdrawn', notes=COALESCE(notes,'')||' [学生已删除]', updated_at=datetime('now') WHERE student_id=? AND status NOT IN ('withdrawn','rejected')", [id]);
+    db.run("UPDATE milestone_tasks SET status='cancelled', updated_at=datetime('now') WHERE student_id=? AND status NOT IN ('done','cancelled')", [id]);
     audit(req, 'DELETE', 'students', id, null);
     res.json({ ok: true });
   });

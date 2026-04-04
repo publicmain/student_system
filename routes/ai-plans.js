@@ -41,10 +41,15 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiPlann
   router.get('/students/:id/ai-plan', requireAuth, (req, res) => {
     const u = req.session.user;
     const sid = req.params.id;
+    if (['agent', 'student_admin', 'intake_staff'].includes(u.role)) return res.status(403).json({ error: '权限不足' });
     if (u.role === 'student' && u.linked_id !== sid) return res.status(403).json({ error: '无权访问' });
     if (u.role === 'parent') {
       const sp = db.get('SELECT id FROM student_parents WHERE student_id=? AND parent_id=?', [sid, u.linked_id]);
       if (!sp) return res.status(403).json({ error: '无权访问' });
+    }
+    if (u.role === 'mentor' || u.role === 'counselor') {
+      const ma = db.get('SELECT 1 FROM mentor_assignments WHERE student_id=? AND staff_id=?', [sid, u.linked_id]);
+      if (!ma) return res.status(403).json({ error: '无权访问' });
     }
     const role = u.role;
     const restrictToPublished = (role === 'parent' || role === 'student');

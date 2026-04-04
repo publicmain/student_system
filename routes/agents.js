@@ -140,9 +140,6 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
   router.post('/commissions/apply', requireRole('principal'), (req, res) => {
     const { referral_id, invoice_id, rule_id } = req.body;
     if (!referral_id || !invoice_id || !rule_id) return res.status(400).json({ error: '缺少必填字段' });
-    // Prevent duplicate commission for same referral + invoice
-    const duplicate = db.get('SELECT id FROM commission_payouts WHERE referral_id=? AND invoice_id=? AND status != "void"', [referral_id, invoice_id]);
-    if (duplicate) return res.status(409).json({ error: '该推荐人和账单已存在有效佣金记录，不能重复创建' });
     const rule = db.get('SELECT * FROM commission_rules WHERE id=?', [rule_id]);
     if (!rule) return res.status(404).json({ error: '规则不存在' });
     const reconResult = db.get('SELECT COALESCE(SUM(paid_amount),0) as total FROM finance_payments WHERE invoice_id=? AND reconciled=1', [invoice_id]);
@@ -152,8 +149,18 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     if (rule.type !== 'percent' && (rule.fixed_amount == null)) return res.status(400).json({ error: '佣金规则缺少 fixed_amount 字段' });
     const commission_amount = rule.type === 'percent' ? base_amount * rule.rate : rule.fixed_amount;
     const id = uuidv4();
-    db.run(`INSERT INTO commission_payouts (id,referral_id,invoice_id,rule_id,base_amount,commission_amount,currency) VALUES (?,?,?,?,?,?,?)`,
-      [id, referral_id, invoice_id, rule_id, base_amount, commission_amount, rule.currency||_getSettingRaw('default_currency', 'SGD')]);
+    try {
+      db.transaction(runInTx => {
+        // Atomic duplicate check + insert to prevent race conditions
+        const duplicate = db.get('SELECT id FROM commission_payouts WHERE referral_id=? AND invoice_id=? AND status != "void"', [referral_id, invoice_id]);
+        if (duplicate) throw new Error('DUPLICATE');
+        runInTx(`INSERT INTO commission_payouts (id,referral_id,invoice_id,rule_id,base_amount,commission_amount,currency) VALUES (?,?,?,?,?,?,?)`,
+          [id, referral_id, invoice_id, rule_id, base_amount, commission_amount, rule.currency||_getSettingRaw('default_currency', 'SGD')]);
+      });
+    } catch(e) {
+      if (e.message === 'DUPLICATE') return res.status(409).json({ error: '该推荐人和账单已存在有效佣金记录，不能重复创建' });
+      return res.status(500).json({ error: '创建佣金失败: ' + e.message });
+    }
     audit(req, 'CREATE', 'commission_payouts', id, { referral_id, base_amount, commission_amount });
     res.json({ id, base_amount, commission_amount, status: 'pending' });
   });

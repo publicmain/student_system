@@ -2,6 +2,13 @@
  * routes/staff.js — 教职工CRUD及资质管理
  */
 const express = require('express');
+const crypto = require('crypto');
+
+function generatePassword(length = 12) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+  const bytes = crypto.randomBytes(length);
+  return Array.from(bytes, b => chars[b % chars.length]).join('');
+}
 
 module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, bcrypt, BCRYPT_COST }) {
   const router = express.Router();
@@ -26,11 +33,12 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, bcrypt,
       [id, name, role, JSON.stringify(subjects||[]), JSON.stringify(exam_board_exp||[]), capacity_students||20, email||'', phone||'', now, now]);
     // 创建用户账号（must_change_password=1 强制首次登录修改密码）
     const username = `staff_${name.replace(/\s/g,'')}_${Date.now()}`.substring(0,20);
-    const pw = bcrypt.hashSync('123456', BCRYPT_COST);
+    const initialPassword = generatePassword();
+    const pw = bcrypt.hashSync(initialPassword, BCRYPT_COST);
     db.run(`INSERT INTO users (id,username,password,role,linked_id,name,created_at,must_change_password) VALUES (?,?,?,?,?,?,?,1)`,
       [uuidv4(), username, pw, role, id, name, now]);
     audit(req, 'CREATE', 'staff', id, { name, role });
-    res.json({ id, username, message: '账号已创建，初始密码为 123456，首次登录后系统将强制修改密码' });
+    res.json({ id, username, password: initialPassword, message: '账号已创建，初始密码为随机生成，首次登录后系统将强制修改密码' });
   });
 
   router.get('/staff/:id', requireAuth, (req, res) => {
@@ -58,7 +66,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, bcrypt,
     if (!staff) return res.status(404).json({ error: '教职工不存在' });
     const user = db.get('SELECT * FROM users WHERE linked_id=?', [req.params.id]);
     if (!user) return res.status(404).json({ error: '该教职工没有关联的登录账号' });
-    const newPassword = '123456';
+    const newPassword = generatePassword();
     const pw = bcrypt.hashSync(newPassword, BCRYPT_COST);
     db.run('UPDATE users SET password=?, must_change_password=1 WHERE id=?', [pw, user.id]);
     audit(req, 'RESET_PASSWORD', 'staff', req.params.id, { name: staff.name });

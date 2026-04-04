@@ -42,19 +42,48 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     res.json({ application: app, tasks, materials, personal_statement: ps });
   });
 
+  // ── Application Status State Machine ──
+  const ALLOWED_TRANSITIONS = {
+    'pending':              ['applied', 'withdrawn'],
+    'applied':              ['conditional_offer', 'unconditional_offer', 'rejected', 'withdrawn'],
+    'conditional_offer':    ['unconditional_offer', 'firm', 'insurance', 'withdrawn'],
+    'unconditional_offer':  ['firm', 'insurance', 'withdrawn'],
+    'rejected':             [],
+    'withdrawn':            ['pending'],
+    'firm':                 ['withdrawn'],
+    'insurance':            ['withdrawn'],
+  };
+
   router.put('/applications/:id', requireRole('principal','counselor'), (req, res) => {
     const { uni_name, department, tier, cycle_year, route, submit_deadline, submit_date, grade_type_used,
       offer_date, offer_type, conditions, firm_choice, insurance_choice, status, notes } = req.body;
+
+    // ── Validate status transition ──
+    if (status !== undefined) {
+      const current = db.get('SELECT status FROM applications WHERE id=?', [req.params.id]);
+      if (!current) return res.status(404).json({ error: '申请不存在' });
+      if (status !== current.status) {
+        const allowed = ALLOWED_TRANSITIONS[current.status];
+        if (!allowed || !allowed.includes(status)) {
+          return res.status(400).json({ error: `不允许从 "${current.status}" 转为 "${status}"` });
+        }
+      }
+    }
 
     // UCAS Reference Gating: UK-UG applications cannot be marked 'applied' unless a Reference task is done
     if (status === 'applied' && (route || '') === 'UK-UG') {
       const app = db.get('SELECT * FROM applications WHERE id=?', [req.params.id]);
       if (app) {
         const _refKeywords = _getSetting('reference_task_keywords', ['reference%','推荐信%','参考人%']);
-        const _refCond = _refKeywords.map(k => `LOWER(title) LIKE '%${k.replace(/%/g,'').toLowerCase()}%'`).join(' OR ');
+        const _refCondParts = [];
+        const _refParams = [];
+        for (const k of _refKeywords) {
+          _refCondParts.push('LOWER(title) LIKE ?');
+          _refParams.push('%' + k.replace(/%/g, '').toLowerCase() + '%');
+        }
         const refTask = db.get(
-          `SELECT id FROM milestone_tasks WHERE student_id=? AND status='done' AND (${_refCond})`,
-          [app.student_id]
+          `SELECT id FROM milestone_tasks WHERE student_id=? AND status='done' AND (${_refCondParts.join(' OR ')})`,
+          [app.student_id, ..._refParams]
         );
         if (!refTask) {
           return res.status(422).json({ error: 'UCAS申请无法标记为"已提交"：推荐信/Reference任务尚未完成（标记为"已完成"）。请先确认推荐人已完成并提交Reference，再更新申请状态。' });
@@ -85,11 +114,16 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   router.delete('/applications/:id', requireRole('principal','counselor'), (req, res) => {
     const app = db.get('SELECT * FROM applications WHERE id=?', [req.params.id]);
     if (!app) return res.status(404).json({ error: '申请不存在' });
-    db.run('DELETE FROM applications WHERE id=?', [req.params.id]);
-    // Clean up related records
-    db.run('DELETE FROM milestone_tasks WHERE application_id=?', [req.params.id]);
-    db.run('DELETE FROM material_items WHERE application_id=?', [req.params.id]);
-    db.run('DELETE FROM personal_statements WHERE application_id=?', [req.params.id]);
+    try {
+      db.transaction(runInTx => {
+        runInTx('DELETE FROM milestone_tasks WHERE application_id=?', [req.params.id]);
+        runInTx('DELETE FROM material_items WHERE application_id=?', [req.params.id]);
+        runInTx('DELETE FROM personal_statements WHERE application_id=?', [req.params.id]);
+        runInTx('DELETE FROM applications WHERE id=?', [req.params.id]);
+      });
+    } catch(e) {
+      return res.status(500).json({ error: '删除失败: ' + e.message });
+    }
     audit(req, 'DELETE', 'applications', req.params.id, { uni_name: app.uni_name });
     res.json({ ok: true });
   });

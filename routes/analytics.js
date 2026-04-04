@@ -127,6 +127,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
 
   // ── 院校专业库 CRUD ───────────────────────────────────
   router.get('/uni-programs', requireAuth, (req, res) => {
+    if (['agent', 'student_admin'].includes(req.session.user.role)) return res.status(403).json({ error: '权限不足' });
     const { country, route, search, uni_name } = req.query;
     let where = ['is_active=1'];
     let params = [];
@@ -139,6 +140,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
   });
 
   router.get('/uni-programs/:id', requireAuth, (req, res) => {
+    if (['agent', 'student_admin'].includes(req.session.user.role)) return res.status(403).json({ error: '权限不足' });
     const prog = db.get('SELECT * FROM uni_programs WHERE id=?', [req.params.id]);
     if (!prog) return res.status(404).json({ error: '专业不存在' });
     const history = db.all('SELECT * FROM school_admission_history WHERE program_id=? ORDER BY cycle_year DESC', [req.params.id]);
@@ -219,6 +221,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
   //  基准评估库 CRUD
   // ════════════════════════════════════════════════════════
   router.get('/eval-benchmarks', requireAuth, (req, res) => {
+    if (['agent', 'student_admin'].includes(req.session.user.role)) return res.status(403).json({ error: '权限不足' });
     const { country, tier, subject_area } = req.query;
     const where = ['is_active=1'];
     const params = [];
@@ -230,6 +233,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
   });
 
   router.get('/eval-benchmarks/:id', requireAuth, (req, res) => {
+    if (['agent', 'student_admin'].includes(req.session.user.role)) return res.status(403).json({ error: '权限不足' });
     const bm = db.get('SELECT * FROM eval_benchmarks WHERE id=?', [req.params.id]);
     if (!bm) return res.status(404).json({ error: '基准不存在' });
     res.json(bm);
@@ -567,10 +571,15 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
   // ── 获取学生所有评估记录 ───────────────────────────────
   router.get('/students/:id/admission-evals', requireAuth, (req, res) => {
     const u = req.session.user; const sid = req.params.id;
+    if (['agent', 'student_admin', 'intake_staff'].includes(u.role)) return res.status(403).json({ error: '权限不足' });
     if (u.role === 'student' && u.linked_id !== sid) return res.status(403).json({ error: '无权访问' });
     if (u.role === 'parent') {
       const sp = db.get('SELECT id FROM student_parents WHERE student_id=? AND parent_id=?', [sid, u.linked_id]);
       if (!sp) return res.status(403).json({ error: '无权访问' });
+    }
+    if (u.role === 'mentor' || u.role === 'counselor') {
+      const ma = db.get('SELECT 1 FROM mentor_assignments WHERE student_id=? AND staff_id=?', [sid, u.linked_id]);
+      if (!ma) return res.status(403).json({ error: '无权访问' });
     }
     const evals = db.all(`
       SELECT ae.*, up.uni_name, up.program_name, up.department, up.country, up.route
@@ -583,6 +592,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
 
   // ── 获取单条评估详情 ──────────────────────────────────
   router.get('/admission-evals/:id', requireAuth, (req, res) => {
+    const u = req.session.user;
+    if (['agent', 'student_admin', 'intake_staff'].includes(u.role)) return res.status(403).json({ error: '权限不足' });
     const ev = db.get(`
       SELECT ae.*, up.uni_name, up.program_name, up.department, up.country, up.route,
              up.grade_requirements, up.extra_tests, up.ielts_overall, up.toefl_overall,
@@ -591,7 +602,6 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
       JOIN uni_programs up ON up.id = ae.program_id
       WHERE ae.id=?`, [req.params.id]);
     if (!ev) return res.status(404).json({ error: '评估不存在' });
-    const u = req.session.user;
     if (u.role === 'student' && u.linked_id !== ev.student_id) return res.status(403).json({ error: '无权访问' });
     if (u.role === 'parent') {
       const sp = db.get('SELECT 1 FROM student_parents WHERE student_id=? AND parent_id=?', [ev.student_id, u.linked_id]);
@@ -698,10 +708,15 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
 
   router.get('/students/:id/benchmark-evals', requireAuth, (req, res) => {
     const u = req.session.user; const sid = req.params.id;
+    if (['agent', 'student_admin', 'intake_staff'].includes(u.role)) return res.status(403).json({ error: '权限不足' });
     if (u.role === 'student' && u.linked_id !== sid) return res.status(403).json({ error: '无权访问' });
     if (u.role === 'parent') {
       const sp = db.get('SELECT id FROM student_parents WHERE student_id=? AND parent_id=?', [sid, u.linked_id]);
       if (!sp) return res.status(403).json({ error: '无权访问' });
+    }
+    if (u.role === 'mentor' || u.role === 'counselor') {
+      const ma = db.get('SELECT 1 FROM mentor_assignments WHERE student_id=? AND staff_id=?', [sid, u.linked_id]);
+      if (!ma) return res.status(403).json({ error: '无权访问' });
     }
     const rows = db.all(`SELECT be.*, eb.country, eb.tier, eb.subject_area, eb.display_name, eb.benchmark_pass_rate, eb.grade_requirements, eb.ielts_overall
       FROM benchmark_evaluations be JOIN eval_benchmarks eb ON eb.id=be.benchmark_id
@@ -710,11 +725,18 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
   });
 
   router.get('/benchmark-evals/:id', requireAuth, (req, res) => {
+    if (['agent', 'student_admin', 'intake_staff'].includes(req.session.user.role)) return res.status(403).json({ error: '权限不足' });
     const ev = db.get(`SELECT be.*, eb.country, eb.tier, eb.subject_area, eb.display_name,
       eb.benchmark_pass_rate, eb.grade_requirements, eb.extra_tests, eb.ielts_overall, eb.toefl_overall,
       eb.weight_academic, eb.weight_language, eb.weight_extra, eb.grade_type, eb.notes as benchmark_notes
       FROM benchmark_evaluations be JOIN eval_benchmarks eb ON eb.id=be.benchmark_id WHERE be.id=?`, [req.params.id]);
     if (!ev) return res.status(404).json({ error: '评估不存在' });
+    const u = req.session.user;
+    if (u.role === 'student' && u.linked_id !== ev.student_id) return res.status(403).json({ error: '无权访问' });
+    if (u.role === 'parent') {
+      const sp = db.get('SELECT 1 FROM student_parents WHERE student_id=? AND parent_id=?', [ev.student_id, u.linked_id]);
+      if (!sp) return res.status(403).json({ error: '无权访问' });
+    }
     res.json(ev);
   });
 

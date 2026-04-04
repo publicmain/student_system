@@ -51,10 +51,15 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
 
   router.get('/notifications', requireAuth, (req, res) => {
     const u = req.session.user;
+    // agent 无权查看系统通知
+    if (u.role === 'agent') return res.status(403).json({ error: '权限不足' });
     let where = [];
     let params = [];
     if (u.role === 'student') {
       where.push('n.student_id=?'); params.push(u.linked_id);
+    } else if (u.role === 'parent') {
+      where.push('n.student_id IN (SELECT student_id FROM student_parents WHERE parent_id=?)');
+      params.push(u.linked_id);
     } else if (u.role === 'mentor') {
       where.push('n.student_id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?)');
       params.push(u.linked_id);

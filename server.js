@@ -32,7 +32,7 @@ if (IS_PROD) app.set('trust proxy', 1);
 
 // ── 限流配置 ──────────────────────────────────────────
 const loginAttempts = new Map();
-const LOGIN_MAX_ATTEMPTS = 10;
+const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const pwdChangeAttempts = new Map();
 const PWD_CHANGE_MAX = 5;
@@ -132,6 +132,26 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ── 输入消毒：剥离所有请求体字符串中的 HTML 标签 ──
+function stripHtmlTags(s) { return String(s).replace(/<[^>]*>/g, ''); }
+function sanitizeBody(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  for (const key of Object.keys(obj)) {
+    if (typeof obj[key] === 'string') {
+      obj[key] = stripHtmlTags(obj[key]);
+    } else if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
+      sanitizeBody(obj[key]);
+    }
+  }
+  return obj;
+}
+app.use((req, _res, next) => {
+  if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body && typeof req.body === 'object') {
+    sanitizeBody(req.body);
+  }
+  next();
+});
+
 const sessionStore = new SQLiteSessionStore();
 
 app.use(session({
@@ -139,19 +159,55 @@ app.use(session({
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: true,
-  rolling: true,
+  rolling: false,
   name: 'ssid',
   cookie: {
-    maxAge: 8 * 60 * 60 * 1000,
+    maxAge: IS_PROD ? 30 * 60 * 1000 : 8 * 60 * 60 * 1000,  // 生产30分钟，开发8小时
     httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.COOKIE_SECURE === 'true',
+    sameSite: IS_PROD ? 'strict' : 'lax',
+    secure: IS_PROD || process.env.COOKIE_SECURE === 'true',
   }
 }));
 
 // ── CSRF 防护 ────────────────────────────────────────
 app.use((req, res, next) => {
   if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method) && req.path.startsWith('/api/')) {
+    // 登出不需要请求体，豁免 CSRF content-type 检查
+    if (req.path === '/api/auth/logout') return next();
+    // 公开 token 端点（agent portal, orientation）豁免 Origin 检查
+    if (req.path.startsWith('/api/s/')) return next();
+
+    // Origin/Referer 验证 — 防止跨站请求伪造
+    const origin = req.headers['origin'];
+    const referer = req.headers['referer'];
+    const host = req.headers['host'];
+    const appUrl = process.env.APP_URL;
+    if (origin) {
+      const allowed = [host, appUrl].filter(Boolean).some(h =>
+        origin === h || origin === `https://${h}` || origin === `http://${h}`);
+      if (!allowed) {
+        return res.status(403).json({ error: 'CSRF 校验失败：请求来源不合法' });
+      }
+    } else if (referer) {
+      try {
+        const refOrigin = new URL(referer).origin;
+        const allowed = [host, appUrl].filter(Boolean).some(h =>
+          refOrigin === h || refOrigin === `https://${h}` || refOrigin === `http://${h}`);
+        if (!allowed) {
+          return res.status(403).json({ error: 'CSRF 校验失败：请求来源不合法' });
+        }
+      } catch(e) { /* invalid referer, fall through to content-type check */ }
+    }
+
+    // Content-Type 检查 — 二次防线
+    // DELETE 请求通常无请求体，允许空 content-type
+    if (req.method === 'DELETE') {
+      const ct = (req.headers['content-type'] || '').split(';')[0].trim();
+      if (ct && ct !== 'application/json') {
+        return res.status(403).json({ error: 'CSRF 校验失败：不支持此请求内容类型' });
+      }
+      return next();
+    }
     const ct = (req.headers['content-type'] || '').split(';')[0].trim();
     if (ct !== 'application/json' && ct !== 'multipart/form-data') {
       return res.status(403).json({ error: 'CSRF 校验失败：不支持此请求内容类型' });
@@ -336,6 +392,102 @@ app.use('/api', require('./routes/activities')(deps));
 app.use('/api', require('./routes/essays')(deps));
 
 // ═══════════════════════════════════════════════════════
+//  补充路由：别名 & 缺失端点
+// ═══════════════════════════════════════════════════════
+
+// BUG-002: /api/timeline-templates 别名 → settings.js 中的 /api/templates
+app.get('/api/timeline-templates', requireAuth, (req, res) => {
+  const templates = db.all('SELECT * FROM timeline_templates ORDER BY is_system DESC, created_at DESC');
+  templates.forEach(t => {
+    const items = db.all('SELECT COUNT(*) as cnt FROM template_items WHERE template_id=?', [t.id]);
+    t.item_count = items[0]?.cnt || 0;
+  });
+  res.json(templates);
+});
+
+// BUG-003: /api/assessment-types — 返回系统中使用的评估类型
+app.get('/api/assessment-types', requireRole('principal','counselor','mentor','student','parent'), (req, res) => {
+  const types = db.all('SELECT DISTINCT assess_type FROM admission_assessments ORDER BY assess_type');
+  res.json(types.map(t => t.assess_type));
+});
+
+// BUG-003: /api/benchmarks — 从 uni-programs 提取基准数据
+app.get('/api/benchmarks', requireRole('principal','counselor','mentor'), (req, res) => {
+  const programs = db.all(`SELECT id, uni_name, program_name, ielts_overall, toefl_overall,
+    grade_requirements, hist_offer_rate FROM uni_programs WHERE ielts_overall IS NOT NULL OR grade_requirements IS NOT NULL
+    ORDER BY uni_name`);
+  res.json(programs);
+});
+
+// BUG-005: /api/dashboard 根路径 — agent/student_admin 无权访问全局统计
+app.get('/api/dashboard', requireAuth, (req, res) => {
+  if (['agent', 'student_admin'].includes(req.session.user.role)) return res.status(403).json({ error: '权限不足' });
+  const totalStudents = db.get('SELECT COUNT(*) as cnt FROM students WHERE status="active"').cnt;
+  const totalApplications = db.get('SELECT COUNT(*) as cnt FROM applications').cnt;
+  const pendingTasks = db.get('SELECT COUNT(*) as cnt FROM milestone_tasks WHERE status IN ("pending","in_progress")').cnt;
+  const overdueTasks = db.get(`SELECT COUNT(*) as cnt FROM milestone_tasks WHERE status NOT IN ('done') AND due_date < date('now')`).cnt;
+  const totalStaff = db.get('SELECT COUNT(*) as cnt FROM staff').cnt;
+  res.json({ totalStudents, totalApplications, pendingTasks, overdueTasks, totalStaff });
+});
+
+// BUG-005: /api/analytics 根路径 → 返回概要
+app.get('/api/analytics', requireRole('principal','counselor'), (req, res) => {
+  const admissionRate = db.get(`SELECT
+    COUNT(*) as total,
+    SUM(CASE WHEN offer_type IN ('Conditional','Unconditional') THEN 1 ELSE 0 END) as offers,
+    SUM(CASE WHEN status='enrolled' THEN 1 ELSE 0 END) as enrolled
+    FROM applications`);
+  const taskStats = db.all(`SELECT category, COUNT(*) as total,
+    SUM(CASE WHEN status='done' THEN 1 ELSE 0 END) as done,
+    SUM(CASE WHEN status NOT IN ('done') AND due_date < date('now') THEN 1 ELSE 0 END) as overdue
+    FROM milestone_tasks GROUP BY category`);
+  res.json({ admissionRate, taskStats });
+});
+
+// BUG-004: /api/escalation-policy 单数别名 → /api/escalation-policies
+app.get('/api/escalation-policy', requireRole('principal','counselor'), (req, res) => {
+  res.json(db.all('SELECT * FROM escalation_policies ORDER BY created_at'));
+});
+
+// BUG-021: /api/mat-requests 别名 → intake-cases 中的 mat-request 相关
+app.get('/api/mat-requests', requireAuth, (req, res) => {
+  const { intake_case_id, student_id } = req.query;
+  let where = ['1=1'], params = [];
+  if (intake_case_id) { where.push('mr.intake_case_id=?'); params.push(intake_case_id); }
+  if (student_id) { where.push('ic.student_id=?'); params.push(student_id); }
+  const rows = db.all(`SELECT mr.*, ic.student_name FROM mat_requests mr
+    LEFT JOIN intake_cases ic ON ic.id=mr.intake_case_id
+    WHERE ${where.join(' AND ')} ORDER BY mr.created_at DESC`, params);
+  res.json(rows);
+});
+
+// BUG-019: Intake → Student 转换端点
+app.post('/api/intake-cases/:id/convert', requireRole('principal','intake_staff'), (req, res) => {
+  const ic = db.get('SELECT * FROM intake_cases WHERE id=?', [req.params.id]);
+  if (!ic) return res.status(404).json({ error: 'Case 不存在' });
+  if (ic.student_id) return res.status(400).json({ error: '该案例已关联学生，无需重复转换' });
+  if (!['arrived','oriented','closed'].includes(ic.status)) {
+    return res.status(400).json({ error: `只有 arrived/oriented/closed 状态的案例可以转换，当前状态：${ic.status}` });
+  }
+  const studentId = uuidv4();
+  const now = new Date().toISOString();
+  try {
+    db.transaction((run) => {
+      run(`INSERT INTO students (id, name, grade_level, enrol_date, exam_board, status, notes, created_at, updated_at, agent_id) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        [studentId, ic.student_name, 'G12', now.split('T')[0], '', 'active',
+         `从入学案例转换 (${ic.program_name} ${ic.intake_year})`, now, now,
+         // 关联代理
+         ic.referral_id ? (db.get('SELECT agent_id FROM referrals WHERE id=?', [ic.referral_id])?.agent_id || null) : null]);
+      run('UPDATE intake_cases SET student_id=?, updated_at=? WHERE id=?', [studentId, now, req.params.id]);
+    });
+  } catch (e) {
+    return res.status(500).json({ error: '转换失败: ' + e.message });
+  }
+  audit(req, 'CONVERT', 'intake_cases', req.params.id, { student_id: studentId, student_name: ic.student_name });
+  res.json({ ok: true, student_id: studentId, student_name: ic.student_name });
+});
+
+// ═══════════════════════════════════════════════════════
 //  启动辅助
 // ═══════════════════════════════════════════════════════
 
@@ -389,9 +541,18 @@ db.init().then(() => {
   try { db.run("ALTER TABLE intake_cases ADD COLUMN docs_sent_at TEXT"); } catch(e) { /* column exists */ }
   try { db.run("ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0"); } catch(e) { /* column exists */ }
 
-  _ensureAgentDemoAccount();
-  _ensureIntakeStaffDemoAccount();
-  _ensureStudentAdminDemoAccount();
+  // 数据迁移：修复非标准的入学案例状态值
+  try {
+    db.run("UPDATE intake_cases SET status='registered' WHERE status='open'");
+    db.run("UPDATE intake_cases SET status='collecting_docs' WHERE status='collecting docs'");
+  } catch(e) { /* ignore */ }
+
+  // 仅在非生产环境创建演示账号
+  if (!IS_PROD) {
+    _ensureAgentDemoAccount();
+    _ensureIntakeStaffDemoAccount();
+    _ensureStudentAdminDemoAccount();
+  }
 
   sessionStore.setDb(db);
   app.listen(PORT, () => {

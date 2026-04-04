@@ -77,10 +77,21 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     const material = db.get('SELECT mi.*, s.id as student_id FROM material_items mi JOIN students s ON s.id=mi.student_id WHERE mi.file_path=?', [filename]);
     if (!material) return res.status(404).json({ error: '文件不存在' });
 
-    // 权限检查：学生只能下载自己的文件
+    // 权限检查
     const u = req.session.user;
+    if (['agent', 'student_admin'].includes(u.role)) {
+      return res.status(403).json({ error: '无权访问此文件' });
+    }
     if (u.role === 'student' && material.student_id !== u.linked_id) {
       return res.status(403).json({ error: '无权访问此文件' });
+    }
+    if (u.role === 'parent') {
+      const sp = db.get('SELECT 1 FROM student_parents WHERE student_id=? AND parent_id=?', [material.student_id, u.linked_id]);
+      if (!sp) return res.status(403).json({ error: '无权访问此文件' });
+    }
+    if (u.role === 'mentor' || u.role === 'counselor') {
+      const ma = db.get('SELECT 1 FROM mentor_assignments WHERE student_id=? AND staff_id=?', [material.student_id, u.linked_id]);
+      if (!ma) return res.status(403).json({ error: '无权访问此文件' });
     }
 
     const filePath = fileStorage.getFilePath(filename);

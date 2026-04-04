@@ -7,6 +7,11 @@ module.exports = function({ db, requireAuth, requireRole }) {
   const router = express.Router();
 
   router.get('/stats', requireAuth, (req, res) => {
+    const u = req.session.user;
+    // agent 和 student_admin 不应看到全局统计
+    if (['agent', 'student_admin'].includes(u.role)) {
+      return res.status(403).json({ error: '权限不足' });
+    }
     const totalStudents = db.get('SELECT COUNT(*) as cnt FROM students WHERE status="active"').cnt;
     const totalApplications = db.get('SELECT COUNT(*) as cnt FROM applications').cnt;
     const pendingTasks = db.get('SELECT COUNT(*) as cnt FROM milestone_tasks WHERE status IN ("pending","in_progress")').cnt;

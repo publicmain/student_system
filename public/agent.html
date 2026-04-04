@@ -489,11 +489,9 @@ function renderWelcome(){
 }
 
 async function startForm(){
-  console.log('[startForm] entering form mode, demo=', !!S._isDemo);
   S.page='form';
   try{
     await loadWorkspace();
-    console.log('[startForm] workspace loaded, step=', S.step, 'data keys=', Object.keys(S.data).length);
   }catch(e){
     console.error('[startForm] error:', e);
     showError(e.message);
@@ -558,7 +556,6 @@ function renderStepContent(idx){
   const renderers=[rCourse,rPersonal,rPassport,rFamily,rResidence,rEducation,rEmployment,rFinancial,rDeclarations,rSignature,rMaterials,rReview];
   try{
     const html=renderers[idx]?renderers[idx]():'<p>Unknown step</p>';
-    console.log('[renderStep] step',idx,'rendered OK, length=',html.length);
     return html;
   }catch(e){
     console.error('[renderStep] step',idx,'CRASHED:',e);
@@ -881,7 +878,7 @@ function initSig(id){
       } else if(id==='sigGuardian'){
         S.signatures.guardian={sig_data:dataUrl,sig_date:S.data.sig_date||'',signer_name:(S.data.guardian_surname||'')+' '+(S.data.guardian_given_name||'')};
       }
-    }catch(e){console.warn('Sig save on end:',e)}
+    }catch(e){}
   };
   c.addEventListener('mousedown',start);c.addEventListener('mousemove',move);c.addEventListener('mouseup',end);c.addEventListener('mouseleave',end);
   c.addEventListener('touchstart',start,{passive:false});c.addEventListener('touchmove',move,{passive:false});c.addEventListener('touchend',end);
@@ -991,7 +988,7 @@ function attachInputs(){
         const note=document.createElement('div');
         note.className='field-note';
         note.style.cssText='color:#dc2626;font-size:.8rem;margin-top:2px;display:flex;align-items:center;gap:4px';
-        note.innerHTML='<i class="bi bi-exclamation-circle"></i>'+S.fieldNotes[key].replace(/</g,'&lt;');
+        note.innerHTML='<i class="bi bi-exclamation-circle"></i>'+esc(S.fieldNotes[key]);
         el.parentElement.appendChild(note);
       }
     });
@@ -1147,7 +1144,7 @@ function renderApp(){
       </div>
     </div>`;
   attachInputs();
-  }catch(e){console.error('renderApp error:',e);document.getElementById('app').innerHTML='<div class="p-4"><h5 class="text-danger">Render Error</h5><pre>'+e.message+'\\n'+e.stack+'</pre></div>'}
+  }catch(e){console.error('renderApp error:',e);document.getElementById('app').innerHTML='<div class="p-4"><h5 class="text-danger">Render Error</h5><pre>'+esc(e.message)+'\\n'+esc(e.stack)+'</pre></div>'}
 }
 
 // ══════════════════════════════════════════════════

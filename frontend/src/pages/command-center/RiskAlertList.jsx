@@ -68,9 +68,9 @@ export default function RiskAlertList({ sqlAlerts, aiRisks, loading, onFetchAI }
           <p className="text-[11px] text-red-500 py-2">{aiRisks.error}</p>
         )}
 
-        {aiRisks?.risks && (
+        {aiRisks?.alerts && (
           <div className="space-y-1.5">
-            {aiRisks.risks.map((risk, i) => (
+            {aiRisks.alerts.map((risk, i) => (
               <div key={i} className={clsx(
                 'p-2 rounded-lg border text-[11px]',
                 risk.severity === 'high' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'

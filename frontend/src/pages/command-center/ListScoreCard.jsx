@@ -112,10 +112,10 @@ export default function ListScoreCard({ score, loading, onFetch, allApps }) {
           )}
 
           {/* Summary */}
-          {score.summary && (
+          {score.assessment && (
             <div className="p-2 rounded-lg bg-surface-0 dark:bg-slate-800/60 border border-surface-2 dark:border-slate-700">
               <p className="text-[11px] text-ink-secondary dark:text-slate-300 leading-relaxed">
-                {score.summary}
+                {score.assessment}
               </p>
             </div>
           )}

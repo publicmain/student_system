@@ -23,7 +23,7 @@ const statusMap = {
   waitlisted:           { label: '等候名单',   color: 'amber'  },
 }
 
-const tierMap = { reach: { label: '冲刺', color: 'red' }, target: { label: '匹配', color: 'amber' }, safety: { label: '保底', color: 'green' } }
+const tierMap = { '冲刺': { label: '冲刺', color: 'red' }, '意向': { label: '意向', color: 'amber' }, '保底': { label: '保底', color: 'green' }, reach: { label: '冲刺', color: 'red' }, target: { label: '意向', color: 'amber' }, safety: { label: '保底', color: 'green' } }
 
 const columns = [
   { key: 'student_name', label: '学生',   sortable: true  },

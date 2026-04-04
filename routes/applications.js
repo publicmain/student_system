@@ -19,7 +19,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
       return res.status(403).json({ error: '权限不足' });
     }
 
-    let where = ['1=1'], params = [];
+    let where = ['1=1', "a.status != 'deleted'"], params = [];
     const { student_id, status, cycle_year, search } = req.query;
 
     // 角色数据隔离
@@ -67,7 +67,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     }
     if (['agent', 'student_admin'].includes(u.role)) return res.status(403).json({ error: '权限不足' });
 
-    const rows = db.all('SELECT * FROM applications WHERE student_id=? ORDER BY updated_at DESC', [sid]);
+    const rows = db.all("SELECT * FROM applications WHERE student_id=? AND status != 'deleted' ORDER BY updated_at DESC", [sid]);
     res.json(rows);
   });
 
@@ -105,6 +105,11 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   router.put('/applications/:id', requireRole('principal','counselor'), (req, res) => {
     const { uni_name, department, tier, cycle_year, route, submit_deadline, submit_date, grade_type_used,
       offer_date, offer_type, conditions, firm_choice, insurance_choice, status, notes } = req.body;
+
+    const VALID_STATUSES = ['pending','applied','offer','conditional_offer','unconditional_offer','firm','insurance','enrolled','accepted','declined','rejected','withdrawn','waitlisted','draft','deleted'];
+    if (status !== undefined && !VALID_STATUSES.includes(status)) {
+      return res.status(400).json({ error: '无效的申请状态值' });
+    }
 
     // UCAS Reference Gating: UK-UG applications cannot be marked 'applied' unless a Reference task is done
     if (status === 'applied' && (route || '') === 'UK-UG') {
@@ -169,11 +174,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   router.delete('/applications/:id', requireRole('principal','counselor'), (req, res) => {
     const app = db.get('SELECT * FROM applications WHERE id=?', [req.params.id]);
     if (!app) return res.status(404).json({ error: '申请不存在' });
-    db.run('DELETE FROM applications WHERE id=?', [req.params.id]);
-    // Clean up related records
-    db.run('DELETE FROM milestone_tasks WHERE application_id=?', [req.params.id]);
-    db.run('DELETE FROM material_items WHERE application_id=?', [req.params.id]);
-    db.run('DELETE FROM personal_statements WHERE application_id=?', [req.params.id]);
+    db.run("UPDATE applications SET status='deleted', updated_at=? WHERE id=?", [new Date().toISOString(), req.params.id]);
     audit(req, 'DELETE', 'applications', req.params.id, { uni_name: app.uni_name });
     res.json({ ok: true });
   });

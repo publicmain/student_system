@@ -69,6 +69,14 @@ export default function CommandCenterPage() {
           aiOpen={ai.open}
         />
 
+        {/* Empty state for new counselors */}
+        {!cc.loading && cc.allApps?.length === 0 && (
+          <div className="text-center py-16 text-ink-tertiary dark:text-slate-400">
+            <p className="text-lg mb-2">暂无申请数据</p>
+            <p className="text-sm">如果您是新加入的规划师，请联系管理员分配学生后再使用指挥中心。</p>
+          </div>
+        )}
+
         {/* View Area */}
         <AnimatePresence mode="wait">
           {cc.viewMode === 'kanban' && (

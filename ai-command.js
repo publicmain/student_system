@@ -32,12 +32,26 @@ const RISK_SCHEMA = {
 };
 
 exports.analyzeRisks = async function(db, user) {
+  let roleWhere = '', roleParams = [];
+  if (user.role === 'counselor' || user.role === 'mentor') {
+    roleWhere = 'AND a.student_id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?)';
+    roleParams.push(user.linked_id);
+  } else if (user.role === 'parent') {
+    roleWhere = 'AND a.student_id IN (SELECT student_id FROM student_parents WHERE parent_id=?)';
+    roleParams.push(user.linked_id);
+  } else if (user.role === 'student') {
+    roleWhere = 'AND a.student_id=?';
+    roleParams.push(user.linked_id);
+  }
+  // principal: no filter
+
   const apps = db.all(`
     SELECT a.id, a.uni_name, a.department, a.tier, a.status, a.submit_deadline, a.route,
            s.name as student_name
     FROM applications a JOIN students s ON s.id=a.student_id
     WHERE a.status IN ('pending','applied') AND s.status='active'
-    ORDER BY a.submit_deadline ASC LIMIT 50`);
+    ${roleWhere}
+    ORDER BY a.submit_deadline ASC LIMIT 50`, [...roleParams]);
 
   const snapshot = apps.map(a => {
     const tasks = db.all('SELECT title, status, due_date, category FROM milestone_tasks WHERE application_id=? ORDER BY due_date', [a.id]);
@@ -85,11 +99,25 @@ const ACTION_SCHEMA = {
 };
 
 exports.suggestNextActions = async function(db, user) {
+  let roleWhere = '', roleParams = [];
+  if (user.role === 'counselor' || user.role === 'mentor') {
+    roleWhere = 'AND a.student_id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?)';
+    roleParams.push(user.linked_id);
+  } else if (user.role === 'parent') {
+    roleWhere = 'AND a.student_id IN (SELECT student_id FROM student_parents WHERE parent_id=?)';
+    roleParams.push(user.linked_id);
+  } else if (user.role === 'student') {
+    roleWhere = 'AND a.student_id=?';
+    roleParams.push(user.linked_id);
+  }
+  // principal: no filter
+
   const students = db.all(`
     SELECT DISTINCT s.id, s.name, s.grade_level
     FROM students s JOIN applications a ON a.student_id=s.id
     WHERE s.status='active' AND a.status IN ('pending','applied')
-    LIMIT 30`);
+    ${roleWhere}
+    LIMIT 30`, [...roleParams]);
 
   const snapshot = students.map(s => {
     const apps = db.all('SELECT id, uni_name, status, submit_deadline, tier FROM applications WHERE student_id=? AND status IN (\'pending\',\'applied\') ORDER BY submit_deadline', [s.id]);

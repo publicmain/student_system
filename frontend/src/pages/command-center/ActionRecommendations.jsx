@@ -23,9 +23,9 @@ export default function ActionRecommendations({ actions, loading, onFetch }) {
         <p className="text-[11px] text-red-500">{actions.error}</p>
       )}
 
-      {actions?.recommendations && (
+      {actions?.actions && (
         <div className="space-y-2">
-          {actions.recommendations.map((rec, i) => (
+          {actions.actions.map((rec, i) => (
             <motion.div
               key={i}
               initial={{ opacity: 0, y: 8 }}

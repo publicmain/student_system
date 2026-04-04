@@ -38,7 +38,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
 
     const total = db.get(`SELECT COUNT(*) as cnt FROM applications a WHERE 1=1 ${wStr}`, params).cnt;
     const submitted = db.get(`SELECT COUNT(*) as cnt FROM applications a WHERE a.status IN ('applied','submitted') ${wStr}`, params).cnt;
-    const offers = db.get(`SELECT COUNT(*) as cnt FROM applications a WHERE a.status IN ('offer','conditional_offer','unconditional_offer') OR a.offer_type IN ('Conditional','Unconditional') ${wStr}`, params).cnt;
+    const offers = db.get(`SELECT COUNT(*) as cnt FROM applications a WHERE (a.status IN ('offer','conditional_offer','unconditional_offer') OR a.offer_type IN ('Conditional','Unconditional')) ${wStr}`, params).cnt;
 
     // 风险：截止日在 21 天内但状态仍为 pending
     const atRisk = db.get(`SELECT COUNT(*) as cnt FROM applications a

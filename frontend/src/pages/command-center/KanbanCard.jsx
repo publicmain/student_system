@@ -4,8 +4,8 @@ import { clsx } from 'clsx'
 import { GraduationCap, Clock, User } from 'lucide-react'
 import { Badge } from '../../components/ui/Badge.jsx'
 
-const tierLabels = { reach: '冲刺', target: '匹配', safety: '保底' }
-const tierColors = { reach: 'red', target: 'amber', safety: 'green' }
+const tierLabels = { '冲刺': '冲刺', '意向': '意向', '保底': '保底', reach: '冲刺', target: '意向', safety: '保底' }
+const tierColors = { '冲刺': 'red', '意向': 'amber', '保底': 'green', reach: 'red', target: 'amber', safety: 'green' }
 
 export default function KanbanCard({ app, isDragging = false }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({

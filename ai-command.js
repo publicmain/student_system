@@ -53,11 +53,30 @@ exports.analyzeRisks = async function(db, user) {
     ${roleWhere}
     ORDER BY a.submit_deadline ASC LIMIT 50`, [...roleParams]);
 
-  const snapshot = apps.map(a => {
-    const tasks = db.all('SELECT title, status, due_date, category FROM milestone_tasks WHERE application_id=? ORDER BY due_date', [a.id]);
-    const materials = db.all('SELECT title, status, material_type FROM material_items WHERE application_id=?', [a.id]);
-    const ps = db.get('SELECT status, word_count FROM personal_statements WHERE application_id=? ORDER BY version DESC LIMIT 1', [a.id]);
-    return { ...a, student_name: `[学生${a.id.slice(-4)}]`, tasks, materials, ps: ps || null };
+  // 批量查询避免 N+1：一次获取所有 tasks/materials/ps
+  const appIds = apps.map(a => a.id);
+  const allTasks = appIds.length ? db.all(`SELECT application_id, title, status, due_date, category FROM milestone_tasks WHERE application_id IN (${appIds.map(()=>'?').join(',')}) ORDER BY due_date`, appIds) : [];
+  const allMaterials = appIds.length ? db.all(`SELECT application_id, title, status, material_type FROM material_items WHERE application_id IN (${appIds.map(()=>'?').join(',')})`, appIds) : [];
+  const allPS = appIds.length ? db.all(`SELECT application_id, status, word_count FROM personal_statements WHERE application_id IN (${appIds.map(()=>'?').join(',')}) ORDER BY version DESC`, appIds) : [];
+
+  const tasksByApp = new Map(), matsByApp = new Map(), psByApp = new Map();
+  allTasks.forEach(t => { if (!tasksByApp.has(t.application_id)) tasksByApp.set(t.application_id, []); tasksByApp.get(t.application_id).push(t); });
+  allMaterials.forEach(m => { if (!matsByApp.has(m.application_id)) matsByApp.set(m.application_id, []); matsByApp.get(m.application_id).push(m); });
+  allPS.forEach(p => { if (!psByApp.has(p.application_id)) psByApp.set(p.application_id, p); }); // first = latest version
+
+  // 匿名化：用索引代替真实 ID 发送给 AI
+  const idMap = new Map(); // ref -> real id
+  const snapshot = apps.map((a, i) => {
+    const ref = `APP_${i}`;
+    idMap.set(ref, a.id);
+    return {
+      ref, uni_name: a.uni_name, department: a.department, tier: a.tier,
+      status: a.status, submit_deadline: a.submit_deadline, route: a.route,
+      student_ref: `学生${i}`,
+      tasks: (tasksByApp.get(a.id) || []).map(t => ({ title: t.title, status: t.status, due_date: t.due_date, category: t.category })),
+      materials: (matsByApp.get(a.id) || []).map(m => ({ title: m.title, status: m.status, material_type: m.material_type })),
+      ps: psByApp.get(a.id) || null,
+    };
   });
 
   const client = new OpenAI();
@@ -71,7 +90,16 @@ exports.analyzeRisks = async function(db, user) {
     temperature: 0.3
   });
 
-  return JSON.parse(resp.choices[0].message.content);
+  const content = resp.choices?.[0]?.message?.content;
+  if (!content) throw new Error('AI 未返回有效内容');
+  const result = JSON.parse(content);
+  // 将匿名 ref 映射回真实 application_id
+  if (result.alerts) {
+    result.alerts.forEach(a => {
+      if (idMap.has(a.application_id)) a.application_id = idMap.get(a.application_id);
+    });
+  }
+  return result;
 };
 
 // ═══════════════════════════════════════════════════════
@@ -119,28 +147,37 @@ exports.suggestNextActions = async function(db, user) {
     ${roleWhere}
     LIMIT 30`, [...roleParams]);
 
-  const snapshot = students.map(s => {
-    const apps = db.all('SELECT id, uni_name, status, submit_deadline, tier FROM applications WHERE student_id=? AND status IN (\'pending\',\'applied\') ORDER BY submit_deadline', [s.id]);
+  // 匿名化：用索引 ref 代替真实 student_id
+  const studentIdMap = new Map(); // ref -> real student
+  const snapshot = students.map((s, i) => {
+    const ref = `STU_${i}`;
+    studentIdMap.set(ref, s);
+    const apps = db.all('SELECT uni_name, status, submit_deadline, tier FROM applications WHERE student_id=? AND status IN (\'pending\',\'applied\') ORDER BY submit_deadline', [s.id]);
     const pendingTasks = db.all('SELECT title, due_date, status, category FROM milestone_tasks WHERE student_id=? AND status NOT IN (\'done\',\'cancelled\') ORDER BY due_date LIMIT 10', [s.id]);
-    return { student_id: s.id, student_ref: `[学生${s.id.slice(-4)}]`, grade_level: s.grade_level, applications: apps, pending_tasks: pendingTasks };
+    return { student_id: ref, student_ref: `[学生${i}]`, grade_level: s.grade_level, applications: apps, pending_tasks: pendingTasks };
   });
 
   const client = new OpenAI();
   const resp = await client.chat.completions.create({
     model: MODEL,
     messages: [
-      { role: 'system', content: '你是一位资深升学规划顾问。根据每个学生的申请进度和待办任务，为每个学生推荐最紧急的一项行动。只基于提供的数据推荐，用中文回复。' },
+      { role: 'system', content: '你是一位资深升学规划顾问。根据每个学生的申请进度和待办任务，为每个学生推荐最紧急的一项行动。只基于提供的数据推荐，用中文回复。student_id 请原样返回。' },
       { role: 'user', content: JSON.stringify({ task: 'next_best_action', today: new Date().toISOString().split('T')[0], students: snapshot }) }
     ],
     response_format: { type: 'json_schema', json_schema: { name: 'next_actions', strict: true, schema: ACTION_SCHEMA } },
     temperature: 0.3
   });
 
-  const result = JSON.parse(resp.choices[0].message.content);
-  // 注入学生真实姓名
+  const content = resp.choices?.[0]?.message?.content;
+  if (!content) throw new Error('AI 未返回有效内容');
+  const result = JSON.parse(content);
+  // 映射匿名 ref 回真实 student_id + 注入姓名
   result.actions.forEach(a => {
-    const s = students.find(st => st.id === a.student_id);
-    if (s) a.student_name = s.name;
+    const s = studentIdMap.get(a.student_id);
+    if (s) {
+      a.student_id = s.id;
+      a.student_name = s.name;
+    }
   });
   return result;
 };
@@ -191,7 +228,9 @@ exports.parseNLQuery = async function(query) {
     temperature: 0.2
   });
 
-  return JSON.parse(resp.choices[0].message.content);
+  const nlqContent = resp.choices?.[0]?.message?.content;
+  if (!nlqContent) throw new Error('AI 未返回有效内容');
+  return JSON.parse(nlqContent);
 };
 
 // ═══════════════════════════════════════════════════════
@@ -244,7 +283,9 @@ exports.evaluateListScore = async function(db, studentId) {
     temperature: 0.3
   });
 
-  const result = JSON.parse(resp.choices[0].message.content);
+  const lsContent = resp.choices?.[0]?.message?.content;
+  if (!lsContent) throw new Error('AI 未返回有效内容');
+  const result = JSON.parse(lsContent);
   result.student_name = student.name;
   result.total_applications = apps.length;
   return result;

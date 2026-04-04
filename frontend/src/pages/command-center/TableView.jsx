@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { clsx } from 'clsx'
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { Badge } from '../../components/ui/Badge.jsx'
+import { daysUntilDeadline } from '../../lib/dateUtils.js'
 
 const statusMap = {
   pending:              { label: '准备中',     color: 'slate'  },
@@ -109,9 +110,7 @@ export default function TableView({ apps, onStatusChange }) {
                 const st = statusMap[app.status] || { label: app.status, color: 'default' }
                 const ti = tierMap[app.tier]
                 const deadline = app.submit_deadline ? app.submit_deadline.slice(0, 10) : '—'
-                const daysLeft = app.submit_deadline
-                  ? Math.ceil((new Date(app.submit_deadline) - new Date()) / 86400000)
-                  : null
+                const daysLeft = daysUntilDeadline(app.submit_deadline)
 
                 return (
                   <tr

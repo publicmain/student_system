@@ -163,14 +163,24 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
     if (!aiCallAttempts) return false;
     const uid = req.session.user.id;
     const now = Date.now();
+    const windowMs = AI_CALL_WINDOW_MS || 60000;
     const attempts = aiCallAttempts.get(uid) || [];
-    const recent = attempts.filter(t => now - t < (AI_CALL_WINDOW_MS || 60000));
+    const recent = attempts.filter(t => now - t < windowMs);
     if (recent.length >= (AI_CALL_MAX || 10)) {
       res.status(429).json({ error: 'AI 调用频率超限，请稍后再试' });
+      aiCallAttempts.set(uid, recent); // 更新为已清理的数组
       return true;
     }
     recent.push(now);
     aiCallAttempts.set(uid, recent);
+    // 定期清理：当 Map 条目过多时移除过期用户
+    if (aiCallAttempts.size > 100) {
+      for (const [key, arr] of aiCallAttempts) {
+        const valid = arr.filter(t => now - t < windowMs);
+        if (valid.length === 0) aiCallAttempts.delete(key);
+        else aiCallAttempts.set(key, valid);
+      }
+    }
     return false;
   }
 
@@ -211,18 +221,29 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
       // 使用解析出的过滤条件查询数据
       const u = req.session.user;
       const { where, params } = _roleFilter(u);
-      if (parsed.filters.status) { where.push('a.status=?'); params.push(parsed.filters.status); }
+
+      // 安全：status 白名单校验（防止 AI 返回 "deleted" 等绕过过滤）
+      const SAFE_STATUSES = ['pending','applied','submitted','offer','conditional_offer','unconditional_offer','firm','insurance','enrolled','accepted','declined','rejected','withdrawn','waitlisted','draft'];
+      if (parsed.filters.status) {
+        if (SAFE_STATUSES.includes(parsed.filters.status)) {
+          where.push('a.status=?'); params.push(parsed.filters.status);
+        }
+      }
       if (parsed.filters.cycle_year) { where.push('a.cycle_year=?'); params.push(parsed.filters.cycle_year); }
       if (parsed.filters.tier) { where.push('a.tier=?'); params.push(parsed.filters.tier); }
       if (parsed.filters.route) { where.push('a.route=?'); params.push(parsed.filters.route); }
       if (parsed.filters.search) { where.push('(a.uni_name LIKE ? OR a.department LIKE ?)'); params.push(`%${parsed.filters.search}%`, `%${parsed.filters.search}%`); }
+      // 安全：限制 uni_names 最多 50 个（防止 AI 返回过多条目拖垮查询）
       if (parsed.filters.uni_names && parsed.filters.uni_names.length) {
-        where.push(`a.uni_name IN (${parsed.filters.uni_names.map(() => '?').join(',')})`);
-        params.push(...parsed.filters.uni_names);
+        const safeNames = parsed.filters.uni_names.slice(0, 50);
+        where.push(`a.uni_name IN (${safeNames.map(() => '?').join(',')})`);
+        params.push(...safeNames);
       }
+      // 排除已删除的数据
+      where.push("a.status != 'deleted'");
       const wStr = where.length ? `WHERE ${where.join(' AND ')}` : '';
       const results = db.all(`SELECT a.*, s.name as student_name FROM applications a
-        LEFT JOIN students s ON s.id=a.student_id ${wStr} ORDER BY a.updated_at DESC`, params);
+        LEFT JOIN students s ON s.id=a.student_id ${wStr} ORDER BY a.updated_at DESC LIMIT 200`, params);
       res.json({ filters: parsed.filters, explanation: parsed.explanation, results });
     } catch(e) {
       console.error('[AI Command] NLQ error:', e.message);

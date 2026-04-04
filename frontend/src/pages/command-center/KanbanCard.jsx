@@ -3,6 +3,7 @@ import { useDraggable } from '@dnd-kit/core'
 import { clsx } from 'clsx'
 import { GraduationCap, Clock, User } from 'lucide-react'
 import { Badge } from '../../components/ui/Badge.jsx'
+import { deadlineStatus } from '../../lib/dateUtils.js'
 
 const tierLabels = { '冲刺': '冲刺', '意向': '意向', '保底': '保底', reach: '冲刺', target: '意向', safety: '保底' }
 const tierColors = { '冲刺': 'red', '意向': 'amber', '保底': 'green', reach: 'red', target: 'amber', safety: 'green' }
@@ -15,21 +16,15 @@ export default function KanbanCard({ app, isDragging = false }) {
   const role = window.__ROLE__
   const isMentor = role === 'mentor'
 
-  const daysUntilDeadline = (() => {
-    if (!app.submit_deadline) return null
-    const d = new Date(app.submit_deadline)
-    if (isNaN(d.getTime())) return null
-    return Math.ceil((d - new Date()) / (1000 * 60 * 60 * 24))
-  })()
-
-  const isUrgent = daysUntilDeadline !== null && daysUntilDeadline <= 7 && daysUntilDeadline >= 0
-  const isOverdue = daysUntilDeadline !== null && daysUntilDeadline < 0
+  const { days: daysUntilDeadline, isUrgent, isOverdue } = deadlineStatus(app.submit_deadline)
 
   return (
     <div
       ref={setNodeRef}
       {...attributes}
       {...(!isMentor ? listeners : {})}
+      role="listitem"
+      aria-label={`${app.student_name || '未知学生'} - ${app.uni_name || '未知院校'}${app.tier ? ` (${tierLabels[app.tier] || app.tier})` : ''}${isOverdue ? ' 已逾期' : isUrgent ? ' 即将截止' : ''}`}
       onPointerDown={() => { hasDragged.current = false }}
       onPointerMove={() => { hasDragged.current = true }}
       onClick={(e) => {

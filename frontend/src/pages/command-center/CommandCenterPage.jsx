@@ -15,6 +15,12 @@ export default function CommandCenterPage() {
   const role = window.__ROLE__
   const isMentor = role === 'mentor'
 
+  // 包装状态变更：同时清空 AI 缓存
+  const handleStatusChange = async (appId, newStatus) => {
+    await cc.updateAppStatus(appId, newStatus)
+    ai.clearCache()
+  }
+
   if (cc.loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
@@ -86,13 +92,13 @@ export default function CommandCenterPage() {
             <motion.div key="kanban" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
               <KanbanBoard
                 columns={cc.kanbanData}
-                onStatusChange={cc.updateAppStatus}
+                onStatusChange={handleStatusChange}
               />
             </motion.div>
           )}
           {cc.viewMode === 'table' && (
             <motion.div key="table" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-              <TableView apps={cc.apps} onStatusChange={cc.updateAppStatus} />
+              <TableView apps={cc.apps} onStatusChange={handleStatusChange} />
             </motion.div>
           )}
           {cc.viewMode === 'timeline' && (

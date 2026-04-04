@@ -69,6 +69,14 @@ export function useAIPanel() {
     }
   }, [])
 
+  // 状态变更后清空 AI 缓存，避免展示过时数据
+  const clearCache = useCallback(() => {
+    setAiRisks(null)
+    setAiActions(null)
+    setNlqResult(null)
+    setListScore(null)
+  }, [])
+
   return {
     open, setOpen,
     activeTab, setActiveTab,
@@ -76,5 +84,6 @@ export function useAIPanel() {
     aiActions, aiActionsLoading, fetchAiActions,
     nlqResult, nlqLoading, fetchNlq,
     listScore, listScoreLoading, fetchListScore,
+    clearCache,
   }
 }

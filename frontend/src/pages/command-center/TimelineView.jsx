@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { clsx } from 'clsx'
 import { Badge } from '../../components/ui/Badge.jsx'
+import { daysUntilDeadline } from '../../lib/dateUtils.js'
 
 const tierColors = { '冲刺': 'red', '意向': 'amber', '保底': 'green', reach: 'red', target: 'amber', safety: 'green' }
 const tierLabels = { '冲刺': '冲刺', '意向': '意向', '保底': '保底', reach: '冲刺', target: '意向', safety: '保底' }
@@ -91,9 +92,7 @@ export default function TimelineView({ apps }) {
               {/* Apps */}
               <div className="p-2 space-y-1.5 max-h-[400px] overflow-y-auto scrollbar-thin">
                 {monthApps.map(app => {
-                  const daysLeft = app.submit_deadline
-                    ? Math.ceil((new Date(app.submit_deadline) - now) / 86400000)
-                    : null
+                  const daysLeft = daysUntilDeadline(app.submit_deadline)
 
                   return (
                     <div

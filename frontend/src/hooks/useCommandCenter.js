@@ -113,6 +113,12 @@ export function useCommandCenter() {
     try {
       await api.commandCenter.updateApp(id, { status: newStatus })
 
+      // 状态变更成功后刷新统计和风险数据（保持一致性）
+      Promise.all([
+        api.commandCenter.stats().then(setStats).catch(() => {}),
+        api.commandCenter.riskAlerts().then(r => setRiskAlerts(r.alerts || [])).catch(() => {}),
+      ])
+
       // Feature 6: 当状态变更为 enrolled 时，提示创建入学案例
       if (newStatus === 'enrolled' && prevStatus !== 'enrolled' && targetApp) {
         const studentName = targetApp.student_name || '该学生'

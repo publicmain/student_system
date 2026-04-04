@@ -45,9 +45,9 @@ export default function ActionRecommendations({ actions, loading, onFetch }) {
                   <p className="text-[11px] text-ink-primary dark:text-slate-200 font-medium">
                     {rec.action}
                   </p>
-                  {rec.reason && (
+                  {rec.reasoning && (
                     <p className="text-[10px] text-ink-tertiary dark:text-slate-400 mt-0.5">
-                      {rec.reason}
+                      {rec.reasoning}
                     </p>
                   )}
                   {rec.urgency && (

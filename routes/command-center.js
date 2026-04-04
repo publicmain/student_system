@@ -36,9 +36,10 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
     const { where, params } = _roleFilter(u);
     const wStr = where.length ? `AND ${where.join(' AND ')}` : '';
 
-    const total = db.get(`SELECT COUNT(*) as cnt FROM applications a WHERE 1=1 ${wStr}`, params).cnt;
+    const notDel = "AND a.status != 'deleted'";
+    const total = db.get(`SELECT COUNT(*) as cnt FROM applications a WHERE 1=1 ${notDel} ${wStr}`, params).cnt;
     const submitted = db.get(`SELECT COUNT(*) as cnt FROM applications a WHERE a.status IN ('applied','submitted') ${wStr}`, params).cnt;
-    const offers = db.get(`SELECT COUNT(*) as cnt FROM applications a WHERE (a.status IN ('offer','conditional_offer','unconditional_offer') OR a.offer_type IN ('Conditional','Unconditional')) ${wStr}`, params).cnt;
+    const offers = db.get(`SELECT COUNT(*) as cnt FROM applications a WHERE (a.status IN ('offer','conditional_offer','unconditional_offer') OR a.offer_type IN ('Conditional','Unconditional')) ${notDel} ${wStr}`, params).cnt;
 
     // 风险：截止日在 21 天内但状态仍为 pending
     const atRisk = db.get(`SELECT COUNT(*) as cnt FROM applications a
@@ -47,10 +48,10 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
       ${wStr}`, params).cnt;
 
     // 分组统计
-    const byCycleYear = db.all(`SELECT a.cycle_year, COUNT(*) as cnt FROM applications a WHERE a.cycle_year IS NOT NULL ${wStr} GROUP BY a.cycle_year ORDER BY a.cycle_year DESC`, params);
-    const byRoute = db.all(`SELECT a.route, COUNT(*) as cnt FROM applications a WHERE a.route IS NOT NULL ${wStr} GROUP BY a.route ORDER BY cnt DESC`, params);
-    const byTier = db.all(`SELECT a.tier, COUNT(*) as cnt FROM applications a WHERE a.tier IS NOT NULL ${wStr} GROUP BY a.tier ORDER BY cnt DESC`, params);
-    const byStatus = db.all(`SELECT a.status, COUNT(*) as cnt FROM applications a WHERE 1=1 ${wStr} GROUP BY a.status`, params);
+    const byCycleYear = db.all(`SELECT a.cycle_year, COUNT(*) as cnt FROM applications a WHERE a.cycle_year IS NOT NULL ${notDel} ${wStr} GROUP BY a.cycle_year ORDER BY a.cycle_year DESC`, params);
+    const byRoute = db.all(`SELECT a.route, COUNT(*) as cnt FROM applications a WHERE a.route IS NOT NULL ${notDel} ${wStr} GROUP BY a.route ORDER BY cnt DESC`, params);
+    const byTier = db.all(`SELECT a.tier, COUNT(*) as cnt FROM applications a WHERE a.tier IS NOT NULL ${notDel} ${wStr} GROUP BY a.tier ORDER BY cnt DESC`, params);
+    const byStatus = db.all(`SELECT a.status, COUNT(*) as cnt FROM applications a WHERE 1=1 ${notDel} ${wStr} GROUP BY a.status`, params);
 
     res.json({ total, submitted, offers, atRisk, byCycleYear, byRoute, byTier, byStatus });
   });

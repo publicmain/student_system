@@ -77,11 +77,8 @@ export default function RiskAlertList({ sqlAlerts, aiRisks, loading, onFetchAI }
                   : risk.severity === 'medium' ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
                   : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
               )}>
-                <p className="font-medium text-ink-primary dark:text-slate-200">{risk.title || risk.student_name}</p>
-                <p className="text-ink-tertiary dark:text-slate-400 mt-0.5">{risk.description || risk.reason}</p>
-                {risk.suggestion && (
-                  <p className="text-brand-600 dark:text-brand-400 mt-0.5">{risk.suggestion}</p>
-                )}
+                <p className="font-medium text-ink-primary dark:text-slate-200">{risk.reason}</p>
+                <p className="text-brand-600 dark:text-brand-400 mt-0.5">{risk.suggestion}</p>
               </div>
             ))}
           </div>

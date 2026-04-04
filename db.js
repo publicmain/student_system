@@ -3012,6 +3012,26 @@ function seedData() {
   }
 
 
+  // ── 清理垃圾测试数据 ──────────────────────────────────
+  const junkStudents = all("SELECT id FROM students WHERE TRIM(name) IN ('x','xx','test','测试') AND status != 'deleted'");
+  for (const s of junkStudents) {
+    run('DELETE FROM milestone_tasks WHERE student_id=?', [s.id]);
+    run('DELETE FROM material_items WHERE application_id IN (SELECT id FROM applications WHERE student_id=?)', [s.id]);
+    run('DELETE FROM personal_statements WHERE student_id=?', [s.id]);
+    run('DELETE FROM applications WHERE student_id=?', [s.id]);
+    run('DELETE FROM feedback WHERE student_id=?', [s.id]);
+    run('DELETE FROM student_parents WHERE student_id=?', [s.id]);
+    run('DELETE FROM mentor_assignments WHERE student_id=?', [s.id]);
+    run('DELETE FROM students WHERE id=?', [s.id]);
+    console.log(`[DB] Cleaned up junk student: ${s.id}`);
+  }
+  const junkStaff = all("SELECT id FROM staff WHERE TRIM(name) IN ('x','xx','test','测试')");
+  for (const s of junkStaff) {
+    run('DELETE FROM users WHERE linked_id=?', [s.id]);
+    run('DELETE FROM staff WHERE id=?', [s.id]);
+    console.log(`[DB] Cleaned up junk staff: ${s.id}`);
+  }
+
   // 确保所有 seedData 写入的数据持久化到磁盘
   save();
 }

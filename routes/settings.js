@@ -294,5 +294,17 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     res.json({ ok: true });
   });
 
+  // ── 别名路由：exam-records → exam-sittings ───────────
+  router.get('/students/:id/exam-records', requireAuth, (req, res) => {
+    const u = req.session.user;
+    const sid = req.params.id;
+    if (u.role === 'student' && u.linked_id !== sid) return res.status(403).json({ error: '无权访问' });
+    if (u.role === 'parent') {
+      const sp = db.get('SELECT student_id FROM student_parents WHERE student_id=? AND parent_id=?', [sid, u.linked_id]);
+      if (!sp) return res.status(403).json({ error: '无权访问' });
+    }
+    res.json(db.all('SELECT * FROM exam_sittings WHERE student_id=? ORDER BY year DESC, sitting_date DESC', [sid]));
+  });
+
   return router;
 };

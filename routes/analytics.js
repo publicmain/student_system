@@ -831,5 +831,43 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
     res.json({ count: results.length, results });
   });
 
+  // ── 别名路由 ──────────────────────────────────────────
+
+  // /admission-programs → 同 /uni-programs
+  router.get('/admission-programs', requireAuth, (req, res) => {
+    if (['agent', 'student_admin'].includes(req.session.user.role)) return res.status(403).json({ error: '权限不足' });
+    const { country, route, search, uni_name } = req.query;
+    let where = ['is_active=1'], params = [];
+    if (country) { where.push('country=?'); params.push(country); }
+    if (route)   { where.push('route=?');   params.push(route); }
+    if (uni_name){ where.push('uni_name LIKE ?'); params.push(`%${uni_name}%`); }
+    if (search)  { where.push('(uni_name LIKE ? OR program_name LIKE ? OR department LIKE ?)'); params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+    const rows = db.all(`SELECT * FROM uni_programs WHERE ${where.join(' AND ')} ORDER BY country, uni_name, program_name`, params);
+    res.json(rows);
+  });
+
+  // /admission-assessments → 列出所有可见的录取评估
+  router.get('/admission-assessments', requireAuth, (req, res) => {
+    const u = req.session.user;
+    if (['agent', 'student_admin', 'intake_staff'].includes(u.role)) return res.status(403).json({ error: '权限不足' });
+    let where = [], params = [];
+    if (u.role === 'student') {
+      where.push('ae.student_id=?'); params.push(u.linked_id);
+    } else if (u.role === 'parent') {
+      where.push('ae.student_id IN (SELECT student_id FROM student_parents WHERE parent_id=?)'); params.push(u.linked_id);
+    } else if (u.role === 'mentor' || u.role === 'counselor') {
+      where.push('ae.student_id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?)'); params.push(u.linked_id);
+    }
+    // principal: no filter
+    const wStr = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const rows = db.all(`SELECT ae.*, up.uni_name, up.program_name, up.department, up.country, up.route, s.name as student_name
+      FROM admission_evaluations ae
+      JOIN uni_programs up ON up.id = ae.program_id
+      JOIN students s ON s.id = ae.student_id
+      ${wStr}
+      ORDER BY ae.created_at DESC`, params);
+    res.json(rows);
+  });
+
   return router;
 };

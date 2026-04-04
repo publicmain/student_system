@@ -257,5 +257,61 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     return res.status(403).json({ error: '权限不足' });
   });
 
+  // POST /feedback — 根级反馈提交（需body含student_id）
+  router.post('/feedback', requireAuth, (req, res) => {
+    const { student_id, feedback_type, content, rating } = req.body;
+    if (!student_id) return res.status(400).json({ error: 'student_id 必填' });
+    const u = req.session.user;
+    if (u.role === 'student' && u.linked_id !== student_id) return res.status(403).json({ error: '只能为本人提交反馈' });
+    if (u.role === 'parent') {
+      const sp = db.get('SELECT student_id FROM student_parents WHERE student_id=? AND parent_id=?', [student_id, u.linked_id]);
+      if (!sp) return res.status(403).json({ error: '无权为该学生提交反馈' });
+    }
+    const fid = uuidv4();
+    db.run(`INSERT INTO feedback VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [fid, student_id, u.role, u.linked_id, feedback_type, content, rating||null, 'pending', null, null, null, new Date().toISOString()]);
+    res.json({ id: fid });
+  });
+
+  // GET /personal-statement — 列出当前用户可见的所有个人陈述
+  router.get('/personal-statement', requireAuth, (req, res) => {
+    const u = req.session.user;
+    let where = [], params = [];
+    if (u.role === 'student') {
+      where.push('ps.student_id=?'); params.push(u.linked_id);
+    } else if (u.role === 'parent') {
+      where.push('ps.student_id IN (SELECT student_id FROM student_parents WHERE parent_id=?)'); params.push(u.linked_id);
+    } else if (u.role === 'mentor' || u.role === 'counselor') {
+      where.push('ps.student_id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?)'); params.push(u.linked_id);
+    } else if (!['principal'].includes(u.role)) {
+      return res.status(403).json({ error: '权限不足' });
+    }
+    const wStr = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const rows = db.all(`SELECT ps.*, s.name as student_name FROM personal_statements ps JOIN students s ON s.id=ps.student_id ${wStr} ORDER BY ps.updated_at DESC`, params);
+    res.json(rows);
+  });
+
+  // GET /calendar — 聚合日历事件（任务截止日+申请截止日+锚点事件）
+  router.get('/calendar', requireAuth, (req, res) => {
+    const u = req.session.user;
+    let studentFilter = '', params = [];
+    if (u.role === 'student') {
+      studentFilter = 'AND student_id=?'; params.push(u.linked_id);
+    } else if (u.role === 'parent') {
+      studentFilter = 'AND student_id IN (SELECT student_id FROM student_parents WHERE parent_id=?)'; params.push(u.linked_id);
+    } else if (u.role === 'mentor' || u.role === 'counselor') {
+      studentFilter = 'AND student_id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?)'; params.push(u.linked_id);
+    } else if (!['principal'].includes(u.role)) {
+      return res.status(403).json({ error: '权限不足' });
+    }
+    // Tasks with due dates
+    const tasks = db.all(`SELECT id, title, due_date as date, category, status, student_id, 'task' as event_type FROM milestone_tasks WHERE due_date IS NOT NULL ${studentFilter} ORDER BY due_date`, params);
+    // Application deadlines
+    const deadlines = db.all(`SELECT id, uni_name as title, submit_deadline as date, status, student_id, 'deadline' as event_type FROM applications WHERE submit_deadline IS NOT NULL ${studentFilter} ORDER BY submit_deadline`, params);
+    // Anchor events (global, no student filter)
+    const anchors = db.all(`SELECT id, name as title, event_date as date, event_type, notes as description, 'anchor' as source_type FROM calendar_anchor_events ORDER BY event_date`);
+    res.json({ tasks, deadlines, anchors });
+  });
+
   return router;
 };

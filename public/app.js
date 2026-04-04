@@ -20,6 +20,7 @@ const PAGES = {
   'settings':           (p) => renderSettings(p),
   'analytics':          (p) => renderAnalytics(p),
   'audit':              (p) => renderAuditLog(p),
+  'command-center':     () => renderCommandCenter(),
   'admission-programs': (p) => renderAdmissionPrograms(p),
   'intake-dashboard':   (p) => renderIntakeDashboard(p),
   'intake-cases':       (p) => renderIntakeCases(p),
@@ -53,6 +54,7 @@ const PAGE_ROLES = {
   'settings':           ['principal', 'counselor'],
   'analytics':          ['principal', 'counselor'],
   'audit':              ['principal'],
+  'command-center':     ['principal', 'counselor'],
   'admission-programs': ['principal', 'counselor'],
   'task-detail':        ['principal', 'counselor', 'mentor', 'intake_staff', 'student_admin'],
   'student-portal':     ['student'],
@@ -6119,6 +6121,54 @@ async function saveAppExtFields(appId, route) {
   if (Object.keys(body).length > 0) {
     try { await PUT(`/api/applications/${appId}/ext`, body); } catch(e) {}
   }
+}
+
+// ════════════════════════════════════════════════════════
+//  申请指挥中心（React 嵌入）
+// ════════════════════════════════════════════════════════
+function renderCommandCenter() {
+  const mc = document.getElementById('main-content');
+  mc.innerHTML = '<div id="command-center-root" style="height:calc(100vh - 60px);overflow:hidden"></div>';
+  window.__PAGE__ = 'command-center';
+  window.__USER__ = State.user;
+  window.__ROLE__ = State.user?.role;
+  // 同步暗色模式
+  const theme = localStorage.getItem('pref_theme') || 'light';
+  localStorage.setItem('theme', theme);
+  if (theme === 'dark') document.documentElement.classList.add('dark');
+  else document.documentElement.classList.remove('dark');
+  // 动态加载 React bundle
+  const existing = document.getElementById('react-cc-script');
+  if (existing) {
+    // 已加载过，触发重新挂载
+    if (window.__mountReactApp) window.__mountReactApp('command-center-root');
+    return;
+  }
+  const script = document.createElement('script');
+  script.id = 'react-cc-script';
+  script.type = 'module';
+  // 读取 React 构建清单获取实际文件名
+  fetch('/react/index.html').then(r => r.text()).then(html => {
+    // 注入 CSS
+    const cssMatch = html.match(/href="\.?\/?assets\/(index-[^"]+\.css)"/);
+    if (cssMatch && !document.getElementById('react-cc-css')) {
+      const link = document.createElement('link');
+      link.id = 'react-cc-css';
+      link.rel = 'stylesheet';
+      link.href = '/react/assets/' + cssMatch[1];
+      document.head.appendChild(link);
+    }
+    // 注入 JS
+    const match = html.match(/src="\.?\/?assets\/(index-[^"]+\.js)"/);
+    if (match) {
+      script.src = '/react/assets/' + match[1];
+      document.head.appendChild(script);
+    } else {
+      mc.innerHTML = '<p style="padding:2rem;color:red">React 构建文件未找到，请运行 cd frontend && npm run build</p>';
+    }
+  }).catch(() => {
+    mc.innerHTML = '<p style="padding:2rem;color:red">无法加载 React 模块</p>';
+  });
 }
 
 // ════════════════════════════════════════════════════════

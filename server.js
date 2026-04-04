@@ -362,6 +362,9 @@ const _matSendInviteEmail = agentPortalRouter._matSendInviteEmail;
 
 app.use('/api', require('./routes/intake-cases')({ ...deps, _matSendInviteEmail }));
 
+// Command Center (申请指挥中心)
+app.use('/api', require('./routes/command-center')(deps));
+
 // Finance
 app.use('/api', require('./routes/finance')(deps));
 

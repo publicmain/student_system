@@ -105,6 +105,21 @@ export const api = {
     generate: (studentId) => post(`/api/students/${studentId}/ai-plan`, {}),
   },
 
+  // ── 指挥中心 ─────────────────────────────────────────────────
+  commandCenter: {
+    stats:      ()         => get('/api/command-center/stats'),
+    riskAlerts: ()         => get('/api/command-center/risk-alerts'),
+    allApps:    (params)   => {
+      const qs = params ? new URLSearchParams(params).toString() : ''
+      return get(`/api/applications${qs ? '?' + qs : ''}`)
+    },
+    updateApp:  (id, body) => put(`/api/applications/${id}`, body),
+    aiRisks:    ()         => post('/api/command-center/ai-risk-alerts', {}),
+    aiActions:  ()         => post('/api/command-center/ai-next-action', {}),
+    aiNLQ:      (query)    => post('/api/command-center/ai-nlq', { query }),
+    aiListScore:(sid)      => post('/api/command-center/ai-list-score', { student_id: sid }),
+  },
+
   // ── 系统设置 ─────────────────────────────────────────────────
   settings: {
     get: () => get('/api/settings'),

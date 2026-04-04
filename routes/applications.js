@@ -11,6 +11,66 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     try { const r = db.exec("SELECT value FROM settings WHERE key=?", [key]); return r.length ? JSON.parse(r[0].values[0][0]) : fallback; } catch(e) { return fallback; }
   }
 
+  // GET /applications — 申请列表（支持按学生、状态、周期筛选）
+  router.get('/applications', requireAuth, (req, res) => {
+    const u = req.session.user;
+    // agent 和 student_admin 无权通过主 API 查看申请列表
+    if (['agent', 'student_admin'].includes(u.role)) {
+      return res.status(403).json({ error: '权限不足' });
+    }
+
+    let where = ['1=1'], params = [];
+    const { student_id, status, cycle_year, search } = req.query;
+
+    // 角色数据隔离
+    if (u.role === 'student') {
+      where.push('a.student_id=?'); params.push(u.linked_id);
+    } else if (u.role === 'parent') {
+      where.push('a.student_id IN (SELECT student_id FROM student_parents WHERE parent_id=?)');
+      params.push(u.linked_id);
+    } else if (u.role === 'mentor') {
+      where.push('a.student_id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?)');
+      params.push(u.linked_id);
+    } else if (u.role === 'counselor') {
+      where.push('a.student_id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?)');
+      params.push(u.linked_id);
+    } else if (u.role === 'intake_staff') {
+      where.push('a.student_id IN (SELECT student_id FROM intake_cases WHERE case_owner_staff_id=? AND student_id IS NOT NULL)');
+      params.push(u.linked_id);
+    }
+    // principal: 不加额外过滤
+
+    if (student_id) { where.push('a.student_id=?'); params.push(student_id); }
+    if (status) { where.push('a.status=?'); params.push(status); }
+    if (cycle_year) { where.push('a.cycle_year=?'); params.push(cycle_year); }
+    if (search) { where.push('(a.uni_name LIKE ? OR a.department LIKE ?)'); params.push(`%${search}%`, `%${search}%`); }
+
+    const rows = db.all(`SELECT a.*, s.name as student_name FROM applications a
+      LEFT JOIN students s ON s.id=a.student_id
+      WHERE ${where.join(' AND ')} ORDER BY a.updated_at DESC`, params);
+    res.json(rows);
+  });
+
+  // GET /students/:sid/applications — 学生申请列表（子资源）
+  router.get('/students/:sid/applications', requireAuth, (req, res) => {
+    const u = req.session.user;
+    const sid = req.params.sid;
+    // 角色权限检查
+    if (u.role === 'student' && u.linked_id !== sid) return res.status(403).json({ error: '无权访问' });
+    if (u.role === 'parent') {
+      const sp = db.get('SELECT 1 FROM student_parents WHERE student_id=? AND parent_id=?', [sid, u.linked_id]);
+      if (!sp) return res.status(403).json({ error: '无权访问' });
+    }
+    if (u.role === 'mentor' || u.role === 'counselor') {
+      const ma = db.get('SELECT 1 FROM mentor_assignments WHERE student_id=? AND staff_id=?', [sid, u.linked_id]);
+      if (!ma) return res.status(403).json({ error: '无权访问' });
+    }
+    if (['agent', 'student_admin'].includes(u.role)) return res.status(403).json({ error: '权限不足' });
+
+    const rows = db.all('SELECT * FROM applications WHERE student_id=? ORDER BY updated_at DESC', [sid]);
+    res.json(rows);
+  });
+
   router.post('/applications', requireRole('principal','counselor'), (req, res) => {
     const { student_id, uni_name, department, tier, cycle_year, route, submit_deadline, grade_type_used } = req.body;
     if (!student_id) return res.status(400).json({ error: 'student_id 必填' });
@@ -42,47 +102,19 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     res.json({ application: app, tasks, materials, personal_statement: ps });
   });
 
-  // ── Application Status State Machine ──
-  const ALLOWED_TRANSITIONS = {
-    'pending':              ['applied', 'withdrawn'],
-    'applied':              ['conditional_offer', 'unconditional_offer', 'rejected', 'withdrawn'],
-    'conditional_offer':    ['unconditional_offer', 'firm', 'insurance', 'withdrawn'],
-    'unconditional_offer':  ['firm', 'insurance', 'withdrawn'],
-    'rejected':             [],
-    'withdrawn':            ['pending'],
-    'firm':                 ['withdrawn'],
-    'insurance':            ['withdrawn'],
-  };
-
   router.put('/applications/:id', requireRole('principal','counselor'), (req, res) => {
     const { uni_name, department, tier, cycle_year, route, submit_deadline, submit_date, grade_type_used,
       offer_date, offer_type, conditions, firm_choice, insurance_choice, status, notes } = req.body;
-
-    // ── Validate status transition ──
-    if (status !== undefined) {
-      const current = db.get('SELECT status FROM applications WHERE id=?', [req.params.id]);
-      if (!current) return res.status(404).json({ error: '申请不存在' });
-      if (status !== current.status) {
-        const allowed = ALLOWED_TRANSITIONS[current.status];
-        if (!allowed || !allowed.includes(status)) {
-          return res.status(400).json({ error: `不允许从 "${current.status}" 转为 "${status}"` });
-        }
-      }
-    }
 
     // UCAS Reference Gating: UK-UG applications cannot be marked 'applied' unless a Reference task is done
     if (status === 'applied' && (route || '') === 'UK-UG') {
       const app = db.get('SELECT * FROM applications WHERE id=?', [req.params.id]);
       if (app) {
         const _refKeywords = _getSetting('reference_task_keywords', ['reference%','推荐信%','参考人%']);
-        const _refCondParts = [];
-        const _refParams = [];
-        for (const k of _refKeywords) {
-          _refCondParts.push('LOWER(title) LIKE ?');
-          _refParams.push('%' + k.replace(/%/g, '').toLowerCase() + '%');
-        }
+        const _refCond = _refKeywords.map(() => `LOWER(title) LIKE ?`).join(' OR ');
+        const _refParams = _refKeywords.map(k => `%${k.replace(/%/g,'').toLowerCase()}%`);
         const refTask = db.get(
-          `SELECT id FROM milestone_tasks WHERE student_id=? AND status='done' AND (${_refCondParts.join(' OR ')})`,
+          `SELECT id FROM milestone_tasks WHERE student_id=? AND status='done' AND (${_refCond})`,
           [app.student_id, ..._refParams]
         );
         if (!refTask) {
@@ -103,27 +135,45 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
         if (existingFirm) return res.status(400).json({ error: '每个申请周期只能有一个 Firm Choice' });
       }
     }
+    // 只更新请求体中提供的字段（partial update）
+    const existing = db.get('SELECT * FROM applications WHERE id=?', [req.params.id]);
+    if (!existing) return res.status(404).json({ error: '申请不存在' });
+
+    const fields = {
+      uni_name: uni_name !== undefined ? uni_name : existing.uni_name,
+      department: department !== undefined ? department : existing.department,
+      tier: tier !== undefined ? tier : existing.tier,
+      cycle_year: cycle_year !== undefined ? cycle_year : existing.cycle_year,
+      route: route !== undefined ? route : existing.route,
+      submit_deadline: submit_deadline !== undefined ? submit_deadline : existing.submit_deadline,
+      submit_date: submit_date !== undefined ? submit_date : existing.submit_date,
+      grade_type_used: grade_type_used !== undefined ? grade_type_used : existing.grade_type_used,
+      offer_date: offer_date !== undefined ? offer_date : existing.offer_date,
+      offer_type: offer_type !== undefined ? offer_type : existing.offer_type,
+      conditions: conditions !== undefined ? conditions : existing.conditions,
+      firm_choice: firm_choice !== undefined ? isFirm : existing.firm_choice,
+      insurance_choice: insurance_choice !== undefined ? (insurance_choice===true||insurance_choice===1?1:0) : existing.insurance_choice,
+      status: status !== undefined ? status : existing.status,
+      notes: notes !== undefined ? notes : existing.notes,
+    };
+
     db.run(`UPDATE applications SET uni_name=?,department=?,tier=?,cycle_year=?,route=?,submit_deadline=?,
       submit_date=?,grade_type_used=?,offer_date=?,offer_type=?,conditions=?,firm_choice=?,insurance_choice=?,
       status=?,notes=?,updated_at=? WHERE id=?`,
-      [uni_name, department, tier, cycle_year, route, submit_deadline, submit_date, grade_type_used,
-      offer_date, offer_type, conditions, isFirm, insurance_choice===true||insurance_choice===1?1:0, status, notes, new Date().toISOString(), req.params.id]);
+      [fields.uni_name, fields.department, fields.tier, fields.cycle_year, fields.route, fields.submit_deadline,
+      fields.submit_date, fields.grade_type_used, fields.offer_date, fields.offer_type, fields.conditions,
+      fields.firm_choice, fields.insurance_choice, fields.status, fields.notes, new Date().toISOString(), req.params.id]);
     res.json({ ok: true });
   });
 
   router.delete('/applications/:id', requireRole('principal','counselor'), (req, res) => {
     const app = db.get('SELECT * FROM applications WHERE id=?', [req.params.id]);
     if (!app) return res.status(404).json({ error: '申请不存在' });
-    try {
-      db.transaction(runInTx => {
-        runInTx('DELETE FROM milestone_tasks WHERE application_id=?', [req.params.id]);
-        runInTx('DELETE FROM material_items WHERE application_id=?', [req.params.id]);
-        runInTx('DELETE FROM personal_statements WHERE application_id=?', [req.params.id]);
-        runInTx('DELETE FROM applications WHERE id=?', [req.params.id]);
-      });
-    } catch(e) {
-      return res.status(500).json({ error: '删除失败: ' + e.message });
-    }
+    db.run('DELETE FROM applications WHERE id=?', [req.params.id]);
+    // Clean up related records
+    db.run('DELETE FROM milestone_tasks WHERE application_id=?', [req.params.id]);
+    db.run('DELETE FROM material_items WHERE application_id=?', [req.params.id]);
+    db.run('DELETE FROM personal_statements WHERE application_id=?', [req.params.id]);
     audit(req, 'DELETE', 'applications', req.params.id, { uni_name: app.uni_name });
     res.json({ ok: true });
   });

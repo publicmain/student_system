@@ -1,13 +1,13 @@
 import { clsx } from 'clsx'
 
 const presets = {
-  default:  'bg-surface-2 text-ink-secondary',
-  blue:     'bg-blue-50 text-blue-700',
-  green:    'bg-green-50 text-green-700',
-  amber:    'bg-amber-50 text-amber-700',
-  red:      'bg-red-50 text-red-600',
-  purple:   'bg-purple-50 text-purple-700',
-  slate:    'bg-slate-100 text-slate-600',
+  default:  'bg-surface-2 text-ink-secondary dark:bg-slate-700 dark:text-slate-300',
+  blue:     'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  green:    'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  amber:    'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+  red:      'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400',
+  purple:   'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+  slate:    'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
 }
 
 export function Badge({ children, color = 'default', className }) {

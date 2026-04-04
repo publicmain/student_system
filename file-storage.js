@@ -66,6 +66,7 @@ function saveFile(category, fileId, content) {
   const subDir = SUBDIRS[category] || '';
   const targetDir = subDir ? path.join(BASE_DIR, subDir) : BASE_DIR;
   ensureDir(targetDir);
+  fileId = path.basename(fileId);
   const fullPath = path.join(targetDir, fileId);
   if (Buffer.isBuffer(content)) {
     fs.writeFileSync(fullPath, content);

@@ -35,8 +35,9 @@ export default function KanbanColumn({ column, index, healthMap }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: index * 0.04 }}
       className={clsx(
-        'flex-1 min-w-[160px] max-w-[280px] flex flex-col rounded-xl border-t-[3px] bg-surface-0/50 dark:bg-slate-800/50',
+        'flex-shrink-0 w-[75vw] sm:w-auto sm:flex-1 sm:min-w-[160px] sm:max-w-[280px] flex flex-col rounded-xl border-t-[3px] bg-surface-0/50 dark:bg-slate-800/50',
         'border border-surface-3 dark:border-slate-700',
+        'snap-center',
         columnColors[column.color] || 'border-t-slate-400',
         isOver && 'ring-2 ring-brand-500/30 bg-brand-50/30 dark:bg-brand-900/10',
         'transition-all duration-150'

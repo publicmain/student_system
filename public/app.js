@@ -3483,7 +3483,8 @@ function initApp() {
   if (bellWrap && ['principal','counselor','intake_staff','student_admin'].includes(user.role)) {
     bellWrap.classList.remove('d-none');
     loadNotificationBadge();
-    setInterval(loadNotificationBadge, 15 * 1000); // 每15秒刷新
+    if (window._notifBadgeTimer) clearInterval(window._notifBadgeTimer);
+    window._notifBadgeTimer = setInterval(loadNotificationBadge, 15 * 1000); // 每15秒刷新
   }
 
   // 打印页脚

@@ -58,8 +58,8 @@ export default function KanbanCard({ app, isDragging = false, health }) {
       }}
       className={clsx(
         isMentor
-          ? 'rounded-lg border p-2.5 cursor-pointer'
-          : 'rounded-lg border p-2.5 cursor-grab active:cursor-grabbing',
+          ? 'rounded-lg border p-3 sm:p-2.5 cursor-pointer'
+          : 'rounded-lg border p-3 sm:p-2.5 cursor-grab active:cursor-grabbing',
         'hover:shadow-md transition-all duration-150',
         isDragging
           ? 'shadow-lg border-brand-500/40 ring-2 ring-brand-500/20 bg-white dark:bg-slate-800'
@@ -73,7 +73,7 @@ export default function KanbanCard({ app, isDragging = false, health }) {
       {/* Top row: University + Health Ring */}
       <div className="flex items-start gap-1.5 mb-1.5">
         <GraduationCap size={12} className="text-ink-tertiary dark:text-slate-400 mt-0.5 flex-shrink-0" />
-        <span className="text-xs font-semibold text-ink-primary dark:text-slate-100 line-clamp-2 leading-tight flex-1">
+        <span className="text-[11px] sm:text-xs font-semibold text-ink-primary dark:text-slate-100 line-clamp-2 leading-tight flex-1">
           {app.uni_name || '未知院校'}
         </span>
         {health && health.total > 0 && (
@@ -124,7 +124,7 @@ export default function KanbanCard({ app, isDragging = false, health }) {
       )}
 
       {/* Footer: Student + Deadline */}
-      <div className="flex items-center justify-between text-[10px] text-ink-tertiary dark:text-slate-500">
+      <div className="flex items-center justify-between text-[11px] sm:text-[10px] text-ink-tertiary dark:text-slate-500">
         {app.student_name && (
           <span className="flex items-center gap-0.5 truncate max-w-[60%]">
             <User size={10} />

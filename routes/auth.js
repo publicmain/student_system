@@ -54,7 +54,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, loginAttempts, pwdCh
   });
 
   // PUT /api/auth/password
-  router.put('/password', requireAuth, (req, res) => {
+  router.put('/password', requireAuth, async (req, res) => {
     const userId = req.session.user.id;
     const now = Date.now();
     const pr = pwdChangeAttempts.get(userId) || { count: 0, resetAt: now + LOGIN_WINDOW_MS };
@@ -76,7 +76,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, loginAttempts, pwdCh
       return res.status(400).json({ error: `原密码错误（剩余尝试次数：${PWD_CHANGE_MAX - pr.count}）` });
     }
     pwdChangeAttempts.delete(userId);
-    db.run('UPDATE users SET password=?,must_change_password=0 WHERE id=?', [bcrypt.hashSync(new_password, BCRYPT_COST), user.id]);
+    const hashed = await bcrypt.hash(new_password, BCRYPT_COST);
+    db.run('UPDATE users SET password=?,must_change_password=0 WHERE id=?', [hashed, user.id]);
     // 注销该用户所有 session
     try {
       const allSessions = db.all('SELECT sid, sess FROM sessions');

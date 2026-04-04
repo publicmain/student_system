@@ -20,7 +20,7 @@ const stageColors = {
 export default function LifecyclePipelineView({ pipelines }) {
   if (!pipelines || pipelines.length === 0) {
     return (
-      <div className="flex items-center justify-center py-16 text-ink-tertiary dark:text-slate-500 text-sm">
+      <div className="flex items-center justify-center py-12 sm:py-16 text-ink-tertiary dark:text-slate-500 text-xs sm:text-sm px-4 text-center">
         暂无进入后续流程的申请（需 accepted/firm/insurance/enrolled 状态）
       </div>
     )
@@ -34,19 +34,23 @@ export default function LifecyclePipelineView({ pipelines }) {
           initial={{ opacity: 0, x: -12 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: i * 0.03 }}
-          className="rounded-xl border border-surface-3 dark:border-slate-700 bg-white dark:bg-slate-800 p-4"
+          className="rounded-xl border border-surface-3 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 sm:p-4"
         >
           {/* Header */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-ink-primary dark:text-slate-100">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 mb-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-xs sm:text-sm font-semibold text-ink-primary dark:text-slate-100 truncate">
                 {p.student_name}
               </span>
-              <span className="text-xs text-ink-tertiary dark:text-slate-400">
+              <span className="text-[10px] sm:text-xs text-ink-tertiary dark:text-slate-400 truncate hidden sm:inline">
                 {p.uni_name} {p.department ? `- ${p.department}` : ''}
               </span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <span className="text-[10px] text-ink-tertiary dark:text-slate-400 truncate sm:hidden">
+                {p.uni_name}
+              </span>
+              <span className="sm:hidden flex-1" />
               {p.route && <Badge color="purple" className="text-[9px]">{p.route}</Badge>}
               <Badge color={p.status === 'enrolled' ? 'green' : 'blue'} className="text-[9px]">
                 {p.status}
@@ -54,24 +58,25 @@ export default function LifecyclePipelineView({ pipelines }) {
             </div>
           </div>
 
-          {/* Pipeline stages */}
-          <div className="flex items-center gap-0">
+          {/* Pipeline stages — horizontal on sm+, compact horizontal on mobile */}
+          <div className="flex items-center gap-0 overflow-x-auto scrollbar-thin">
             {p.stages.map((stage, si) => {
               const Icon = stageIcons[stage.id] || Check
               const state = stage.done ? 'done' : stage.active ? 'active' : 'pending'
 
               return (
-                <div key={stage.id} className="flex items-center flex-1">
+                <div key={stage.id} className="flex items-center flex-1 min-w-0">
                   {/* Stage node */}
                   <div className="flex flex-col items-center gap-1 flex-shrink-0">
                     <div className={clsx(
-                      'w-8 h-8 rounded-full flex items-center justify-center transition-all',
+                      'w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all',
                       stageColors[state],
                     )}>
-                      <Icon size={14} />
+                      <Icon size={12} className="sm:hidden" />
+                      <Icon size={14} className="hidden sm:block" />
                     </div>
                     <span className={clsx(
-                      'text-[10px] font-medium whitespace-nowrap',
+                      'text-[9px] sm:text-[10px] font-medium whitespace-nowrap',
                       state === 'done' ? 'text-emerald-600 dark:text-emerald-400' :
                       state === 'active' ? 'text-brand-600 dark:text-brand-400' :
                       'text-ink-tertiary dark:text-slate-500'
@@ -83,7 +88,7 @@ export default function LifecyclePipelineView({ pipelines }) {
                   {/* Connector line */}
                   {si < p.stages.length - 1 && (
                     <div className={clsx(
-                      'flex-1 h-0.5 mx-1',
+                      'flex-1 h-0.5 mx-0.5 sm:mx-1 min-w-[8px]',
                       stage.done ? 'bg-emerald-400' : 'bg-surface-2 dark:bg-slate-700',
                     )} />
                   )}
@@ -94,7 +99,7 @@ export default function LifecyclePipelineView({ pipelines }) {
 
           {/* Extra info row */}
           {(p.visa || p.arrival) && (
-            <div className="flex items-center gap-4 mt-3 text-[10px] text-ink-tertiary dark:text-slate-500 border-t border-surface-2 dark:border-slate-700 pt-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-3 text-[10px] text-ink-tertiary dark:text-slate-500 border-t border-surface-2 dark:border-slate-700 pt-2">
               {p.visa && (
                 <span className="flex items-center gap-1">
                   <Stamp size={10} />

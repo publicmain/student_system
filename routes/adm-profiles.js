@@ -299,7 +299,12 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
 
   // ── 数组子数据 CRUD (family / residence / education / employment) ──────────
 
-  function _admArrayRoutes(entity, table, allowedCols, sortField = 'sort_order') {
+  const ALLOWED_TABLES = new Set(['adm_family_members', 'adm_residence_history', 'adm_education_history', 'adm_employment_history']);
+  const ALLOWED_SORT_FIELDS = new Set(['sort_order']);
+
+  function _admArrayRoutes(entity, table, sortField = 'sort_order') {
+    if (!ALLOWED_TABLES.has(table)) throw new Error(`Invalid table: ${table}`);
+    if (!ALLOWED_SORT_FIELDS.has(sortField)) throw new Error(`Invalid sort field: ${sortField}`);
     router.get(`/adm-profiles/:id/${entity}`, requireAuth, requireRole(...ADM_ROLES), (req, res) => {
       res.json(db.all(`SELECT * FROM ${table} WHERE profile_id=? ORDER BY ${sortField}`, [req.params.id]));
     });
@@ -310,8 +315,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
       const newId = uuidv4();
       const body  = req.body;
 
-      const cols  = Object.keys(body).filter(k => k !== 'id' && k !== 'profile_id' && k !== 'created_at' && allowedCols.includes(k));
-      if (cols.length === 0) return res.status(400).json({ error: 'No valid columns provided' });
+      const cols  = Object.keys(body).filter(k => k !== 'id' && k !== 'profile_id' && k !== 'created_at');
       const vals  = cols.map(k => body[k]);
       const placeholders = cols.map(() => '?').join(',');
       db.run(
@@ -323,7 +327,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
 
     router.put(`/adm-${entity}/:id`, requireAuth, requireRole(...ADM_ROLES), (req, res) => {
       const body = req.body;
-      const cols = Object.keys(body).filter(k => !['id','profile_id','created_at'].includes(k) && allowedCols.includes(k));
+      const cols = Object.keys(body).filter(k => !['id','profile_id','created_at'].includes(k));
       if (cols.length === 0) return res.json({ ok: true });
       const sets = cols.map(k => `${k}=?`).join(',');
       const vals = [...cols.map(k => body[k]), req.params.id];
@@ -337,23 +341,10 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     });
   }
 
-  _admArrayRoutes('family',     'adm_family_members', [
-    'member_type','surname','given_name','dob','nationality','sg_status','nric_fin',
-    'occupation','employer','relationship','is_alive','sort_order',
-    'sex','sg_mobile','email','contact_number','passport_no'
-  ]);
-  _admArrayRoutes('residence',  'adm_residence_history', [
-    'country','city','address','date_from','date_to','purpose','sort_order'
-  ]);
-  _admArrayRoutes('education',  'adm_education_history', [
-    'institution_name','country','qualification','major','date_from','date_to',
-    'gpa','award_received','sort_order',
-    'state_province','language_of_instruction','educational_cert_no','obtained_pass_english'
-  ]);
-  _admArrayRoutes('employment', 'adm_employment_history', [
-    'employer','country','position','date_from','date_to','is_current',
-    'reason_left','sort_order','nature_of_duties'
-  ]);
+  _admArrayRoutes('family',     'adm_family_members');
+  _admArrayRoutes('residence',  'adm_residence_history');
+  _admArrayRoutes('education',  'adm_education_history');
+  _admArrayRoutes('employment', 'adm_employment_history');
 
   // Guardian (single record per profile)
   router.put('/adm-profiles/:id/guardian', requireAuth, requireRole(...ADM_ROLES), (req, res) => {

@@ -7,7 +7,7 @@ export default function Chip({ label, active, onClick, count }) {
       whileTap={{ scale: 0.95 }}
       onClick={onClick}
       className={clsx(
-        'inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-colors duration-fast select-none',
+        'inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-colors duration-fast select-none',
         active
           ? 'bg-brand-600 text-white shadow-sm'
           : 'bg-surface-2 dark:bg-slate-700 text-ink-secondary dark:text-slate-300 hover:bg-surface-3 dark:hover:bg-slate-600'

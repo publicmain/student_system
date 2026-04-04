@@ -21,7 +21,6 @@ function getMonthDisplay(key) {
 
 export default function TimelineView({ apps }) {
   const months = useMemo(() => {
-    // Group apps by deadline month
     const map = new Map()
     const withDeadline = apps.filter(a => a.submit_deadline)
     const noDeadline = apps.filter(a => !a.submit_deadline)
@@ -33,10 +32,8 @@ export default function TimelineView({ apps }) {
       map.get(key).push(app)
     })
 
-    // Sort months
     const sorted = [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))
 
-    // Add "no deadline" group at the end
     if (noDeadline.length) {
       sorted.push(['no-deadline', noDeadline])
     }
@@ -46,7 +43,7 @@ export default function TimelineView({ apps }) {
 
   if (apps.length === 0) {
     return (
-      <div className="flex items-center justify-center py-20 text-ink-tertiary dark:text-slate-500 text-sm">
+      <div className="flex items-center justify-center py-16 sm:py-20 text-ink-tertiary dark:text-slate-500 text-sm">
         暂无申请数据
       </div>
     )
@@ -56,8 +53,8 @@ export default function TimelineView({ apps }) {
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
   return (
-    <div className="overflow-x-auto pb-4">
-      <div className="flex gap-4 min-w-max">
+    <div className="overflow-x-auto pb-4 snap-x snap-mandatory sm:snap-none scrollbar-thin">
+      <div className="flex gap-3 sm:gap-4 min-w-max">
         {months.map(([monthKey, monthApps], i) => {
           const isCurrent = monthKey === currentMonth
           const isPast = monthKey !== 'no-deadline' && monthKey < currentMonth
@@ -69,7 +66,7 @@ export default function TimelineView({ apps }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.04 }}
               className={clsx(
-                'flex-shrink-0 w-[220px] rounded-xl border',
+                'flex-shrink-0 w-[72vw] sm:w-[220px] rounded-xl border snap-center',
                 isCurrent
                   ? 'border-brand-500/50 bg-brand-50/30 dark:bg-brand-900/10'
                   : 'border-surface-3 dark:border-slate-700 bg-white dark:bg-slate-800',
@@ -90,15 +87,16 @@ export default function TimelineView({ apps }) {
               </div>
 
               {/* Apps */}
-              <div className="p-2 space-y-1.5 max-h-[400px] overflow-y-auto scrollbar-thin">
+              <div className="p-2 space-y-1.5 max-h-[50vh] sm:max-h-[400px] overflow-y-auto scrollbar-thin">
                 {monthApps.map(app => {
                   const daysLeft = daysUntilDeadline(app.submit_deadline)
 
                   return (
                     <div
                       key={app.id}
+                      onClick={() => { window.location.hash = 'student-detail/' + app.student_id }}
                       className={clsx(
-                        'rounded-lg border border-surface-2 dark:border-slate-700 bg-surface-0/50 dark:bg-slate-800/50 px-2.5 py-2',
+                        'rounded-lg border border-surface-2 dark:border-slate-700 bg-surface-0/50 dark:bg-slate-800/50 px-2.5 py-2 cursor-pointer active:bg-surface-1 dark:active:bg-slate-700/50',
                         daysLeft !== null && daysLeft < 0 && 'border-l-2 border-l-red-500',
                         daysLeft !== null && daysLeft >= 0 && daysLeft <= 7 && 'border-l-2 border-l-amber-500',
                       )}

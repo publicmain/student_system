@@ -3,6 +3,7 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   closestCorners,
@@ -15,12 +16,12 @@ export default function KanbanBoard({ columns, onStatusChange, healthMap }) {
   const [activeApp, setActiveApp] = useState(null)
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
   )
 
   const handleDragStart = useCallback((event) => {
     const { active } = event
-    // Find the app across all columns
     for (const col of columns) {
       const app = col.apps.find(a => String(a.id) === String(active.id))
       if (app) { setActiveApp(app); break }
@@ -33,15 +34,12 @@ export default function KanbanBoard({ columns, onStatusChange, healthMap }) {
     if (!over) return
 
     const overId = String(over.id)
-    // Find which column we dropped into
     const targetCol = columns.find(c => c.id === overId)
     if (!targetCol) return
 
-    // Map kanban column back to the first status in that group
     const newStatus = targetCol.statuses[0]
     const appId = active.id
 
-    // Find current status and app info
     let currentStatus = null
     let appInfo = null
     for (const col of columns) {
@@ -50,7 +48,6 @@ export default function KanbanBoard({ columns, onStatusChange, healthMap }) {
     }
 
     if (currentStatus !== newStatus) {
-      // Confirm irreversible transitions
       const HIGH_RISK = ['enrolled', 'declined', 'rejected', 'withdrawn']
       if (HIGH_RISK.includes(newStatus)) {
         const name = appInfo?.student_name || '该学生'
@@ -69,7 +66,7 @@ export default function KanbanBoard({ columns, onStatusChange, healthMap }) {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-2 pb-4 min-h-[400px]">
+      <div className="flex gap-2 pb-4 min-h-[300px] sm:min-h-[400px] overflow-x-auto snap-x snap-mandatory sm:snap-none scrollbar-thin">
         {columns.map((col, i) => (
           <KanbanColumn key={col.id} column={col} index={i} healthMap={healthMap} />
         ))}

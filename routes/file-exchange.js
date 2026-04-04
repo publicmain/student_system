@@ -180,7 +180,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     const ext = path.extname(rec.file_path);
     const safeName = (rec.original_name || rec.title).replace(/[^\w.\u4e00-\u9fa5-]/g,'_') + (rec.original_name ? '' : ext);
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safeName)}"`);
-    res.sendFile(fp);
+    res.sendFile(fp, (err) => { if (err && !res.headersSent) res.status(500).json({ error: '文件发送失败' }); });
   });
 
   // 管理员下载学生回传文件
@@ -192,7 +192,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     fxLog(req.params.id, reply.case_id, 'admin_reviewed_reply', 'admin', req.session.user.name||req.session.user.username, null, req.ip);
     db.run(`UPDATE file_exchange_records SET reviewed_by=?, reviewed_at=datetime('now') WHERE id=?`, [req.session.user.id, reply.id]);
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(reply.original_name || '学生回传文件')}"`);
-    res.sendFile(fp);
+    res.sendFile(fp, (err) => { if (err && !res.headersSent) res.status(500).json({ error: '文件发送失败' }); });
   });
 
   // ═══════════════════════════════════════════════════════
@@ -586,7 +586,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     const isImgDl = rec.file_path && /\.(jpg|jpeg|png|gif)$/i.test(rec.file_path);
     const dispDl = (isPdfDl || isImgDl) ? 'inline' : 'attachment';
     res.setHeader('Content-Disposition', `${dispDl}; filename="${encodeURIComponent(rec.original_name||rec.title)}"`);
-    res.sendFile(fp);
+    res.sendFile(fp, (err) => { if (err && !res.headersSent) res.status(500).json({ error: '文件发送失败' }); });
   });
 
   // 学生上传回传件
@@ -596,13 +596,11 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     if (rec.status === 'closed') return res.redirect(`/s/fx/${rec.access_token}`);
     if (!req.file) return res.redirect(`/s/fx/${rec.access_token}`);
     moveUploadedFile(req.file.filename, 'exchange');
+    db.run(`UPDATE file_exchange_records SET is_deleted=1, updated_at=datetime('now') WHERE parent_id=? AND direction='student_to_admin'`, [rec.id]);
     const replyId = uuidv4();
-    db.transaction(runInTx => {
-      runInTx(`UPDATE file_exchange_records SET is_deleted=1, updated_at=datetime('now') WHERE parent_id=? AND direction='student_to_admin'`, [rec.id]);
-      runInTx(`INSERT INTO file_exchange_records (id,case_id,title,direction,file_path,original_name,file_size,status,parent_id,created_by,created_by_name,related_stage) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [replyId, rec.case_id, `【回传】${rec.title}`, 'student_to_admin', req.file.filename, req.file.originalname, req.file.size, 'uploaded_by_student', rec.id, 'student', rec.student_name||'学生', rec.related_stage]);
-      runInTx(`UPDATE file_exchange_records SET status='replied', replied_at=datetime('now'), updated_at=datetime('now') WHERE id=?`, [rec.id]);
-    });
+    db.run(`INSERT INTO file_exchange_records (id,case_id,title,direction,file_path,original_name,file_size,status,parent_id,created_by,created_by_name,related_stage) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [replyId, rec.case_id, `【回传】${rec.title}`, 'student_to_admin', req.file.filename, req.file.originalname, req.file.size, 'uploaded_by_student', rec.id, 'student', rec.student_name||'学生', rec.related_stage]);
+    db.run(`UPDATE file_exchange_records SET status='replied', replied_at=datetime('now'), updated_at=datetime('now') WHERE id=?`, [rec.id]);
     fxLog(rec.id, rec.case_id, 'student_uploaded_reply', 'student', rec.student_name||'学生', `上传：${req.file.originalname}`, req.ip);
     try {
       const ic = db.get('SELECT student_name FROM intake_cases WHERE id=?', [rec.case_id]);
@@ -623,22 +621,20 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     if (!req.file) return res.redirect(`/s/fx/${rec.access_token}`);
     moveUploadedFile(req.file.filename, 'exchange');
     const itemName = req.body.item_name || rec.title;
+    db.run(`UPDATE file_exchange_records SET is_deleted=1, updated_at=datetime('now') WHERE parent_id=? AND direction='student_to_admin' AND title=? AND is_deleted=0`, [rec.id, `【上传】${itemName}`]);
     const replyId = uuidv4();
-    db.transaction(runInTx => {
-      runInTx(`UPDATE file_exchange_records SET is_deleted=1, updated_at=datetime('now') WHERE parent_id=? AND direction='student_to_admin' AND title=? AND is_deleted=0`, [rec.id, `【上传】${itemName}`]);
-      runInTx(`INSERT INTO file_exchange_records (id,case_id,title,direction,file_path,original_name,file_size,status,parent_id,created_by,created_by_name,related_stage) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [replyId, rec.case_id, `【上传】${itemName}`, 'student_to_admin', req.file.filename, req.file.originalname, req.file.size, 'uploaded_by_student', rec.id, 'student', rec.student_name||'学生', rec.related_stage]);
-      let allDone = true;
-      try {
-        const items = JSON.parse(rec.upload_items || '[]');
-        const replies = db.all(`SELECT title FROM file_exchange_records WHERE parent_id=? AND direction='student_to_admin' AND is_deleted=0`, [rec.id]);
-        const replyNames = new Set(replies.map(r => r.title.replace('【上传】','').replace('【回传】','').trim()));
-        const reqItems = items.filter(i => i.required);
-        allDone = reqItems.every(i => replyNames.has(i.name));
-      } catch(e) { allDone = true; }
-      runInTx(`UPDATE file_exchange_records SET status=?, replied_at=datetime('now'), updated_at=datetime('now') WHERE id=?`,
-        [allDone ? 'replied' : 'awaiting_upload', rec.id]);
-    });
+    db.run(`INSERT INTO file_exchange_records (id,case_id,title,direction,file_path,original_name,file_size,status,parent_id,created_by,created_by_name,related_stage) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [replyId, rec.case_id, `【上传】${itemName}`, 'student_to_admin', req.file.filename, req.file.originalname, req.file.size, 'uploaded_by_student', rec.id, 'student', rec.student_name||'学生', rec.related_stage]);
+    let allDone = true;
+    try {
+      const items = JSON.parse(rec.upload_items || '[]');
+      const replies = db.all(`SELECT title FROM file_exchange_records WHERE parent_id=? AND direction='student_to_admin' AND is_deleted=0`, [rec.id]);
+      const replyNames = new Set(replies.map(r => r.title.replace('【上传】','').replace('【回传】','').trim()));
+      const reqItems = items.filter(i => i.required);
+      allDone = reqItems.every(i => replyNames.has(i.name));
+    } catch(e) { allDone = true; }
+    db.run(`UPDATE file_exchange_records SET status=?, replied_at=datetime('now'), updated_at=datetime('now') WHERE id=?`,
+      [allDone ? 'replied' : 'awaiting_upload', rec.id]);
     fxLog(rec.id, rec.case_id, 'student_uploaded_item', 'student', rec.student_name||'学生', `上传：${itemName} (${req.file.originalname})`, req.ip);
     try {
       const ic = db.get('SELECT student_name FROM intake_cases WHERE id=?', [rec.case_id]);
@@ -706,7 +702,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     const ext = path.extname(send.filename);
     const safeOriginal = (send.original_name || send.display_name).replace(/[^\w.\u4e00-\u9fa5-]/g, '_') + (send.original_name ? '' : ext);
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(safeOriginal)}"`);
-    res.sendFile(filePath);
+    res.sendFile(filePath, (err) => { if (err && !res.headersSent) res.status(500).json({ error: '文件发送失败' }); });
   });
 
   publicRouter.get('/s/upload/:token', (req, res) => {

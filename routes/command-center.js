@@ -3,7 +3,7 @@
  */
 const express = require('express');
 
-module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallAttempts, AI_CALL_MAX, AI_CALL_WINDOW_MS }) {
+module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallAttempts, AI_CALL_MAX, AI_CALL_WINDOW_MS, xlsx }) {
   const router = express.Router();
 
   let aiCommand;
@@ -47,13 +47,19 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
       AND a.submit_deadline <= date('now', '+21 days') AND a.submit_deadline >= date('now')
       ${wStr}`, params).cnt;
 
+    // 7天趋势：统计最近7天新增的数量
+    const weekAgo = "AND a.created_at >= datetime('now', '-7 days')";
+    const totalNew = db.get(`SELECT COUNT(*) as cnt FROM applications a WHERE 1=1 ${notDel} ${weekAgo} ${wStr}`, params).cnt;
+    const submittedNew = db.get(`SELECT COUNT(*) as cnt FROM applications a WHERE a.status IN ('applied','submitted') ${weekAgo} ${wStr}`, params).cnt;
+    const offersNew = db.get(`SELECT COUNT(*) as cnt FROM applications a WHERE (a.status IN ('offer','conditional_offer','unconditional_offer') OR a.offer_type IN ('Conditional','Unconditional')) ${notDel} ${weekAgo} ${wStr}`, params).cnt;
+
     // 分组统计
     const byCycleYear = db.all(`SELECT a.cycle_year, COUNT(*) as cnt FROM applications a WHERE a.cycle_year IS NOT NULL ${notDel} ${wStr} GROUP BY a.cycle_year ORDER BY a.cycle_year DESC`, params);
     const byRoute = db.all(`SELECT a.route, COUNT(*) as cnt FROM applications a WHERE a.route IS NOT NULL ${notDel} ${wStr} GROUP BY a.route ORDER BY cnt DESC`, params);
     const byTier = db.all(`SELECT a.tier, COUNT(*) as cnt FROM applications a WHERE a.tier IS NOT NULL ${notDel} ${wStr} GROUP BY a.tier ORDER BY cnt DESC`, params);
     const byStatus = db.all(`SELECT a.status, COUNT(*) as cnt FROM applications a WHERE 1=1 ${notDel} ${wStr} GROUP BY a.status`, params);
 
-    res.json({ total, submitted, offers, atRisk, byCycleYear, byRoute, byTier, byStatus });
+    res.json({ total, submitted, offers, atRisk, totalNew, submittedNew, offersNew, byCycleYear, byRoute, byTier, byStatus });
   });
 
   // ═════════════════════════════════════════════════════════
@@ -617,6 +623,89 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
     }
 
     res.json({ created, total_risks: criticalApps.length });
+  });
+
+  // ── 批量更新状态 ────────────────────────────────────
+  router.put('/command-center/batch-status', requireAuth, requireRole('principal','counselor'), (req, res) => {
+    const { ids, status } = req.body;
+    if (!Array.isArray(ids) || !ids.length || !status) {
+      return res.status(400).json({ error: '需要 ids 数组和 status' });
+    }
+    const validStatuses = ['pending','draft','applied','submitted','offer','conditional_offer',
+      'unconditional_offer','offer_received','accepted','firm','insurance','enrolled',
+      'declined','rejected','withdrawn','waitlisted'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: '无效状态: ' + status });
+    }
+
+    const u = req.session.user;
+    const { where, params: roleParams } = _roleFilter(u);
+
+    const placeholders = ids.map(() => '?').join(',');
+    const wStr = where.length ? `AND ${where.join(' AND ')}` : '';
+    // Verify all ids belong to user's scope
+    const accessible = db.all(
+      `SELECT a.id FROM applications a WHERE a.id IN (${placeholders}) ${wStr}`,
+      [...ids, ...roleParams]
+    );
+    const accessibleIds = accessible.map(r => r.id);
+
+    if (accessibleIds.length === 0) {
+      return res.status(403).json({ error: '无权限操作这些申请' });
+    }
+
+    const updatePlaceholders = accessibleIds.map(() => '?').join(',');
+    db.run(
+      `UPDATE applications SET status = ?, updated_at = datetime('now') WHERE id IN (${updatePlaceholders})`,
+      [status, ...accessibleIds]
+    );
+
+    res.json({ updated: accessibleIds.length, total: ids.length });
+  });
+
+  // ── 导出 Excel ──────────────────────────────────────
+  router.get('/command-center/export-excel', requireAuth, requireRole('principal','counselor'), (req, res) => {
+    const u = req.session.user;
+    const { where, params } = _roleFilter(u);
+    const wClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    const rows = db.all(`
+      SELECT a.id, s.name AS student_name, a.uni_name, a.department, a.program,
+             a.tier, a.route, a.status, a.submit_deadline, a.cycle_year
+      FROM applications a
+      LEFT JOIN students s ON s.id = a.student_id
+      ${wClause}
+      ORDER BY a.submit_deadline ASC
+    `, params);
+
+    const statusLabels = {
+      pending:'准备中', draft:'草稿', applied:'已提交', submitted:'已提交',
+      offer:'Offer', conditional_offer:'有条件录取', unconditional_offer:'无条件录取',
+      offer_received:'收到录取', accepted:'已接受', firm:'Firm', insurance:'Insurance',
+      enrolled:'已入学', declined:'已拒绝', rejected:'被拒绝', withdrawn:'已撤回', waitlisted:'等候名单',
+    };
+    const tierLabels = { reach:'冲刺', target:'匹配', safety:'保底', '冲刺':'冲刺', '意向':'意向', '保底':'保底' };
+
+    const header = ['学生', '院校', '专业', '梯度', '路线', '状态', '截止日', '周期'];
+    const data = rows.map(r => [
+      r.student_name || '',
+      r.uni_name || '',
+      r.department || r.program || '',
+      tierLabels[r.tier] || r.tier || '',
+      r.route || '',
+      statusLabels[r.status] || r.status || '',
+      r.submit_deadline ? r.submit_deadline.slice(0, 10) : '',
+      r.cycle_year || '',
+    ]);
+
+    const ws = xlsx.utils.aoa_to_sheet([header, ...data]);
+    ws['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 22 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 8 }];
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, '申请列表');
+    const buf = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Disposition', `attachment; filename="applications_export.xlsx"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buf);
   });
 
   return router;

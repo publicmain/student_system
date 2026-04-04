@@ -158,7 +158,7 @@ app.use(session({
   store: sessionStore,
   secret: SESSION_SECRET,
   resave: false,
-  saveUninitialized: true,
+  saveUninitialized: false,
   rolling: false,
   name: 'ssid',
   cookie: {

@@ -121,6 +121,7 @@ export const api = {
     appHealth:  ()         => get('/api/command-center/app-health'),
     lifecycle:  ()         => get('/api/command-center/lifecycle'),
     myWorkspace:()         => get('/api/command-center/my-workspace'),
+    batchStatus:(ids, status) => put('/api/command-center/batch-status', { ids, status }),
   },
 
   // ── 系统设置 ─────────────────────────────────────────────────

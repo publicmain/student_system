@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, AlertCircle, Rocket } from 'lucide-react'
 import { useCommandCenter } from '../../hooks/useCommandCenter.js'
@@ -10,10 +11,12 @@ import TimelineView from './TimelineView.jsx'
 import LifecyclePipelineView from './LifecyclePipelineView.jsx'
 import MyWorkspacePanel from './MyWorkspacePanel.jsx'
 import AISidePanel from './AISidePanel.jsx'
+import DetailDrawer from './DetailDrawer.jsx'
 
 export default function CommandCenterPage() {
   const cc = useCommandCenter()
   const ai = useAIPanel()
+  const [drawerApp, setDrawerApp] = useState(null)
   const role = window.__ROLE__
   const isMentor = role === 'mentor'
 
@@ -42,23 +45,23 @@ export default function CommandCenterPage() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden">
-      <div className="flex-1 min-w-0 flex flex-col gap-4 p-4 lg:p-6 overflow-y-auto">
+    <div className="flex h-full overflow-hidden relative">
+      <div className="flex-1 min-w-0 flex flex-col gap-3 sm:gap-4 p-3 sm:p-4 lg:p-6 overflow-y-auto">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3"
+          className="flex items-center gap-2.5 sm:gap-3"
         >
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center text-white shadow-lg">
-            <Rocket size={20} />
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+            <Rocket size={18} />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-ink-primary dark:text-slate-100">
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-xl font-bold text-ink-primary dark:text-slate-100 truncate">
               申请指挥中心
             </h1>
-            <p className="text-xs text-ink-tertiary dark:text-slate-400">
-              跨学生申请全局视图 &middot; {cc.allApps?.length || 0} 个申请
+            <p className="text-[10px] sm:text-xs text-ink-tertiary dark:text-slate-400">
+              全局视图 &middot; {cc.allApps?.length || 0} 个申请
             </p>
           </div>
         </motion.div>
@@ -83,48 +86,47 @@ export default function CommandCenterPage() {
 
         {/* Empty state for new counselors */}
         {!cc.loading && cc.allApps?.length === 0 && (
-          <div className="text-center py-16 text-ink-tertiary dark:text-slate-400">
-            <p className="text-lg mb-2">暂无申请数据</p>
-            <p className="text-sm">如果您是新加入的规划师，请联系管理员分配学生后再使用指挥中心。</p>
+          <div className="text-center py-10 sm:py-16 text-ink-tertiary dark:text-slate-400 px-4">
+            <p className="text-base sm:text-lg mb-2">暂无申请数据</p>
+            <p className="text-xs sm:text-sm">如果您是新加入的规划师，请联系管理员分配学生后再使用指挥中心。</p>
           </div>
         )}
 
         {/* View Area */}
         <AnimatePresence mode="wait">
-          {cc.viewMode === 'kanban' && (
-            <motion.div key="kanban" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+          <motion.div key={cc.viewMode} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+            {cc.viewMode === 'kanban' && (
               <KanbanBoard
                 columns={cc.kanbanData}
                 onStatusChange={handleStatusChange}
                 healthMap={cc.healthMap}
               />
-            </motion.div>
-          )}
-          {cc.viewMode === 'table' && (
-            <motion.div key="table" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-              <TableView apps={cc.apps} onStatusChange={handleStatusChange} />
-            </motion.div>
-          )}
-          {cc.viewMode === 'timeline' && (
-            <motion.div key="timeline" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+            )}
+            {cc.viewMode === 'table' && (
+              <TableView apps={cc.apps} onStatusChange={handleStatusChange} readOnly={isMentor} onRefresh={cc.refresh} onRowClick={setDrawerApp} />
+            )}
+            {cc.viewMode === 'timeline' && (
               <TimelineView apps={cc.apps} />
-            </motion.div>
-          )}
-          {cc.viewMode === 'lifecycle' && (
-            <motion.div key="lifecycle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+            )}
+            {cc.viewMode === 'lifecycle' && (
               <LifecyclePipelineView pipelines={cc.lifecycle} />
-            </motion.div>
-          )}
-          {cc.viewMode === 'workspace' && (
-            <motion.div key="workspace" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+            )}
+            {cc.viewMode === 'workspace' && (
               <MyWorkspacePanel />
-            </motion.div>
-          )}
+            )}
+          </motion.div>
         </AnimatePresence>
       </div>
 
       {/* AI Side Panel */}
       <AISidePanel ai={ai} riskAlerts={cc.riskAlerts} allApps={cc.allApps} />
+
+      {/* Detail Drawer */}
+      <DetailDrawer
+        app={drawerApp}
+        health={drawerApp ? cc.healthMap?.[drawerApp.id] : null}
+        onClose={() => setDrawerApp(null)}
+      />
     </div>
   )
 }

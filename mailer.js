@@ -27,7 +27,13 @@ function isConfigured() {
  * @param {string} html - 正文 HTML
  * @param {Array}  attachments - [{ filename, content: Buffer }]
  */
+function sanitizeHeader(val) {
+  return String(val).replace(/[\r\n]/g, '');
+}
+
 async function sendMail(to, subject, html, attachments = []) {
+  to = sanitizeHeader(to);
+  subject = sanitizeHeader(subject);
   const base = {
     time: new Date().toISOString(),
     to,

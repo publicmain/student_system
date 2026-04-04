@@ -42,16 +42,25 @@ export default function KanbanCard({ app, isDragging = false, health }) {
 
   const { days: daysUntilDeadline, isUrgent, isOverdue } = deadlineStatus(app.submit_deadline)
 
+  // Merge dnd-kit listeners with our click/drag tracking
+  const mergedHandlers = !isMentor ? {
+    onPointerDown: (e) => {
+      hasDragged.current = false
+      listeners?.onPointerDown?.(e)
+    },
+    onKeyDown: listeners?.onKeyDown,
+  } : {}
+
   return (
     <div
       ref={setNodeRef}
       {...attributes}
-      {...(!isMentor ? listeners : {})}
+      {...mergedHandlers}
       role="listitem"
+      style={{ touchAction: 'none' }}
       aria-label={`${app.student_name || '未知学生'} - ${app.uni_name || '未知院校'}${app.tier ? ` (${tierLabels[app.tier] || app.tier})` : ''}${isOverdue ? ' 已逾期' : isUrgent ? ' 即将截止' : ''}`}
-      onPointerDown={() => { hasDragged.current = false }}
       onPointerMove={() => { hasDragged.current = true }}
-      onClick={(e) => {
+      onPointerUp={() => {
         if (!hasDragged.current && !isBeingDragged) {
           window.location.hash = 'student-detail/' + app.student_id
         }

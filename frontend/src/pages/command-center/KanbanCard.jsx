@@ -1,5 +1,5 @@
-import { useRef } from 'react'
 import { useDraggable } from '@dnd-kit/core'
+import { CSS } from '@dnd-kit/utilities'
 import { clsx } from 'clsx'
 import { GraduationCap, Clock, User, FileText, AlertTriangle } from 'lucide-react'
 import { Badge } from '../../components/ui/Badge.jsx'
@@ -33,48 +33,44 @@ function HealthRing({ score, size = 24 }) {
 }
 
 export default function KanbanCard({ app, isDragging = false, health }) {
-  const { attributes, listeners, setNodeRef, isDragging: isBeingDragged } = useDraggable({
+  const { attributes, listeners, setNodeRef, transform, isDragging: isBeingDragged } = useDraggable({
     id: String(app.id),
   })
-  const hasDragged = useRef(false)
   const role = window.__ROLE__
   const isMentor = role === 'mentor'
 
   const { days: daysUntilDeadline, isUrgent, isOverdue } = deadlineStatus(app.submit_deadline)
 
-  // Merge dnd-kit listeners with our click/drag tracking
-  const mergedHandlers = !isMentor ? {
-    onPointerDown: (e) => {
-      hasDragged.current = false
-      listeners?.onPointerDown?.(e)
-    },
-    onKeyDown: listeners?.onKeyDown,
-  } : {}
+  const style = {
+    touchAction: 'none',
+    transform: CSS.Translate.toString(transform),
+    zIndex: isBeingDragged ? 999 : undefined,
+    position: isBeingDragged ? 'relative' : undefined,
+  }
+
+  const handleClick = () => {
+    if (!isBeingDragged) {
+      window.location.hash = 'student-detail/' + app.student_id
+    }
+  }
 
   return (
     <div
       ref={setNodeRef}
       {...attributes}
-      {...mergedHandlers}
+      {...(!isMentor ? listeners : {})}
       role="listitem"
-      style={{ touchAction: 'none' }}
+      style={style}
       aria-label={`${app.student_name || '未知学生'} - ${app.uni_name || '未知院校'}${app.tier ? ` (${tierLabels[app.tier] || app.tier})` : ''}${isOverdue ? ' 已逾期' : isUrgent ? ' 即将截止' : ''}`}
-      onPointerMove={() => { hasDragged.current = true }}
-      onPointerUp={() => {
-        if (!hasDragged.current && !isBeingDragged) {
-          window.location.hash = 'student-detail/' + app.student_id
-        }
-      }}
+      onClick={handleClick}
       className={clsx(
         isMentor
           ? 'rounded-lg border p-3 sm:p-2.5 cursor-pointer'
           : 'rounded-lg border p-3 sm:p-2.5 cursor-grab active:cursor-grabbing',
         'hover:shadow-md transition-all duration-150',
-        isDragging
-          ? 'shadow-lg border-brand-500/40 ring-2 ring-brand-500/20 bg-white dark:bg-slate-800'
-          : isBeingDragged
-            ? 'opacity-30 border-dashed border-brand-400 bg-brand-50/30 dark:bg-slate-700/30'
-            : 'bg-white dark:bg-slate-800 border-surface-3 dark:border-slate-700 shadow-sm',
+        isDragging || isBeingDragged
+          ? 'shadow-lg border-brand-500/40 ring-2 ring-brand-500/20 bg-white dark:bg-slate-800 opacity-80'
+          : 'bg-white dark:bg-slate-800 border-surface-3 dark:border-slate-700 shadow-sm',
         !isBeingDragged && isOverdue && 'border-l-2 border-l-red-500',
         !isBeingDragged && isUrgent && !isOverdue && 'border-l-2 border-l-amber-500',
       )}

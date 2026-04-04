@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { clsx } from 'clsx'
-import { AlertTriangle, AlertCircle, Info, Loader2, Sparkles } from 'lucide-react'
+import { AlertTriangle, AlertCircle, Info, Loader2, Sparkles, Plus, Check, Bell } from 'lucide-react'
 
 const severityConfig = {
   critical: { icon: AlertCircle,   color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20',    border: 'border-red-200 dark:border-red-800' },
@@ -10,13 +11,67 @@ const severityConfig = {
 }
 
 export default function RiskAlertList({ sqlAlerts, aiRisks, loading, onFetchAI }) {
+  const [createdTasks, setCreatedTasks] = useState(new Set())
+  const [notifying, setNotifying] = useState(false)
+  const [notifyResult, setNotifyResult] = useState(null)
+
+  const createTask = async (alertItem, index) => {
+    try {
+      await fetch(`/api/students/${alertItem.student_id}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: alertItem.message,
+          category: '风险跟进',
+          priority: alertItem.severity === 'critical' ? 'high' : 'normal',
+          application_id: alertItem.application_id || null,
+          due_date: alertItem.deadline || null,
+        })
+      })
+      setCreatedTasks(prev => new Set(prev).add(index))
+    } catch (e) { /* silent */ }
+  }
+
   return (
     <div className="space-y-3">
       {/* SQL-based alerts */}
       <div>
-        <h4 className="text-[11px] font-semibold text-ink-secondary dark:text-slate-300 mb-2">
-          系统检测 ({sqlAlerts.length})
-        </h4>
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-[11px] font-semibold text-ink-secondary dark:text-slate-300">
+            系统检测 ({sqlAlerts.length})
+          </h4>
+          {sqlAlerts.length > 0 && (
+            <button
+              onClick={async () => {
+                setNotifying(true)
+                setNotifyResult(null)
+                try {
+                  const resp = await fetch('/api/command-center/notify-risks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                  })
+                  const data = await resp.json()
+                  if (!resp.ok) throw new Error(data.error || '推送失败')
+                  setNotifyResult(`已推送 ${data.created} 条通知`)
+                } catch (e) {
+                  setNotifyResult('推送失败: ' + e.message)
+                } finally {
+                  setNotifying(false)
+                }
+              }}
+              disabled={notifying}
+              className="inline-flex items-center gap-1 text-[10px] text-brand-600 hover:text-brand-700 disabled:opacity-50"
+              title="将高风险预警推送为系统通知"
+            >
+              {notifying ? <Loader2 size={11} className="animate-spin" /> : <Bell size={11} />}
+              {notifying ? '推送中...' : '推送通知'}
+            </button>
+          )}
+        </div>
+        {notifyResult && (
+          <p className="text-[10px] text-brand-600 dark:text-brand-400 mb-1.5">{notifyResult}</p>
+        )}
         {sqlAlerts.length === 0 ? (
           <p className="text-[11px] text-ink-tertiary dark:text-slate-500 py-4 text-center">
             暂无风险预警
@@ -38,9 +93,24 @@ export default function RiskAlertList({ sqlAlerts, aiRisks, loading, onFetchAI }
                   )}
                 >
                   <Icon size={13} className={clsx(cfg.color, 'flex-shrink-0 mt-0.5')} />
-                  <span className="text-ink-primary dark:text-slate-200 leading-relaxed">
+                  <span className="text-ink-primary dark:text-slate-200 leading-relaxed flex-1">
                     {alert.message}
                   </span>
+                  {alert.student_id && (
+                    createdTasks.has(i) ? (
+                      <span className="ml-auto flex-shrink-0 text-[9px] text-green-600 dark:text-green-400 flex items-center gap-0.5">
+                        <Check size={10} /> 已创建
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => createTask(alert, i)}
+                        className="ml-auto flex-shrink-0 text-[9px] text-brand-600 hover:text-brand-700 dark:text-brand-400"
+                        title="创建任务"
+                      >
+                        <Plus size={12} />
+                      </button>
+                    )
+                  )}
                 </motion.div>
               )
             })}

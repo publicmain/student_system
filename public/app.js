@@ -54,7 +54,7 @@ const PAGE_ROLES = {
   'settings':           ['principal', 'counselor'],
   'analytics':          ['principal', 'counselor'],
   'audit':              ['principal'],
-  'command-center':     ['principal', 'counselor'],
+  'command-center':     ['principal', 'counselor', 'mentor'],
   'admission-programs': ['principal', 'counselor'],
   'task-detail':        ['principal', 'counselor', 'mentor', 'intake_staff', 'student_admin'],
   'student-portal':     ['student'],
@@ -86,10 +86,11 @@ async function renderDashboard() {
   mc.innerHTML = `<div class="page-loading"><div class="spinner-border text-primary"></div></div>`;
 
   try {
-    const [stats, risks, workload] = await Promise.all([
+    const [stats, risks, workload, ccStats] = await Promise.all([
       GET('/api/dashboard/stats'),
       GET('/api/dashboard/risks'),
       GET('/api/dashboard/workload'),
+      GET('/api/command-center/stats').catch(() => null),
     ]);
 
     const tierMap = {};
@@ -141,6 +142,45 @@ async function renderDashboard() {
         </div>
       </div>
     </div>
+
+    ${ccStats ? `
+    <!-- 申请指挥中心概览 -->
+    <div class="row g-3 mb-4">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-rocket-takeoff-fill me-1 text-primary"></i> 申请指挥中心</span>
+            <a href="#" onclick="event.preventDefault();navigate('command-center')" class="small text-primary text-decoration-none">进入指挥中心 →</a>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-6 col-md-3 text-center">
+                <div class="fs-3 fw-bold text-primary">${ccStats.total || 0}</div>
+                <div class="small text-muted">总申请</div>
+              </div>
+              <div class="col-6 col-md-3 text-center">
+                <div class="fs-3 fw-bold text-info">${ccStats.submitted || 0}</div>
+                <div class="small text-muted">已提交</div>
+              </div>
+              <div class="col-6 col-md-3 text-center">
+                <div class="fs-3 fw-bold text-success">${ccStats.offers || 0}</div>
+                <div class="small text-muted">已获Offer</div>
+              </div>
+              <div class="col-6 col-md-3 text-center">
+                <div class="fs-3 fw-bold ${ccStats.atRisk > 0 ? 'text-danger' : 'text-muted'}">${ccStats.atRisk || 0}</div>
+                <div class="small text-muted">风险申请</div>
+              </div>
+            </div>
+            ${ccStats.byStatus && ccStats.byStatus.length > 0 ? `
+            <div class="mt-3 pt-3 border-top">
+              <div class="d-flex flex-wrap gap-2">
+                ${ccStats.byStatus.map(s => `<span class="badge bg-light text-dark border">${escapeHtml(s.status || '未知')}: ${s.cnt}</span>`).join('')}
+              </div>
+            </div>` : ''}
+          </div>
+        </div>
+      </div>
+    </div>` : ''}
 
     <div class="row g-3 mb-4">
       <!-- 梯度分布 -->

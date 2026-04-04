@@ -15,6 +15,7 @@ export default function FilterBar({
   filterOptions,
   viewMode, onViewModeChange,
   onToggleAI, aiOpen,
+  readOnly,
 }) {
   const toggleFilter = (key, value) => {
     onFiltersChange(prev => ({
@@ -89,7 +90,7 @@ export default function FilterBar({
         </div>
 
         {/* AI Toggle */}
-        <motion.button
+        {!readOnly && <motion.button
           whileTap={{ scale: 0.95 }}
           onClick={onToggleAI}
           className={clsx(
@@ -101,7 +102,7 @@ export default function FilterBar({
         >
           <Sparkles size={13} />
           AI 助手
-        </motion.button>
+        </motion.button>}
       </div>
     </div>
   )

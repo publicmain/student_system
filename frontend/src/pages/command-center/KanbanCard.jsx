@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { clsx } from 'clsx'
 import { GraduationCap, Clock, User } from 'lucide-react'
@@ -10,6 +11,9 @@ export default function KanbanCard({ app, isDragging = false }) {
   const { attributes, listeners, setNodeRef, isDragging: isBeingDragged } = useDraggable({
     id: String(app.id),
   })
+  const hasDragged = useRef(false)
+  const role = window.__ROLE__
+  const isMentor = role === 'mentor'
 
   const daysUntilDeadline = (() => {
     if (!app.submit_deadline) return null
@@ -25,9 +29,18 @@ export default function KanbanCard({ app, isDragging = false }) {
     <div
       ref={setNodeRef}
       {...attributes}
-      {...listeners}
+      {...(!isMentor ? listeners : {})}
+      onPointerDown={() => { hasDragged.current = false }}
+      onPointerMove={() => { hasDragged.current = true }}
+      onClick={(e) => {
+        if (!hasDragged.current && !isBeingDragged) {
+          window.location.hash = 'student-detail/' + app.student_id
+        }
+      }}
       className={clsx(
-        'rounded-lg border p-2.5 cursor-grab active:cursor-grabbing',
+        isMentor
+          ? 'rounded-lg border p-2.5 cursor-pointer'
+          : 'rounded-lg border p-2.5 cursor-grab active:cursor-grabbing',
         'hover:shadow-md transition-all duration-150',
         isDragging
           ? 'shadow-lg border-brand-500/40 ring-2 ring-brand-500/20 bg-white dark:bg-slate-800'

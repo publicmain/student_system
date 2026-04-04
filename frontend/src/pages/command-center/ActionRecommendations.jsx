@@ -1,8 +1,27 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { clsx } from 'clsx'
-import { Loader2, Sparkles, ArrowRight, User } from 'lucide-react'
+import { Loader2, Sparkles, ArrowRight, User, Plus, Check } from 'lucide-react'
 
 export default function ActionRecommendations({ actions, loading, onFetch }) {
+  const [createdTasks, setCreatedTasks] = useState(new Set())
+
+  const createTask = async (rec, index) => {
+    if (!rec.student_id) return
+    try {
+      await fetch(`/api/students/${rec.student_id}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: rec.action,
+          category: '风险跟进',
+          priority: rec.urgency === 'high' ? 'high' : 'normal',
+          application_id: rec.application_id || null,
+        })
+      })
+      setCreatedTasks(prev => new Set(prev).add(index))
+    } catch (e) { /* silent */ }
+  }
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -50,16 +69,33 @@ export default function ActionRecommendations({ actions, loading, onFetch }) {
                       {rec.reasoning}
                     </p>
                   )}
-                  {rec.urgency && (
-                    <span className={clsx(
-                      'inline-block text-[9px] font-medium mt-1 px-1.5 py-0.5 rounded-full',
-                      rec.urgency === 'high'   ? 'bg-red-50 text-red-600 dark:bg-red-900/20'   :
-                      rec.urgency === 'medium'  ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/20' :
-                                                  'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
-                    )}>
-                      {rec.urgency === 'high' ? '紧急' : rec.urgency === 'medium' ? '中等' : '一般'}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2 mt-1">
+                    {rec.urgency && (
+                      <span className={clsx(
+                        'inline-block text-[9px] font-medium px-1.5 py-0.5 rounded-full',
+                        rec.urgency === 'high'   ? 'bg-red-50 text-red-600 dark:bg-red-900/20'   :
+                        rec.urgency === 'medium'  ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/20' :
+                                                    'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                      )}>
+                        {rec.urgency === 'high' ? '紧急' : rec.urgency === 'medium' ? '中等' : '一般'}
+                      </span>
+                    )}
+                    {rec.student_id && (
+                      createdTasks.has(i) ? (
+                        <span className="text-[9px] text-green-600 dark:text-green-400 flex items-center gap-0.5">
+                          <Check size={10} /> 已创建
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => createTask(rec, i)}
+                          className="text-[9px] text-brand-600 hover:text-brand-700 dark:text-brand-400 flex items-center gap-0.5"
+                          title="创建任务"
+                        >
+                          <Plus size={10} /> 创建任务
+                        </button>
+                      )
+                    )}
+                  </div>
                 </div>
               </div>
             </motion.div>

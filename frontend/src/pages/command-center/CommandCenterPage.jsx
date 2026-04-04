@@ -12,6 +12,8 @@ import AISidePanel from './AISidePanel.jsx'
 export default function CommandCenterPage() {
   const cc = useCommandCenter()
   const ai = useAIPanel()
+  const role = window.__ROLE__
+  const isMentor = role === 'mentor'
 
   if (cc.loading) {
     return (
@@ -67,6 +69,7 @@ export default function CommandCenterPage() {
           onViewModeChange={cc.setViewMode}
           onToggleAI={() => ai.setOpen(o => !o)}
           aiOpen={ai.open}
+          readOnly={isMentor}
         />
 
         {/* Empty state for new counselors */}

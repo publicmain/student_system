@@ -99,15 +99,48 @@ export function useCommandCenter() {
   // Update app status (optimistic with rollback)
   const updateAppStatus = useCallback(async (appId, newStatus) => {
     const id = String(appId)
-    // 保存原始状态用于回滚
+    // 保存原始状态和申请信息用于回滚和入学处理
     let prevStatus = null
+    let targetApp = null
     setApps(prev => {
       const target = prev.find(a => String(a.id) === id)
-      if (target) prevStatus = target.status
+      if (target) {
+        prevStatus = target.status
+        targetApp = target
+      }
       return prev.map(a => String(a.id) === id ? { ...a, status: newStatus } : a)
     })
     try {
       await api.commandCenter.updateApp(id, { status: newStatus })
+
+      // Feature 6: 当状态变更为 enrolled 时，提示创建入学案例
+      if (newStatus === 'enrolled' && prevStatus !== 'enrolled' && targetApp) {
+        const studentName = targetApp.student_name || '该学生'
+        const uniName = targetApp.uni_name || '未知院校'
+        const shouldCreate = window.confirm(
+          `${studentName} 已确认入学 ${uniName}，是否创建入学管理案例？\n\n` +
+          `将自动创建入学案例，包含签证办理和到达登记。`
+        )
+        if (shouldCreate) {
+          try {
+            const resp = await fetch('/api/intake-cases', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                student_name: targetApp.student_name,
+                intake_year: targetApp.cycle_year || new Date().getFullYear(),
+                program_name: `${uniName} - ${targetApp.department || targetApp.program || '主课程'}`,
+              }),
+            })
+            const data = await resp.json().catch(() => ({}))
+            if (!resp.ok) throw new Error(data.error || '创建失败')
+            alert('入学案例已创建！可在入学管理模块中查看。')
+          } catch (e) {
+            alert('入学案例创建失败: ' + e.message)
+          }
+        }
+      }
     } catch (e) {
       // 回滚到原始状态
       if (prevStatus !== null) {

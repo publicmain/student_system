@@ -31,7 +31,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
   // ═════════════════════════════════════════════════════════
   //  GET /command-center/stats — 汇总统计
   // ═════════════════════════════════════════════════════════
-  router.get('/command-center/stats', requireRole('principal', 'counselor'), (req, res) => {
+  router.get('/command-center/stats', requireRole('principal', 'counselor', 'mentor'), (req, res) => {
     const u = req.session.user;
     const { where, params } = _roleFilter(u);
     const wStr = where.length ? `AND ${where.join(' AND ')}` : '';
@@ -59,7 +59,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
   // ═════════════════════════════════════════════════════════
   //  GET /command-center/risk-alerts — 纯SQL风险分析
   // ═════════════════════════════════════════════════════════
-  router.get('/command-center/risk-alerts', requireRole('principal', 'counselor'), (req, res) => {
+  router.get('/command-center/risk-alerts', requireRole('principal', 'counselor', 'mentor'), (req, res) => {
     const u = req.session.user;
     const { where, params } = _roleFilter(u);
     const wStr = where.length ? `AND ${where.join(' AND ')}` : '';
@@ -175,7 +175,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
   }
 
   // POST /command-center/ai-risk-alerts — AI 增强风险分析
-  router.post('/command-center/ai-risk-alerts', requireRole('principal', 'counselor'), async (req, res) => {
+  router.post('/command-center/ai-risk-alerts', requireRole('principal', 'counselor', 'mentor'), async (req, res) => {
     if (!aiCommand) return res.status(501).json({ error: 'AI 模块未加载' });
     if (_checkAiRateLimit(req, res)) return;
     try {
@@ -188,7 +188,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
   });
 
   // POST /command-center/ai-next-action — AI 行动建议
-  router.post('/command-center/ai-next-action', requireRole('principal', 'counselor'), async (req, res) => {
+  router.post('/command-center/ai-next-action', requireRole('principal', 'counselor', 'mentor'), async (req, res) => {
     if (!aiCommand) return res.status(501).json({ error: 'AI 模块未加载' });
     if (_checkAiRateLimit(req, res)) return;
     try {
@@ -201,7 +201,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
   });
 
   // POST /command-center/ai-nlq — 自然语言查询
-  router.post('/command-center/ai-nlq', requireRole('principal', 'counselor'), async (req, res) => {
+  router.post('/command-center/ai-nlq', requireRole('principal', 'counselor', 'mentor'), async (req, res) => {
     if (!aiCommand) return res.status(501).json({ error: 'AI 模块未加载' });
     if (_checkAiRateLimit(req, res)) return;
     const { query } = req.body;
@@ -231,7 +231,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
   });
 
   // POST /command-center/ai-list-score — 选校方案评分
-  router.post('/command-center/ai-list-score', requireRole('principal', 'counselor'), async (req, res) => {
+  router.post('/command-center/ai-list-score', requireRole('principal', 'counselor', 'mentor'), async (req, res) => {
     if (!aiCommand) return res.status(501).json({ error: 'AI 模块未加载' });
     if (_checkAiRateLimit(req, res)) return;
     const { student_id } = req.body;
@@ -243,6 +243,54 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
       console.error('[AI Command] List score error:', e.message);
       res.status(500).json({ error: 'AI 评分失败: ' + e.message });
     }
+  });
+
+  // ═════════════════════════════════════════════════════════
+  //  POST /command-center/notify-risks — 将风险预警推送为通知
+  // ═════════════════════════════════════════════════════════
+  router.post('/command-center/notify-risks', requireRole('principal', 'counselor'), (req, res) => {
+    const u = req.session.user;
+    const { where, params } = _roleFilter(u);
+    const wStr = where.length ? `AND ${where.join(' AND ')}` : '';
+
+    // 查找 critical + high 风险（截止日临近 ≤7天 或已逾期）
+    const criticalApps = db.all(`
+      SELECT a.id, a.uni_name, a.submit_deadline, a.status,
+             s.name as student_name, s.id as student_id,
+             CAST(julianday(a.submit_deadline) - julianday('now') AS INTEGER) as days_left
+      FROM applications a
+      JOIN students s ON s.id = a.student_id
+      WHERE a.status = 'pending'
+        AND a.submit_deadline IS NOT NULL
+        AND a.submit_deadline <= date('now', '+7 days')
+        ${wStr}
+      ORDER BY a.submit_deadline ASC`, params);
+
+    let created = 0;
+    const now = new Date().toISOString();
+    for (const app of criticalApps) {
+      const isOverdue = app.days_left < 0;
+      const type = isOverdue ? 'overdue' : 'deadline_reminder';
+      const title = isOverdue
+        ? `${app.student_name} · ${app.uni_name} 已逾期 ${Math.abs(app.days_left)} 天`
+        : `${app.student_name} · ${app.uni_name} 距截止还剩 ${app.days_left} 天`;
+
+      // 避免重复：检查近24h内是否已有同申请的风险通知
+      const existing = db.get(
+        `SELECT id FROM notification_logs WHERE student_id=? AND type=? AND message LIKE ? AND created_at > datetime('now', '-1 day')`,
+        [app.student_id, type, `%${app.uni_name}%`]
+      );
+      if (existing) continue;
+
+      db.run(`INSERT INTO notification_logs (id, student_id, type, title, message, target_role, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), app.student_id, type, title,
+         `申请「${app.uni_name}」截止日：${app.submit_deadline}，当前状态：${app.status}`,
+         'counselor', now]);
+      created++;
+    }
+
+    res.json({ created, total_risks: criticalApps.length });
   });
 
   return router;

@@ -665,47 +665,53 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
 
   // ── 导出 Excel ──────────────────────────────────────
   router.get('/command-center/export-excel', requireAuth, requireRole('principal','counselor'), (req, res) => {
-    const u = req.session.user;
-    const { where, params } = _roleFilter(u);
-    const wClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
-    const rows = db.all(`
-      SELECT a.id, s.name AS student_name, a.uni_name, a.department, a.program,
-             a.tier, a.route, a.status, a.submit_deadline, a.cycle_year
-      FROM applications a
-      LEFT JOIN students s ON s.id = a.student_id
-      ${wClause}
-      ORDER BY a.submit_deadline ASC
-    `, params);
+    try {
+      const u = req.session.user;
+      const { where, params } = _roleFilter(u);
+      where.push("a.status != 'deleted'");
+      const wClause = 'WHERE ' + where.join(' AND ');
+      const rows = db.all(`
+        SELECT a.id, s.name AS student_name, a.uni_name, a.department, a.program,
+               a.tier, a.route, a.status, a.submit_deadline, a.cycle_year
+        FROM applications a
+        LEFT JOIN students s ON s.id = a.student_id
+        ${wClause}
+        ORDER BY a.submit_deadline ASC
+      `, params);
 
-    const statusLabels = {
-      pending:'准备中', draft:'草稿', applied:'已提交', submitted:'已提交',
-      offer:'Offer', conditional_offer:'有条件录取', unconditional_offer:'无条件录取',
-      offer_received:'收到录取', accepted:'已接受', firm:'Firm', insurance:'Insurance',
-      enrolled:'已入学', declined:'已拒绝', rejected:'被拒绝', withdrawn:'已撤回', waitlisted:'等候名单',
-    };
-    const tierLabels = { reach:'冲刺', target:'匹配', safety:'保底', '冲刺':'冲刺', '意向':'意向', '保底':'保底' };
+      const statusLabels = {
+        pending:'准备中', draft:'草稿', applied:'已提交', submitted:'已提交',
+        offer:'Offer', conditional_offer:'有条件录取', unconditional_offer:'无条件录取',
+        offer_received:'收到录取', accepted:'已接受', firm:'Firm', insurance:'Insurance',
+        enrolled:'已入学', declined:'已拒绝', rejected:'被拒绝', withdrawn:'已撤回', waitlisted:'等候名单',
+      };
+      const tierLabels = { reach:'冲刺', target:'匹配', safety:'保底', '冲刺':'冲刺', '意向':'意向', '保底':'保底' };
 
-    const header = ['学生', '院校', '专业', '梯度', '路线', '状态', '截止日', '周期'];
-    const data = rows.map(r => [
-      r.student_name || '',
-      r.uni_name || '',
-      r.department || r.program || '',
-      tierLabels[r.tier] || r.tier || '',
-      r.route || '',
-      statusLabels[r.status] || r.status || '',
-      r.submit_deadline ? r.submit_deadline.slice(0, 10) : '',
-      r.cycle_year || '',
-    ]);
+      const header = ['学生', '院校', '专业', '梯度', '路线', '状态', '截止日', '周期'];
+      const data = rows.map(r => [
+        r.student_name || '',
+        r.uni_name || '',
+        r.department || r.program || '',
+        tierLabels[r.tier] || r.tier || '',
+        r.route || '',
+        statusLabels[r.status] || r.status || '',
+        r.submit_deadline ? r.submit_deadline.slice(0, 10) : '',
+        r.cycle_year || '',
+      ]);
 
-    const ws = xlsx.utils.aoa_to_sheet([header, ...data]);
-    ws['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 22 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 8 }];
-    const wb = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(wb, ws, '申请列表');
-    const buf = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      const ws = xlsx.utils.aoa_to_sheet([header, ...data]);
+      ws['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 22 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 8 }];
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, ws, '申请列表');
+      const buf = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
-    res.setHeader('Content-Disposition', `attachment; filename="applications_export.xlsx"`);
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.send(buf);
+      res.setHeader('Content-Disposition', `attachment; filename="applications_export.xlsx"`);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.send(buf);
+    } catch (err) {
+      console.error('[export-excel] Error:', err);
+      res.status(500).json({ error: '导出失败: ' + err.message });
+    }
   });
 
   return router;

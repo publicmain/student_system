@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { Loader2, AlertCircle, Rocket } from 'lucide-react'
 import { useCommandCenter } from '../../hooks/useCommandCenter.js'
 import { useAIPanel } from '../../hooks/useAIPanel.js'
@@ -92,30 +92,28 @@ export default function CommandCenterPage() {
           </div>
         )}
 
-        {/* View Area */}
-        <AnimatePresence mode="wait">
-          <motion.div key={cc.viewMode} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-            {cc.viewMode === 'kanban' && (
-              <KanbanBoard
-                columns={cc.kanbanData}
-                onStatusChange={handleStatusChange}
-                healthMap={cc.healthMap}
-              />
-            )}
-            {cc.viewMode === 'table' && (
-              <TableView apps={cc.apps} onStatusChange={handleStatusChange} readOnly={isMentor} onRefresh={cc.refresh} onRowClick={setDrawerApp} />
-            )}
-            {cc.viewMode === 'timeline' && (
-              <TimelineView apps={cc.apps} />
-            )}
-            {cc.viewMode === 'lifecycle' && (
-              <LifecyclePipelineView pipelines={cc.lifecycle} />
-            )}
-            {cc.viewMode === 'workspace' && (
-              <MyWorkspacePanel />
-            )}
-          </motion.div>
-        </AnimatePresence>
+        {/* View Area — keyed div forces remount on view change, CSS fade-in only (no exit animation) */}
+        <div key={cc.viewMode} className="animate-fadeIn">
+          {cc.viewMode === 'kanban' && (
+            <KanbanBoard
+              columns={cc.kanbanData}
+              onStatusChange={handleStatusChange}
+              healthMap={cc.healthMap}
+            />
+          )}
+          {cc.viewMode === 'table' && (
+            <TableView apps={cc.apps} onStatusChange={handleStatusChange} readOnly={isMentor} onRefresh={cc.refresh} onRowClick={setDrawerApp} />
+          )}
+          {cc.viewMode === 'timeline' && (
+            <TimelineView apps={cc.apps} />
+          )}
+          {cc.viewMode === 'lifecycle' && (
+            <LifecyclePipelineView pipelines={cc.lifecycle} />
+          )}
+          {cc.viewMode === 'workspace' && (
+            <MyWorkspacePanel />
+          )}
+        </div>
       </div>
 
       {/* AI Side Panel */}

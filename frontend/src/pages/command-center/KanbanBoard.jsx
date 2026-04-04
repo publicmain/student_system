@@ -11,7 +11,7 @@ import { motion } from 'framer-motion'
 import KanbanColumn from './KanbanColumn.jsx'
 import KanbanCard from './KanbanCard.jsx'
 
-export default function KanbanBoard({ columns, onStatusChange }) {
+export default function KanbanBoard({ columns, onStatusChange, healthMap }) {
   const [activeApp, setActiveApp] = useState(null)
 
   const sensors = useSensors(
@@ -62,7 +62,7 @@ export default function KanbanBoard({ columns, onStatusChange }) {
     >
       <div className="flex gap-2 pb-4 min-h-[400px]">
         {columns.map((col, i) => (
-          <KanbanColumn key={col.id} column={col} index={i} />
+          <KanbanColumn key={col.id} column={col} index={i} healthMap={healthMap} />
         ))}
       </div>
 

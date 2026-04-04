@@ -1,12 +1,14 @@
-import { Search, LayoutGrid, Table, Calendar, Sparkles, X } from 'lucide-react'
+import { Search, LayoutGrid, Table, Calendar, Sparkles, X, GitBranch, User } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { clsx } from 'clsx'
 import Chip from '../../components/ui/Chip.jsx'
 
 const viewModes = [
-  { id: 'kanban',   icon: LayoutGrid, label: '看板' },
-  { id: 'table',    icon: Table,      label: '表格' },
-  { id: 'timeline', icon: Calendar,   label: '时间线' },
+  { id: 'kanban',    icon: LayoutGrid, label: '看板' },
+  { id: 'table',     icon: Table,      label: '表格' },
+  { id: 'timeline',  icon: Calendar,   label: '时间线' },
+  { id: 'lifecycle', icon: GitBranch,  label: '生命周期' },
+  { id: 'workspace', icon: User,       label: '我的工作台' },
 ]
 
 export default function FilterBar({

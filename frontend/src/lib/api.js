@@ -118,6 +118,9 @@ export const api = {
     aiActions:  ()         => post('/api/command-center/ai-next-action', {}),
     aiNLQ:      (query)    => post('/api/command-center/ai-nlq', { query }),
     aiListScore:(sid)      => post('/api/command-center/ai-list-score', { student_id: sid }),
+    appHealth:  ()         => get('/api/command-center/app-health'),
+    lifecycle:  ()         => get('/api/command-center/lifecycle'),
+    myWorkspace:()         => get('/api/command-center/my-workspace'),
   },
 
   // ── 系统设置 ─────────────────────────────────────────────────

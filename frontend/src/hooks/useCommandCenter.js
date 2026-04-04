@@ -35,6 +35,8 @@ export function useCommandCenter() {
   const [apps, setApps] = useState([])
   const [stats, setStats] = useState(null)
   const [riskAlerts, setRiskAlerts] = useState([])
+  const [healthMap, setHealthMap] = useState({})
+  const [lifecycle, setLifecycle] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -81,14 +83,18 @@ export function useCommandCenter() {
     setLoading(true)
     setError(null)
     try {
-      const [statsRes, alertsRes, appsRes] = await Promise.all([
+      const [statsRes, alertsRes, appsRes, healthRes, lifecycleRes] = await Promise.all([
         api.commandCenter.stats(),
         api.commandCenter.riskAlerts(),
         api.commandCenter.allApps(),
+        api.commandCenter.appHealth().catch(() => ({ health: {} })),
+        api.commandCenter.lifecycle().catch(() => ({ pipelines: [] })),
       ])
       setStats(statsRes)
       setRiskAlerts(alertsRes.alerts || [])
       setApps(appsRes.applications || appsRes || [])
+      setHealthMap(healthRes.health || {})
+      setLifecycle(lifecycleRes.pipelines || [])
     } catch (e) {
       setError(e.message)
     } finally {
@@ -201,6 +207,8 @@ export function useCommandCenter() {
     allApps: apps,
     stats,
     riskAlerts,
+    healthMap,
+    lifecycle,
     loading,
     error,
     search, setSearch,

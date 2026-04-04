@@ -7,6 +7,8 @@ import FilterBar from './FilterBar.jsx'
 import KanbanBoard from './KanbanBoard.jsx'
 import TableView from './TableView.jsx'
 import TimelineView from './TimelineView.jsx'
+import LifecyclePipelineView from './LifecyclePipelineView.jsx'
+import MyWorkspacePanel from './MyWorkspacePanel.jsx'
 import AISidePanel from './AISidePanel.jsx'
 
 export default function CommandCenterPage() {
@@ -93,6 +95,7 @@ export default function CommandCenterPage() {
               <KanbanBoard
                 columns={cc.kanbanData}
                 onStatusChange={handleStatusChange}
+                healthMap={cc.healthMap}
               />
             </motion.div>
           )}
@@ -104,6 +107,16 @@ export default function CommandCenterPage() {
           {cc.viewMode === 'timeline' && (
             <motion.div key="timeline" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
               <TimelineView apps={cc.apps} />
+            </motion.div>
+          )}
+          {cc.viewMode === 'lifecycle' && (
+            <motion.div key="lifecycle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+              <LifecyclePipelineView pipelines={cc.lifecycle} />
+            </motion.div>
+          )}
+          {cc.viewMode === 'workspace' && (
+            <motion.div key="workspace" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+              <MyWorkspacePanel />
             </motion.div>
           )}
         </AnimatePresence>

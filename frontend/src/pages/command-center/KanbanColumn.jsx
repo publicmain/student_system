@@ -25,7 +25,7 @@ const dotColors = {
   emerald: 'bg-emerald-500',
 }
 
-export default function KanbanColumn({ column, index }) {
+export default function KanbanColumn({ column, index, healthMap }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
 
   return (
@@ -59,7 +59,7 @@ export default function KanbanColumn({ column, index }) {
           </div>
         ) : (
           column.apps.map(app => (
-            <KanbanCard key={app.id} app={app} />
+            <KanbanCard key={app.id} app={app} health={healthMap?.[app.id]} />
           ))
         )}
       </div>

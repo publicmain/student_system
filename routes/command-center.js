@@ -156,6 +156,311 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
   });
 
   // ═════════════════════════════════════════════════════════
+  //  GET /command-center/app-health — 每个申请的健康度数据
+  // ═════════════════════════════════════════════════════════
+  router.get('/command-center/app-health', requireRole('principal', 'counselor', 'mentor'), (req, res) => {
+    const u = req.session.user;
+    const { where, params } = _roleFilter(u);
+    const wStr = where.length ? `AND ${where.join(' AND ')}` : '';
+
+    // 获取所有活跃申请
+    const apps = db.all(`SELECT a.id, a.student_id, a.status FROM applications a
+      WHERE a.status != 'deleted' ${wStr}`, params);
+    if (!apps.length) return res.json({ health: {} });
+
+    const appIds = apps.map(a => a.id);
+    const studentIds = [...new Set(apps.map(a => a.student_id))];
+
+    // 批量查询 PS 状态
+    const psRows = db.all(`SELECT application_id, status FROM personal_statements
+      WHERE application_id IN (${appIds.map(() => '?').join(',')})`, appIds);
+    const psMap = new Map();
+    psRows.forEach(r => psMap.set(r.application_id, r.status));
+
+    // 批量查询材料完成率（按 application_id 分组）
+    const matRows = db.all(`SELECT application_id, status FROM material_items
+      WHERE application_id IN (${appIds.map(() => '?').join(',')})`, appIds);
+    const matByApp = new Map();
+    matRows.forEach(r => {
+      if (!matByApp.has(r.application_id)) matByApp.set(r.application_id, []);
+      matByApp.get(r.application_id).push(r.status);
+    });
+
+    // 批量查询任务完成率（按 application_id 分组）
+    const taskRows = db.all(`SELECT application_id, status FROM milestone_tasks
+      WHERE application_id IN (${appIds.map(() => '?').join(',')})`, appIds);
+    const taskByApp = new Map();
+    taskRows.forEach(r => {
+      if (!taskByApp.has(r.application_id)) taskByApp.set(r.application_id, []);
+      taskByApp.get(r.application_id).push(r.status);
+    });
+
+    // 批量查询录取评估（最新的 prob_mid）
+    const evalRows = db.all(`SELECT ae.student_id, a.id as app_id, ae.prob_mid, ae.confidence, ae.score_total
+      FROM admission_evaluations ae
+      JOIN applications a ON a.student_id = ae.student_id
+      WHERE a.id IN (${appIds.map(() => '?').join(',')})
+      ORDER BY ae.eval_date DESC`, appIds);
+    const evalMap = new Map();
+    evalRows.forEach(r => {
+      if (!evalMap.has(r.app_id)) evalMap.set(r.app_id, r);
+    });
+
+    // 批量查询文书状态（essay 按 application_id）
+    const essayRows = db.all(`SELECT e.application_id, e.status, e.current_version, e.review_deadline,
+      (SELECT MAX(ev.created_at) FROM essay_versions ev WHERE ev.essay_id = e.id) as last_version_at
+      FROM essays e
+      WHERE e.application_id IN (${appIds.map(() => '?').join(',')})`, appIds);
+    const essayByApp = new Map();
+    essayRows.forEach(r => {
+      if (!essayByApp.has(r.application_id)) essayByApp.set(r.application_id, []);
+      essayByApp.get(r.application_id).push(r);
+    });
+
+    // 计算每个申请的健康度
+    const PS_DONE = ['定稿', '已提交'];
+    const PS_PROGRESS = ['一审中', '二审中', '需修改'];
+    const MAT_DONE = ['已审核', '已提交'];
+    const TASK_DONE = ['done'];
+
+    const health = {};
+    for (const app of apps) {
+      // PS 分数 (0-25)
+      const psStatus = psMap.get(app.id);
+      let psScore = 0;
+      if (PS_DONE.includes(psStatus)) psScore = 25;
+      else if (psStatus === '草稿') psScore = 10;
+      else if (PS_PROGRESS.includes(psStatus)) psScore = 18;
+
+      // 材料完成率 (0-25)
+      const mats = matByApp.get(app.id) || [];
+      const matDone = mats.filter(s => MAT_DONE.includes(s)).length;
+      const matScore = mats.length > 0 ? Math.round((matDone / mats.length) * 25) : 0;
+
+      // 任务完成率 (0-25)
+      const tasks = taskByApp.get(app.id) || [];
+      const taskDone = tasks.filter(s => TASK_DONE.includes(s)).length;
+      const taskScore = tasks.length > 0 ? Math.round((taskDone / tasks.length) * 25) : 0;
+
+      // 评估分数 (0-25)
+      const evalData = evalMap.get(app.id);
+      const evalScore = evalData ? Math.round((evalData.prob_mid || 0) * 25) : 0;
+
+      // 文书风险
+      const essays = essayByApp.get(app.id) || [];
+      let essayRisk = 'none'; // none, yellow, orange, red
+      const now = Date.now();
+      for (const e of essays) {
+        if (e.status === 'collecting_material' || e.current_version === 0) {
+          // 草稿阶段 — 如果创建超30天无版本则红
+          essayRisk = 'red'; break;
+        }
+        if (e.last_version_at) {
+          const daysSince = (now - new Date(e.last_version_at).getTime()) / 86400000;
+          if (daysSince > 30 && e.status !== 'finalized') { essayRisk = 'red'; break; }
+          if (daysSince > 14 && e.status !== 'finalized') { essayRisk = essayRisk === 'red' ? 'red' : 'orange'; }
+        }
+        if (e.review_deadline && new Date(e.review_deadline) < new Date()) {
+          essayRisk = essayRisk === 'red' ? 'red' : 'orange';
+        }
+      }
+
+      const total = psScore + matScore + taskScore + evalScore;
+      health[app.id] = {
+        total,
+        ps: { score: psScore, status: psStatus || '未开始' },
+        materials: { score: matScore, done: matDone, total: mats.length },
+        tasks: { score: taskScore, done: taskDone, total: tasks.length },
+        eval: { score: evalScore, prob_mid: evalData?.prob_mid || null, confidence: evalData?.confidence || null },
+        essayRisk,
+      };
+    }
+
+    res.json({ health });
+  });
+
+  // ═════════════════════════════════════════════════════════
+  //  GET /command-center/lifecycle — 全生命周期管线数据
+  // ═════════════════════════════════════════════════════════
+  router.get('/command-center/lifecycle', requireRole('principal', 'counselor', 'mentor'), (req, res) => {
+    const u = req.session.user;
+    const { where, params } = _roleFilter(u);
+    const wStr = where.length ? `AND ${where.join(' AND ')}` : '';
+
+    // 只查 accepted/firm/insurance/enrolled 状态的申请（进入后续流程的）
+    const apps = db.all(`
+      SELECT a.id, a.student_id, a.uni_name, a.department, a.status, a.route, a.cycle_year,
+             s.name as student_name
+      FROM applications a
+      JOIN students s ON s.id = a.student_id
+      WHERE a.status IN ('accepted', 'firm', 'insurance', 'enrolled')
+        ${wStr}
+      ORDER BY a.updated_at DESC`, params);
+
+    if (!apps.length) return res.json({ pipelines: [] });
+
+    const studentIds = [...new Set(apps.map(a => a.student_id))];
+
+    // 批量查询 intake_cases（中间表，visa/arrival 都通过 case_id 关联）
+    const intakeRows = db.all(`SELECT id, student_id, status as intake_status, program_name
+      FROM intake_cases WHERE student_id IN (${studentIds.map(() => '?').join(',')})
+      ORDER BY created_at DESC`, studentIds);
+    const intakeMap = new Map();
+    const caseIds = [];
+    intakeRows.forEach(r => {
+      if (!intakeMap.has(r.student_id)) intakeMap.set(r.student_id, r);
+      caseIds.push(r.id);
+    });
+
+    // 批量查询 visa_cases（通过 case_id 关联 intake_cases）
+    const visaMap = new Map();
+    if (caseIds.length) {
+      const visaRows = db.all(`SELECT case_id, status, submission_date, approved_date
+        FROM visa_cases WHERE case_id IN (${caseIds.map(() => '?').join(',')})
+        ORDER BY created_at DESC`, caseIds);
+      // Map case_id → student_id via intakeRows
+      const caseToStudent = new Map();
+      intakeRows.forEach(r => caseToStudent.set(r.id, r.student_id));
+      visaRows.forEach(r => {
+        const sid = caseToStudent.get(r.case_id);
+        if (sid && !visaMap.has(sid)) visaMap.set(sid, r);
+      });
+    }
+
+    // 批量查询 arrival_records（通过 case_id 关联 intake_cases）
+    const arrMap = new Map();
+    if (caseIds.length) {
+      const arrRows = db.all(`SELECT case_id, actual_arrival, accommodation, orientation_date, student_pass_issued
+        FROM arrival_records WHERE case_id IN (${caseIds.map(() => '?').join(',')})
+        ORDER BY created_at DESC`, caseIds);
+      const caseToStudent = new Map();
+      intakeRows.forEach(r => caseToStudent.set(r.id, r.student_id));
+      arrRows.forEach(r => {
+        const sid = caseToStudent.get(r.case_id);
+        if (sid && !arrMap.has(sid)) arrMap.set(sid, r);
+      });
+    }
+
+    const pipelines = apps.map(app => {
+      const visa = visaMap.get(app.student_id);
+      const arrival = arrMap.get(app.student_id);
+      const intake = intakeMap.get(app.student_id);
+
+      // 计算管线阶段 (0-5)
+      const stages = [
+        { id: 'offer', label: '录取', done: true },
+        { id: 'confirm', label: '确认', done: ['firm', 'insurance', 'enrolled'].includes(app.status) },
+        { id: 'visa', label: '签证', done: visa?.status === 'approved', active: !!visa && visa.status !== 'approved' },
+        { id: 'arrival', label: '到达', done: !!arrival?.actual_arrival, active: !!arrival && !arrival.actual_arrival },
+        { id: 'enrolled', label: '入学', done: app.status === 'enrolled' || intake?.intake_status === 'completed' },
+      ];
+
+      return {
+        app_id: app.id,
+        student_id: app.student_id,
+        student_name: app.student_name,
+        uni_name: app.uni_name,
+        department: app.department,
+        route: app.route,
+        status: app.status,
+        stages,
+        visa: visa ? { status: visa.status, submission: visa.submission_date, approved: visa.approved_date } : null,
+        arrival: arrival ? { date: arrival.actual_arrival, accommodation: arrival.accommodation } : null,
+      };
+    });
+
+    res.json({ pipelines });
+  });
+
+  // ═════════════════════════════════════════════════════════
+  //  GET /command-center/my-workspace — 个人工作台
+  // ═════════════════════════════════════════════════════════
+  router.get('/command-center/my-workspace', requireRole('principal', 'counselor', 'mentor'), (req, res) => {
+    const u = req.session.user;
+    const staffId = u.linked_id;
+
+    // 今日到期任务（分配给我的）
+    const todayTasks = db.all(`
+      SELECT mt.id, mt.title, mt.due_date, mt.status, mt.category, mt.priority,
+             s.name as student_name, a.uni_name
+      FROM milestone_tasks mt
+      LEFT JOIN students s ON s.id = mt.student_id
+      LEFT JOIN applications a ON a.id = mt.application_id
+      WHERE mt.assigned_to = ?
+        AND mt.status NOT IN ('done', 'cancelled')
+        AND mt.due_date <= date('now', '+1 day')
+      ORDER BY mt.due_date ASC, mt.priority DESC
+      LIMIT 20`, [staffId]);
+
+    // 待审文书（分配给我审阅的）
+    const pendingReviews = db.all(`
+      SELECT e.id, e.title, e.essay_type, e.status, e.review_deadline, e.current_version,
+             s.name as student_name, a.uni_name
+      FROM essays e
+      LEFT JOIN students s ON s.id = e.student_id
+      LEFT JOIN applications a ON a.id = e.application_id
+      WHERE e.assigned_reviewer_id = ?
+        AND e.status IN ('submitted_for_review', 'revision_submitted', 'collecting_material', 'drafting', 'reviewing')
+      ORDER BY e.review_deadline ASC
+      LIMIT 20`, [staffId]);
+
+    // 待审 PS
+    const pendingPS = db.all(`
+      SELECT ps.id, ps.status, ps.student_id, ps.application_id, ps.word_count,
+             s.name as student_name, a.uni_name
+      FROM personal_statements ps
+      LEFT JOIN students s ON s.id = ps.student_id
+      LEFT JOIN applications a ON a.id = ps.application_id
+      WHERE ps.reviewer_id = ?
+        AND ps.status IN ('一审中', '二审中')
+      ORDER BY ps.updated_at DESC
+      LIMIT 20`, [staffId]);
+
+    // 高风险申请（我负责的学生中截止日 ≤7天的）
+    const riskApps = db.all(`
+      SELECT a.id, a.uni_name, a.submit_deadline, a.status,
+             s.name as student_name,
+             CAST(julianday(a.submit_deadline) - julianday('now') AS INTEGER) as days_left
+      FROM applications a
+      JOIN students s ON s.id = a.student_id
+      WHERE a.student_id IN (SELECT student_id FROM mentor_assignments WHERE staff_id = ?)
+        AND a.status = 'pending'
+        AND a.submit_deadline IS NOT NULL
+        AND a.submit_deadline <= date('now', '+7 days')
+      ORDER BY a.submit_deadline ASC
+      LIMIT 20`, [staffId]);
+
+    // 待回复反馈（feedback 表：responded_by 为空表示未回复）
+    const pendingFeedback = db.all(`
+      SELECT f.id, f.content, f.feedback_type, f.status, f.created_at, f.rating,
+             s.name as student_name
+      FROM feedback f
+      LEFT JOIN students s ON s.id = f.student_id
+      WHERE f.status = 'pending'
+        AND f.responded_by IS NULL
+        AND f.student_id IN (SELECT student_id FROM mentor_assignments WHERE staff_id = ?)
+      ORDER BY f.created_at DESC
+      LIMIT 10`, [staffId]);
+
+    res.json({
+      todayTasks,
+      pendingReviews: [...pendingReviews, ...pendingPS.map(ps => ({
+        id: ps.id, title: `PS - ${ps.student_name}`, essay_type: 'PS',
+        status: ps.status, student_name: ps.student_name, uni_name: ps.uni_name,
+        current_version: null, review_deadline: null,
+      }))],
+      riskApps,
+      pendingFeedback,
+      summary: {
+        tasks: todayTasks.length,
+        reviews: pendingReviews.length + pendingPS.length,
+        risks: riskApps.length,
+        feedback: pendingFeedback.length,
+      },
+    });
+  });
+
+  // ═════════════════════════════════════════════════════════
   //  AI 端点（需要 ai-command.js + OpenAI）
   // ═════════════════════════════════════════════════════════
 

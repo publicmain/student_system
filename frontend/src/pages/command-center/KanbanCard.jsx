@@ -1,14 +1,38 @@
 import { useRef } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { clsx } from 'clsx'
-import { GraduationCap, Clock, User } from 'lucide-react'
+import { GraduationCap, Clock, User, FileText, AlertTriangle } from 'lucide-react'
 import { Badge } from '../../components/ui/Badge.jsx'
 import { deadlineStatus } from '../../lib/dateUtils.js'
 
 const tierLabels = { '冲刺': '冲刺', '意向': '意向', '保底': '保底', reach: '冲刺', target: '意向', safety: '保底' }
 const tierColors = { '冲刺': 'red', '意向': 'amber', '保底': 'green', reach: 'red', target: 'amber', safety: 'green' }
 
-export default function KanbanCard({ app, isDragging = false }) {
+const essayRiskColors = { red: 'text-red-500', orange: 'text-amber-500', yellow: 'text-yellow-500' }
+const essayRiskLabels = { red: '文书滞后', orange: '文书待跟进', yellow: '文书注意' }
+
+// Mini ring chart for health score (0-100)
+function HealthRing({ score, size = 24 }) {
+  const r = (size - 4) / 2
+  const circumference = 2 * Math.PI * r
+  const offset = circumference - (score / 100) * circumference
+  const color = score >= 70 ? '#10b981' : score >= 40 ? '#f59e0b' : '#ef4444'
+
+  return (
+    <svg width={size} height={size} className="flex-shrink-0">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={2} className="text-surface-2 dark:text-slate-700" />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={2}
+        strokeDasharray={circumference} strokeDashoffset={offset}
+        strokeLinecap="round" transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+      <text x={size / 2} y={size / 2} textAnchor="middle" dominantBaseline="central"
+        fontSize={8} fontWeight="bold" fill={color}>
+        {score}
+      </text>
+    </svg>
+  )
+}
+
+export default function KanbanCard({ app, isDragging = false, health }) {
   const { attributes, listeners, setNodeRef, isDragging: isBeingDragged } = useDraggable({
     id: String(app.id),
   })
@@ -46,12 +70,15 @@ export default function KanbanCard({ app, isDragging = false }) {
         !isBeingDragged && isUrgent && !isOverdue && 'border-l-2 border-l-amber-500',
       )}
     >
-      {/* University */}
+      {/* Top row: University + Health Ring */}
       <div className="flex items-start gap-1.5 mb-1.5">
         <GraduationCap size={12} className="text-ink-tertiary dark:text-slate-400 mt-0.5 flex-shrink-0" />
-        <span className="text-xs font-semibold text-ink-primary dark:text-slate-100 line-clamp-2 leading-tight">
+        <span className="text-xs font-semibold text-ink-primary dark:text-slate-100 line-clamp-2 leading-tight flex-1">
           {app.uni_name || '未知院校'}
         </span>
+        {health && health.total > 0 && (
+          <HealthRing score={health.total} />
+        )}
       </div>
 
       {/* Department / Program */}
@@ -61,7 +88,7 @@ export default function KanbanCard({ app, isDragging = false }) {
         </p>
       )}
 
-      {/* Tags row */}
+      {/* Tags row: tier + route + essay risk + admission prob */}
       <div className="flex items-center gap-1 flex-wrap mb-1.5">
         {app.tier && (
           <Badge color={tierColors[app.tier]} className="text-[9px] px-1.5 py-0">
@@ -73,7 +100,28 @@ export default function KanbanCard({ app, isDragging = false }) {
             {app.route}
           </Badge>
         )}
+        {health?.essayRisk && health.essayRisk !== 'none' && (
+          <span className={clsx('inline-flex items-center gap-0.5 text-[9px] font-medium', essayRiskColors[health.essayRisk])}>
+            <FileText size={9} />
+            {essayRiskLabels[health.essayRisk]}
+          </span>
+        )}
+        {health?.eval?.prob_mid != null && (
+          <span className="text-[9px] font-medium text-brand-600 dark:text-brand-400 ml-auto">
+            {Math.round(health.eval.prob_mid * 100)}%
+          </span>
+        )}
       </div>
+
+      {/* Health bar (compact) */}
+      {health && health.total > 0 && (
+        <div className="flex gap-0.5 mb-1.5 h-1 rounded-full overflow-hidden bg-surface-2 dark:bg-slate-700">
+          <div className="h-full bg-blue-500 transition-all" style={{ width: `${health.ps.score * 4}%` }} title={`文书 ${health.ps.status}`} />
+          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${health.materials.score * 4}%` }} title={`材料 ${health.materials.done}/${health.materials.total}`} />
+          <div className="h-full bg-purple-500 transition-all" style={{ width: `${health.tasks.score * 4}%` }} title={`任务 ${health.tasks.done}/${health.tasks.total}`} />
+          <div className="h-full bg-amber-500 transition-all" style={{ width: `${health.eval.score * 4}%` }} title={`评估 ${health.eval.prob_mid ? Math.round(health.eval.prob_mid * 100) + '%' : '无'}`} />
+        </div>
+      )}
 
       {/* Footer: Student + Deadline */}
       <div className="flex items-center justify-between text-[10px] text-ink-tertiary dark:text-slate-500">

@@ -6128,7 +6128,7 @@ async function saveAppExtFields(appId, route) {
 // ════════════════════════════════════════════════════════
 function renderCommandCenter() {
   const mc = document.getElementById('main-content');
-  mc.innerHTML = '<div id="command-center-root" style="height:calc(100vh - 60px);overflow:hidden"></div>';
+  mc.innerHTML = '<div id="command-center-root" style="height:calc(100vh - 60px);width:100%;overflow:hidden"></div>';
   window.__PAGE__ = 'command-center';
   window.__USER__ = State.user;
   window.__ROLE__ = State.user?.role;

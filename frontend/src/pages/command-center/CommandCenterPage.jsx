@@ -32,7 +32,7 @@ export default function CommandCenterPage() {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full overflow-hidden">
       <div className="flex-1 min-w-0 flex flex-col gap-4 p-4 lg:p-6 overflow-y-auto">
         {/* Header */}
         <motion.div

@@ -1,5 +1,4 @@
 import { useDraggable } from '@dnd-kit/core'
-import { motion } from 'framer-motion'
 import { clsx } from 'clsx'
 import { GraduationCap, Clock, User } from 'lucide-react'
 import { Badge } from '../../components/ui/Badge.jsx'
@@ -8,13 +7,9 @@ const tierLabels = { '冲刺': '冲刺', '意向': '意向', '保底': '保底',
 const tierColors = { '冲刺': 'red', '意向': 'amber', '保底': 'green', reach: 'red', target: 'amber', safety: 'green' }
 
 export default function KanbanCard({ app, isDragging = false }) {
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging: isBeingDragged } = useDraggable({
     id: String(app.id),
   })
-
-  const style = transform ? {
-    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-  } : undefined
 
   const daysUntilDeadline = (() => {
     if (!app.submit_deadline) return null
@@ -27,20 +22,20 @@ export default function KanbanCard({ app, isDragging = false }) {
   const isOverdue = daysUntilDeadline !== null && daysUntilDeadline < 0
 
   return (
-    <motion.div
+    <div
       ref={setNodeRef}
-      style={style}
       {...attributes}
       {...listeners}
-      layout
       className={clsx(
-        'rounded-lg border bg-white dark:bg-slate-800 p-2.5 cursor-grab active:cursor-grabbing',
-        'hover:shadow-md transition-shadow duration-150',
+        'rounded-lg border p-2.5 cursor-grab active:cursor-grabbing',
+        'hover:shadow-md transition-all duration-150',
         isDragging
-          ? 'shadow-lg border-brand-500/40 ring-2 ring-brand-500/20'
-          : 'border-surface-3 dark:border-slate-700 shadow-sm',
-        isOverdue && 'border-l-2 border-l-red-500',
-        isUrgent && !isOverdue && 'border-l-2 border-l-amber-500',
+          ? 'shadow-lg border-brand-500/40 ring-2 ring-brand-500/20 bg-white dark:bg-slate-800'
+          : isBeingDragged
+            ? 'opacity-30 border-dashed border-brand-400 bg-brand-50/30 dark:bg-slate-700/30'
+            : 'bg-white dark:bg-slate-800 border-surface-3 dark:border-slate-700 shadow-sm',
+        !isBeingDragged && isOverdue && 'border-l-2 border-l-red-500',
+        !isBeingDragged && isUrgent && !isOverdue && 'border-l-2 border-l-amber-500',
       )}
     >
       {/* University */}
@@ -91,6 +86,6 @@ export default function KanbanCard({ app, isDragging = false }) {
           </span>
         )}
       </div>
-    </motion.div>
+    </div>
   )
 }

@@ -126,7 +126,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
   // ═══════════════════════════════════════════════════════
 
   // ── 院校专业库 CRUD ───────────────────────────────────
-  router.get('/uni-programs', requireAuth, (req, res) => {
+  router.get('/uni-programs', requireAuth, requireRole('principal','counselor','mentor','intake_staff'), (req, res) => {
     if (['agent', 'student_admin'].includes(req.session.user.role)) return res.status(403).json({ error: '权限不足' });
     const { country, route, search, uni_name } = req.query;
     let where = ['is_active=1'];
@@ -139,7 +139,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
     res.json(rows);
   });
 
-  router.get('/uni-programs/:id', requireAuth, (req, res) => {
+  router.get('/uni-programs/:id', requireAuth, requireRole('principal','counselor','mentor','intake_staff'), (req, res) => {
     if (['agent', 'student_admin'].includes(req.session.user.role)) return res.status(403).json({ error: '权限不足' });
     const prog = db.get('SELECT * FROM uni_programs WHERE id=?', [req.params.id]);
     if (!prog) return res.status(404).json({ error: '专业不存在' });
@@ -220,7 +220,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
   // ════════════════════════════════════════════════════════
   //  基准评估库 CRUD
   // ════════════════════════════════════════════════════════
-  router.get('/eval-benchmarks', requireAuth, (req, res) => {
+  router.get('/eval-benchmarks', requireAuth, requireRole('principal','counselor'), (req, res) => {
     if (['agent', 'student_admin'].includes(req.session.user.role)) return res.status(403).json({ error: '权限不足' });
     const { country, tier, subject_area } = req.query;
     const where = ['is_active=1'];
@@ -232,7 +232,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
     res.json(rows);
   });
 
-  router.get('/eval-benchmarks/:id', requireAuth, (req, res) => {
+  router.get('/eval-benchmarks/:id', requireAuth, requireRole('principal','counselor'), (req, res) => {
     if (['agent', 'student_admin'].includes(req.session.user.role)) return res.status(403).json({ error: '权限不足' });
     const bm = db.get('SELECT * FROM eval_benchmarks WHERE id=?', [req.params.id]);
     if (!bm) return res.status(404).json({ error: '基准不存在' });
@@ -533,7 +533,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
   }
 
   // ── 对单个学生运行评估 ────────────────────────────────
-  router.post('/students/:id/admission-eval', requireAuth, (req, res) => {
+  router.post('/students/:id/admission-eval', requireAuth, requireRole('principal','counselor'), (req, res) => {
     const u = req.session.user; const sid = req.params.id;
     if (u.role === 'student' && u.linked_id !== sid) return res.status(403).json({ error: '无权操作他人评估' });
     if (u.role === 'parent') return res.status(403).json({ error: '家长账户无权运行评估' });
@@ -569,7 +569,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
   });
 
   // ── 获取学生所有评估记录 ───────────────────────────────
-  router.get('/students/:id/admission-evals', requireAuth, (req, res) => {
+  router.get('/students/:id/admission-evals', requireAuth, requireRole('principal','counselor','mentor','student','parent'), (req, res) => {
     const u = req.session.user; const sid = req.params.id;
     if (['agent', 'student_admin', 'intake_staff'].includes(u.role)) return res.status(403).json({ error: '权限不足' });
     if (u.role === 'student' && u.linked_id !== sid) return res.status(403).json({ error: '无权访问' });
@@ -591,7 +591,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
   });
 
   // ── 获取单条评估详情 ──────────────────────────────────
-  router.get('/admission-evals/:id', requireAuth, (req, res) => {
+  router.get('/admission-evals/:id', requireAuth, requireRole('principal','counselor'), (req, res) => {
     const u = req.session.user;
     if (['agent', 'student_admin', 'intake_staff'].includes(u.role)) return res.status(403).json({ error: '权限不足' });
     const ev = db.get(`
@@ -653,7 +653,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
 
       res.json(aiResult);
     } catch(e) {
-      res.status(500).json({ error: e.message });
+      console.error('[analytics]', e);
+      res.status(500).json({ error: '服务器错误，请重试' });
     }
   });
 
@@ -780,7 +781,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiEval,
       audit(req, 'AI_ENHANCE', 'benchmark_evaluations', req.params.id, { benchmark: ev.display_name });
       res.json(aiResult);
     } catch(e) {
-      res.status(500).json({ error: e.message });
+      console.error('[analytics]', e);
+      res.status(500).json({ error: '服务器错误，请重试' });
     }
   });
 

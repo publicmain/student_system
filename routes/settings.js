@@ -56,7 +56,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   //  SUBJECTS (字典)
   // ═══════════════════════════════════════════════════════
 
-  router.get('/subjects', requireAuth, (req, res) => {
+  router.get('/subjects', requireAuth, requireRole('principal','counselor','mentor','intake_staff','student_admin'), (req, res) => {
     res.json(db.all('SELECT * FROM subjects ORDER BY category, code'));
   });
 
@@ -64,7 +64,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   //  TIMELINE TEMPLATES
   // ═══════════════════════════════════════════════════════
 
-  router.get('/templates', requireAuth, (_req, res) => {
+  router.get('/templates', requireAuth, requireRole('principal','counselor','mentor'), (_req, res) => {
     const templates = db.all('SELECT * FROM timeline_templates ORDER BY is_system DESC, created_at DESC');
     templates.forEach(t => {
       const items = db.all('SELECT COUNT(*) as cnt FROM template_items WHERE template_id=?', [t.id]);
@@ -90,7 +90,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     res.json({ id });
   });
 
-  router.get('/templates/:id', requireAuth, (req, res) => {
+  router.get('/templates/:id', requireAuth, requireRole('principal','counselor','mentor'), (req, res) => {
     const tpl = db.get('SELECT * FROM timeline_templates WHERE id=?', [req.params.id]);
     if (!tpl) return res.status(404).json({ error: '模板不存在' });
     const items = db.all('SELECT * FROM template_items WHERE template_id=? ORDER BY sort_order, days_before_deadline DESC', [req.params.id]);

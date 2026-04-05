@@ -81,9 +81,10 @@ export default function RiskAlertList({ sqlAlerts, aiRisks, loading, onFetchAI }
             {sqlAlerts.slice(0, 20).map((alert, i) => {
               const cfg = severityConfig[alert.severity] || severityConfig.low
               const Icon = cfg.icon
+              const alertKey = alert.student_id ? `${alert.student_id}-${alert.severity}-${alert.message?.slice(0, 40)}` : `sql-${i}`
               return (
                 <motion.div
-                  key={i}
+                  key={alertKey}
                   initial={{ opacity: 0, x: 8 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.03 }}
@@ -141,7 +142,7 @@ export default function RiskAlertList({ sqlAlerts, aiRisks, loading, onFetchAI }
         {aiRisks?.alerts && (
           <div className="space-y-1.5">
             {aiRisks.alerts.map((risk, i) => (
-              <div key={i} className={clsx(
+              <div key={risk.student_id ? `${risk.student_id}-${risk.severity}-${risk.reason?.slice(0, 40)}` : `ai-${i}`} className={clsx(
                 'p-2 rounded-lg border text-[11px]',
                 risk.severity === 'high' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
                   : risk.severity === 'medium' ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'

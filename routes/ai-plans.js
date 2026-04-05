@@ -33,7 +33,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiPlann
       audit(req, 'GENERATE', 'ai_student_plans', result.plan_id, { student: student.name, model: result.plan?.meta?.schema_version });
       res.json({ plan_id: result.plan_id, status: result.status });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      console.error('[ai-plans]', e);
+      res.status(500).json({ error: '服务器错误，请重试' });
     }
   });
 
@@ -110,7 +111,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiPlann
       audit(req, 'APPLY', 'ai_student_plans', req.params.id, { counts });
       res.json({ ok: true, counts });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      console.error('[ai-plans]', e);
+      res.status(500).json({ error: '服务器错误，请重试' });
     }
   });
 

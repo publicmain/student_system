@@ -46,7 +46,7 @@ export default function ActionRecommendations({ actions, loading, onFetch }) {
         <div className="space-y-2">
           {actions.actions.map((rec, i) => (
             <motion.div
-              key={i}
+              key={rec.student_id ? `${rec.student_id}-${rec.action}` : i}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}

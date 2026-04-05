@@ -484,7 +484,8 @@ app.post('/api/intake-cases/:id/convert', requireRole('principal','intake_staff'
       run('UPDATE intake_cases SET student_id=?, updated_at=? WHERE id=?', [studentId, now, req.params.id]);
     });
   } catch (e) {
-    return res.status(500).json({ error: '转换失败: ' + e.message });
+    console.error('[convert-intake]', e);
+    return res.status(500).json({ error: '转换失败，请重试' });
   }
   audit(req, 'CONVERT', 'intake_cases', req.params.id, { student_id: studentId, student_name: ic.student_name });
   res.json({ ok: true, student_id: studentId, student_name: ic.student_name });

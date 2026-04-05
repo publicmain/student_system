@@ -78,6 +78,14 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   });
 
   router.put('/notifications/:id/read', requireAuth, (req, res) => {
+    const notification = db.get('SELECT * FROM notification_logs WHERE id=?', [req.params.id]);
+    if (!notification) return res.status(404).json({ error: '通知不存在' });
+    const u = req.session.user;
+    const ownerById = notification.target_user_id && notification.target_user_id === u.id;
+    const ownerByRole = notification.target_role && notification.target_role === u.role;
+    if (!ownerById && !ownerByRole) {
+      return res.status(403).json({ error: '无权操作此通知' });
+    }
     db.run('UPDATE notification_logs SET is_read=1, read_at=? WHERE id=?', [new Date().toISOString(), req.params.id]);
     res.json({ ok: true });
   });

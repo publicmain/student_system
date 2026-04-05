@@ -65,7 +65,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
       res.send(buf);
     } catch(e) {
       console.error('orientation-export 失败:', e.message);
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: '导出失败，请重试' });
     }
   });
 
@@ -119,7 +119,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
       res.json({ ok: true, sent_to: toEmail });
     } catch(e) {
       console.error('orientation-send 失败:', e.message);
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: '发送失败，请重试' });
     }
   });
 
@@ -147,7 +147,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
       ).catch(e => { console.error('send-survey-link 失败:', e.message); });
     } catch(e) {
       console.error('send-survey-link 失败:', e.message);
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: '发送失败，请重试' });
     }
   });
 

@@ -207,7 +207,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     res.json({ ok: true });
   });
 
-  router.get('/feedback', requireAuth, (req, res) => {
+  router.get('/feedback', requireAuth, requireRole('principal','counselor'), (req, res) => {
     const u = req.session.user;
     // principal 和 counselor 可查看全部待处理反馈
     if (u.role === 'principal' || u.role === 'counselor') {
@@ -258,7 +258,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
   });
 
   // POST /feedback — 根级反馈提交（需body含student_id）
-  router.post('/feedback', requireAuth, (req, res) => {
+  router.post('/feedback', requireAuth, requireRole('principal','counselor'), (req, res) => {
     const { student_id, feedback_type, content, rating } = req.body;
     if (!student_id) return res.status(400).json({ error: 'student_id 必填' });
     const u = req.session.user;
@@ -274,7 +274,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
   });
 
   // GET /personal-statement — 列出当前用户可见的所有个人陈述
-  router.get('/personal-statement', requireAuth, (req, res) => {
+  router.get('/personal-statement', requireAuth, requireRole('principal','counselor'), (req, res) => {
     const u = req.session.user;
     let where = [], params = [];
     if (u.role === 'student') {
@@ -292,7 +292,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
   });
 
   // GET /calendar — 聚合日历事件（任务截止日+申请截止日+锚点事件）
-  router.get('/calendar', requireAuth, (req, res) => {
+  router.get('/calendar', requireAuth, requireRole('principal','counselor','mentor'), (req, res) => {
     const u = req.session.user;
     let studentFilter = '', params = [];
     if (u.role === 'student') {

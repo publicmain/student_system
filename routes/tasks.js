@@ -59,7 +59,8 @@ module.exports = function({ db, uuidv4, requireAuth, requireRole }) {
         [title, description||'', category||'其他', due_date||null, status||'pending', priority||'normal', assigned_to||null, completed_at, new Date().toISOString(), req.params.id]);
       res.json({ ok: true });
     } catch(e) {
-      res.status(500).json({ error: e.message });
+      console.error('[tasks]', e);
+      res.status(500).json({ error: '服务器错误，请重试' });
     }
   });
 

@@ -96,7 +96,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
         run(`DELETE FROM finance_invoices WHERE id=?`, [req.params.id]);
       });
     } catch(e) {
-      return res.status(500).json({ error: '删除失败: ' + e.message });
+      console.error('[finance]', e);
+      return res.status(500).json({ error: '删除失败，请重试' });
     }
     audit(req, 'DELETE', 'finance_invoices', req.params.id, { invoice_no: invoice.invoice_no, amount_total: invoice.amount_total });
     res.json({ ok: true });

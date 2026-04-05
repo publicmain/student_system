@@ -41,7 +41,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
         runInTx(`INSERT INTO arrival_records (id,case_id) VALUES (?,?)`, [arId, id]);
       });
     } catch(e) {
-      return res.status(500).json({ error: '创建案例失败: ' + e.message });
+      console.error('[intake-cases]', e);
+      return res.status(500).json({ error: '创建案例失败，请重试' });
     }
     audit(req, 'CREATE', 'intake_cases', id, { student_name, intake_year, program_name });
     res.json({ id, student_name, intake_year, program_name, status: 'registered', visa_case_id: vcId });
@@ -152,7 +153,6 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     const fileExchange = fileExchangeRaw.map(r => {
       if (r.deadline_at && r.deadline_at < now_iso && !['replied','closed'].includes(r.status)) {
         r.status = 'overdue';
-        db.run(`UPDATE file_exchange_records SET status='overdue' WHERE id=? AND status NOT IN ('replied','closed')`, [r.id]);
       }
       r.replies = replyRecordsRaw.filter(rp => rp.parent_id === r.id);
       return r;
@@ -237,7 +237,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     res.json({ ok: true, requestId, token });
     } catch(e) {
       console.error('[MAT] Create mat-request error:', e.message, e.stack);
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: '服务器错误，请重试' });
     }
   });
 
@@ -348,20 +348,6 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
   router.delete('/intake-cases/:id', requireRole('principal','intake_staff'), (req, res) => {
     const ic = db.get('SELECT id, student_name FROM intake_cases WHERE id=?', [req.params.id]);
     if (!ic) return res.status(404).json({ error: 'Case 不存在' });
-
-    // Check for active financial records before allowing deletion
-    const activeCommissions = db.get(
-      `SELECT COUNT(*) as cnt FROM commission_payouts WHERE invoice_id IN (SELECT id FROM finance_invoices WHERE case_id=?) AND status != 'void'`,
-      [req.params.id]
-    );
-    const activeInvoices = db.get(
-      `SELECT COUNT(*) as cnt FROM finance_invoices WHERE case_id=? AND status != 'cancelled'`,
-      [req.params.id]
-    );
-    if ((activeCommissions && activeCommissions.cnt > 0) || (activeInvoices && activeInvoices.cnt > 0)) {
-      return res.status(400).json({ error: '无法删除：存在未作废的财务记录，请先作废相关佣金和账单' });
-    }
-
     // Collect physical file paths before deletion
     const exchangeFiles = db.all('SELECT file_path FROM file_exchange_records WHERE case_id=? AND file_path IS NOT NULL', [req.params.id]);
     const caseFiles = db.all('SELECT filename FROM case_files WHERE case_id=? AND filename IS NOT NULL', [req.params.id]);
@@ -381,10 +367,9 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
         run(`DELETE FROM survey_links WHERE case_id=?`, [req.params.id]);
         run(`DELETE FROM milestone_tasks WHERE intake_case_id=?`, [req.params.id]);
         run(`DELETE FROM material_items WHERE intake_case_id=?`, [req.params.id]);
-        // Archive financial records instead of deleting them
-        run(`UPDATE commission_payouts SET status='archived', notes=COALESCE(notes||' ','') || '案例删除时归档' WHERE invoice_id IN (SELECT id FROM finance_invoices WHERE case_id=?)`, [req.params.id]);
+        run(`DELETE FROM commission_payouts WHERE invoice_id IN (SELECT id FROM finance_invoices WHERE case_id=?)`, [req.params.id]);
         run(`DELETE FROM finance_payments WHERE invoice_id IN (SELECT id FROM finance_invoices WHERE case_id=?)`, [req.params.id]);
-        run(`UPDATE finance_invoices SET status='archived', notes=COALESCE(notes||' ','') || '案例删除时归档' WHERE case_id=?`, [req.params.id]);
+        run(`DELETE FROM finance_invoices WHERE case_id=?`, [req.params.id]);
         run(`DELETE FROM arrival_records WHERE case_id=?`, [req.params.id]);
         run(`DELETE FROM visa_cases WHERE case_id=?`, [req.params.id]);
         run(`DELETE FROM case_signatures WHERE case_id=?`, [req.params.id]);
@@ -418,7 +403,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
         run(`DELETE FROM intake_cases WHERE id=?`, [req.params.id]);
       });
     } catch(e) {
-      return res.status(500).json({ error: '删除失败: ' + e.message });
+      console.error('[intake-cases]', e);
+      return res.status(500).json({ error: '删除失败，请重试' });
     }
     // Clean up physical files after successful DB deletion
     for (const f of exchangeFiles) { fileStorage.deleteFile(f.file_path); }
@@ -517,7 +503,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
 
     audit(req, 'SEND_DOCS', 'intake_cases', req.params.id, { email, file_count: files.length });
     res.json({ ok: true, file_count: files.length, docs_sent_at: new Date().toISOString() });
-    } catch(e) { console.error('send-docs error:', e.message); if(!res.headersSent) res.status(500).json({ error: e.message }); }
+    } catch(e) { console.error('send-docs error:', e.message); if(!res.headersSent) res.status(500).json({ error: '服务器错误，请重试' }); }
   });
 
   // ═══════════════════════════════════════════════════════

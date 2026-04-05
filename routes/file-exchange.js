@@ -63,7 +63,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     try {
     const rec = db.get('SELECT * FROM file_exchange_records WHERE id=? AND is_deleted=0', [req.params.id]);
     if (!rec) return res.status(404).json({ error: '记录不存在' });
-    const accessToken = rec.access_token || uuidv4();
+    const accessToken = rec.access_token || crypto.randomBytes(32).toString('hex');
     const uploadToken = (rec.request_reply && !rec.upload_token) ? uuidv4() : (rec.upload_token || null);
     const { student_email, student_name } = req.body;
     const email = student_email || rec.student_email;
@@ -94,7 +94,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
       } catch(e) { console.error('fx send mail failed:', e.message); }
     }
     res.json({ ok: true, access_token: accessToken, upload_token: uploadToken, view_url: viewUrl, email_sent: emailSent });
-    } catch(e) { console.error('fx send error:', e.message); res.status(500).json({ error: e.message }); }
+    } catch(e) { console.error('fx send error:', e.message); res.status(500).json({ error: '操作失败，请重试' }); }
   });
 
   // 关闭记录
@@ -242,7 +242,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     const f = db.get('SELECT * FROM case_files WHERE id=?', [req.params.id]);
     if (!f) return res.status(404).json({ error: '文件不存在' });
     const { student_email, student_name, with_watermark, watermark_text } = req.body;
-    const token = uuidv4();
+    const token = crypto.randomBytes(32).toString('hex');
     const sendId = uuidv4();
     const watermark = with_watermark ? 1 : 0;
     const wmText = watermark_text || '仅供查看';
@@ -268,7 +268,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     const ic = db.get('SELECT id, student_name FROM intake_cases WHERE id=?', [req.params.id]);
     if (!ic) return res.status(404).json({ error: 'Case 不存在' });
     const { student_email, student_name } = req.body;
-    const token = uuidv4();
+    const token = crypto.randomBytes(32).toString('hex');
     const sendId = uuidv4();
     db.run(`INSERT INTO case_file_sends (id,file_id,case_id,send_type,token,student_email,student_name,sent_by,sent_by_name) VALUES (?,?,?,?,?,?,?,?,?)`,
       [sendId, null, req.params.id, 'contract_upload', token, student_email||null, student_name||ic.student_name,
@@ -291,7 +291,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     const ic = db.get('SELECT id, student_name FROM intake_cases WHERE id=?', [req.params.id]);
     if (!ic) return res.status(404).json({ error: 'Case 不存在' });
     const { student_email, student_name, title, description } = req.body;
-    const token = uuidv4();
+    const token = crypto.randomBytes(32).toString('hex');
     const sendId = uuidv4();
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     db.run(`INSERT INTO case_file_sends (id,file_id,case_id,send_type,token,student_email,student_name,sent_by,sent_by_name,title,description,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,

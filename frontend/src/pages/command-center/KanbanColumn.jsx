@@ -25,7 +25,7 @@ const dotColors = {
   emerald: 'bg-emerald-500',
 }
 
-export default function KanbanColumn({ column, index, healthMap }) {
+export default function KanbanColumn({ column, index, healthMap, activeId }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
 
   return (

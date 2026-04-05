@@ -1,22 +1,35 @@
-import { useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   TouchSensor,
   useSensor,
   useSensors,
   closestCorners,
 } from '@dnd-kit/core'
-import { motion } from 'framer-motion'
 import KanbanColumn from './KanbanColumn.jsx'
+import KanbanCard from './KanbanCard.jsx'
 
 export default function KanbanBoard({ columns, onStatusChange, healthMap }) {
+  const [activeId, setActiveId] = useState(null)
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } })
   )
 
+  // Find the app data for the currently dragged card
+  const activeApp = activeId
+    ? columns.reduce((found, col) => found || col.apps.find(a => String(a.id) === String(activeId)), null)
+    : null
+
+  const handleDragStart = useCallback((event) => {
+    setActiveId(event.active.id)
+  }, [])
+
   const handleDragEnd = useCallback((event) => {
+    setActiveId(null)
     const { active, over } = event
     if (!over) return
 
@@ -46,17 +59,30 @@ export default function KanbanBoard({ columns, onStatusChange, healthMap }) {
     }
   }, [columns, onStatusChange])
 
+  const handleDragCancel = useCallback(() => {
+    setActiveId(null)
+  }, [])
+
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCorners}
+      onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
     >
       <div className="flex gap-2 pb-4 min-h-[300px] sm:min-h-[400px] overflow-x-auto snap-x snap-mandatory sm:snap-none scrollbar-thin">
         {columns.map((col, i) => (
-          <KanbanColumn key={col.id} column={col} index={i} healthMap={healthMap} />
+          <KanbanColumn key={col.id} column={col} index={i} healthMap={healthMap} activeId={activeId} />
         ))}
       </div>
+
+      {/* DragOverlay renders at document root via portal — escapes overflow:hidden/auto */}
+      <DragOverlay dropAnimation={null}>
+        {activeApp ? (
+          <KanbanCard app={activeApp} isDragging health={healthMap?.[activeApp.id]} />
+        ) : null}
+      </DragOverlay>
     </DndContext>
   )
 }

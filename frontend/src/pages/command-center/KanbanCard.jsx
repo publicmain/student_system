@@ -1,7 +1,6 @@
 import { useDraggable } from '@dnd-kit/core'
-import { CSS } from '@dnd-kit/utilities'
 import { clsx } from 'clsx'
-import { GraduationCap, Clock, User, FileText, AlertTriangle } from 'lucide-react'
+import { GraduationCap, Clock, User, FileText } from 'lucide-react'
 import { Badge } from '../../components/ui/Badge.jsx'
 import { deadlineStatus } from '../../lib/dateUtils.js'
 
@@ -33,7 +32,7 @@ function HealthRing({ score, size = 24 }) {
 }
 
 export default function KanbanCard({ app, isDragging = false, health }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging: isBeingDragged } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging: isBeingDragged } = useDraggable({
     id: String(app.id),
   })
   const role = window.__ROLE__
@@ -41,26 +40,20 @@ export default function KanbanCard({ app, isDragging = false, health }) {
 
   const { days: daysUntilDeadline, isUrgent, isOverdue } = deadlineStatus(app.submit_deadline)
 
-  const style = {
-    touchAction: 'none',
-    transform: CSS.Translate.toString(transform),
-    zIndex: isBeingDragged ? 999 : undefined,
-    position: isBeingDragged ? 'relative' : undefined,
-  }
-
-  const handleClick = () => {
-    if (!isBeingDragged) {
-      window.location.hash = 'student-detail/' + app.student_id
-    }
+  const handleClick = (e) => {
+    // Don't navigate if we were dragging (PointerSensor activates at 8px distance)
+    if (isBeingDragged) return
+    e.stopPropagation()
+    window.location.hash = 'student-detail/' + app.student_id
   }
 
   return (
     <div
-      ref={setNodeRef}
-      {...attributes}
-      {...(!isMentor ? listeners : {})}
+      ref={!isDragging ? setNodeRef : undefined}
+      {...(!isDragging ? attributes : {})}
+      {...(!isDragging && !isMentor ? listeners : {})}
       role="listitem"
-      style={style}
+      style={{ touchAction: 'none' }}
       aria-label={`${app.student_name || '未知学生'} - ${app.uni_name || '未知院校'}${app.tier ? ` (${tierLabels[app.tier] || app.tier})` : ''}${isOverdue ? ' 已逾期' : isUrgent ? ' 即将截止' : ''}`}
       onClick={handleClick}
       className={clsx(
@@ -68,11 +61,13 @@ export default function KanbanCard({ app, isDragging = false, health }) {
           ? 'rounded-lg border p-3 sm:p-2.5 cursor-pointer'
           : 'rounded-lg border p-3 sm:p-2.5 cursor-grab active:cursor-grabbing',
         'hover:shadow-md transition-all duration-150',
-        isDragging || isBeingDragged
-          ? 'shadow-lg border-brand-500/40 ring-2 ring-brand-500/20 bg-white dark:bg-slate-800 opacity-80'
-          : 'bg-white dark:bg-slate-800 border-surface-3 dark:border-slate-700 shadow-sm',
-        !isBeingDragged && isOverdue && 'border-l-2 border-l-red-500',
-        !isBeingDragged && isUrgent && !isOverdue && 'border-l-2 border-l-amber-500',
+        isDragging
+          ? 'shadow-lg border-brand-500/40 ring-2 ring-brand-500/20 bg-white dark:bg-slate-800 w-[200px]'
+          : isBeingDragged
+            ? 'opacity-30 bg-white dark:bg-slate-800 border-surface-3 dark:border-slate-700 shadow-sm'
+            : 'bg-white dark:bg-slate-800 border-surface-3 dark:border-slate-700 shadow-sm',
+        !isDragging && !isBeingDragged && isOverdue && 'border-l-2 border-l-red-500',
+        !isDragging && !isBeingDragged && isUrgent && !isOverdue && 'border-l-2 border-l-amber-500',
       )}
     >
       {/* Top row: University + Health Ring */}

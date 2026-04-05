@@ -1,4 +1,5 @@
 import { useDraggable } from '@dnd-kit/core'
+import PropTypes from 'prop-types'
 import { clsx } from 'clsx'
 import { GraduationCap, Clock, User, FileText } from 'lucide-react'
 import { Badge } from '../../components/ui/Badge.jsx'
@@ -148,4 +149,17 @@ export default function KanbanCard({ app, isDragging = false, health }) {
       </div>
     </div>
   )
+}
+
+KanbanCard.propTypes = {
+  app: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    uni_name: PropTypes.string,
+    student_name: PropTypes.string,
+    status: PropTypes.string,
+    tier: PropTypes.string,
+    student_id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  }).isRequired,
+  isDragging: PropTypes.bool,
+  health: PropTypes.object,
 }

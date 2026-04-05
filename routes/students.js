@@ -21,14 +21,10 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   function _getCompetitivenessWeights() { return _getSetting('competitiveness_weights', { academic: 0.3, language: 0.25, activities: 0.2, awards: 0.1, leadership: 0.15 }); }
   function _getLeadershipScorePerItem() { return parseInt(_getSettingRaw('leadership_score_per_item', '25')); }
 
-  router.get('/students', requireAuth, (req, res) => {
+  router.get('/students', requireAuth, requireRole('principal','counselor','mentor','student','parent','intake_staff'), (req, res) => {
     const { grade, exam_board, search } = req.query;
     let where = ['s.status="active"'];
     let params = [];
-
-    // agent 和 student_admin 不应通过主 API 访问学生列表
-    if (req.session.user.role === 'agent') return res.status(403).json({ error: '权限不足，请使用代理门户' });
-    if (req.session.user.role === 'student_admin') return res.status(403).json({ error: '权限不足' });
 
     // 学生只能看自己
     if (req.session.user.role === 'student') {
@@ -58,8 +54,14 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     if (exam_board) { where.push('s.exam_board=?'); params.push(exam_board); }
     if (search) { where.push('s.name LIKE ?'); params.push(`%${search}%`); }
 
+    const wantPagination = req.query.page != null || req.query.limit != null;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = wantPagination ? Math.min(100, Math.max(1, parseInt(req.query.limit) || 20)) : 99999;
+    const offset = (page - 1) * limit;
+
     const isPrincipal = req.session.user.role === 'principal';
     // principal 才关联代理表，其他角色不返回任何代理字段
+    const paginatedParams = [...params, limit, offset];
     const students = isPrincipal
       ? db.all(`
           SELECT s.*,
@@ -71,7 +73,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
           LEFT JOIN agents a ON a.id=s.agent_id
           WHERE ${where.join(' AND ')}
           ORDER BY s.grade_level DESC, s.name
-        `, params)
+          LIMIT ? OFFSET ?
+        `, paginatedParams)
       : db.all(`
           SELECT s.id, s.name, s.grade_level, s.enrol_date, s.exam_board, s.status, s.notes,
             s.date_of_birth, s.created_at, s.updated_at,
@@ -81,9 +84,15 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
           FROM students s
           WHERE ${where.join(' AND ')}
           ORDER BY s.grade_level DESC, s.name
-        `, params);
+          LIMIT ? OFFSET ?
+        `, paginatedParams);
 
-    res.json(students);
+    if (wantPagination) {
+      const countResult = db.get(`SELECT COUNT(*) as total FROM students s WHERE ${where.join(' AND ')}`, params);
+      res.json({ data: students, pagination: { page, limit, total: countResult.total, totalPages: Math.ceil(countResult.total / limit) } });
+    } else {
+      res.json(students);
+    }
   });
 
   router.post('/students', requireRole('principal','counselor'), (req, res) => {

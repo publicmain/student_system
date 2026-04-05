@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import PropTypes from 'prop-types'
 import {
   DndContext,
   DragOverlay,
@@ -85,4 +86,10 @@ export default function KanbanBoard({ columns, onStatusChange, healthMap }) {
       </DragOverlay>
     </DndContext>
   )
+}
+
+KanbanBoard.propTypes = {
+  columns: PropTypes.array.isRequired,
+  onStatusChange: PropTypes.func.isRequired,
+  healthMap: PropTypes.object,
 }

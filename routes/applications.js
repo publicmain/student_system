@@ -45,10 +45,22 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     if (cycle_year) { where.push('a.cycle_year=?'); params.push(cycle_year); }
     if (search) { where.push('(a.uni_name LIKE ? OR a.department LIKE ?)'); params.push(`%${search}%`, `%${search}%`); }
 
+    const wantPagination = req.query.page != null || req.query.limit != null;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = wantPagination ? Math.min(100, Math.max(1, parseInt(req.query.limit) || 20)) : 99999;
+    const offset = (page - 1) * limit;
+
+    const paginatedParams = [...params, limit, offset];
     const rows = db.all(`SELECT a.*, s.name as student_name FROM applications a
       LEFT JOIN students s ON s.id=a.student_id
-      WHERE ${where.join(' AND ')} ORDER BY a.updated_at DESC`, params);
-    res.json(rows);
+      WHERE ${where.join(' AND ')} ORDER BY a.updated_at DESC
+      LIMIT ? OFFSET ?`, paginatedParams);
+    if (wantPagination) {
+      const countResult = db.get(`SELECT COUNT(*) as total FROM applications a WHERE ${where.join(' AND ')}`, params);
+      res.json({ data: rows, pagination: { page, limit, total: countResult.total, totalPages: Math.ceil(countResult.total / limit) } });
+    } else {
+      res.json(rows);
+    }
   });
 
   // GET /students/:sid/applications — 学生申请列表（子资源）

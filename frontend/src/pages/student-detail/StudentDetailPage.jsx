@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import PropTypes from 'prop-types'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, AlertCircle } from 'lucide-react'
 
@@ -170,4 +171,8 @@ export default function StudentDetailPage({ studentId }) {
       <ComingSoonModal open={modal === 'consent'} onClose={closeModal} title="监护人同意" />
     </div>
   )
+}
+
+StudentDetailPage.propTypes = {
+  studentId: PropTypes.string.isRequired,
 }

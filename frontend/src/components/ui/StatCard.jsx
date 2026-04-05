@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import PropTypes from 'prop-types'
 import { TrendingUp } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -45,4 +46,15 @@ export default function StatCard({ icon: Icon, label, value, color = 'brand', de
       </div>
     </motion.div>
   )
+}
+
+StatCard.propTypes = {
+  icon: PropTypes.elementType.isRequired,
+  label: PropTypes.string.isRequired,
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+  color: PropTypes.string,
+  delay: PropTypes.number,
+  onClick: PropTypes.func,
+  active: PropTypes.bool,
+  trend: PropTypes.number,
 }

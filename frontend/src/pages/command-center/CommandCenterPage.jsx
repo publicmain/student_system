@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import PropTypes from 'prop-types'
 import { motion } from 'framer-motion'
 import { Loader2, AlertCircle, Rocket } from 'lucide-react'
 import { useCommandCenter } from '../../hooks/useCommandCenter.js'
@@ -12,6 +13,7 @@ import LifecyclePipelineView from './LifecyclePipelineView.jsx'
 import MyWorkspacePanel from './MyWorkspacePanel.jsx'
 import AISidePanel from './AISidePanel.jsx'
 import DetailDrawer from './DetailDrawer.jsx'
+import { SectionErrorBoundary } from '../../components/ui/ErrorBoundary.jsx'
 
 export default function CommandCenterPage() {
   const cc = useCommandCenter()
@@ -95,23 +97,33 @@ export default function CommandCenterPage() {
         {/* View Area — keyed div forces remount on view change, CSS fade-in only (no exit animation) */}
         <div key={cc.viewMode} className="animate-fadeIn">
           {cc.viewMode === 'kanban' && (
-            <KanbanBoard
-              columns={cc.kanbanData}
-              onStatusChange={handleStatusChange}
-              healthMap={cc.healthMap}
-            />
+            <SectionErrorBoundary name="看板视图">
+              <KanbanBoard
+                columns={cc.kanbanData}
+                onStatusChange={handleStatusChange}
+                healthMap={cc.healthMap}
+              />
+            </SectionErrorBoundary>
           )}
           {cc.viewMode === 'table' && (
-            <TableView apps={cc.apps} onStatusChange={handleStatusChange} readOnly={isMentor} onRefresh={cc.refresh} onRowClick={setDrawerApp} />
+            <SectionErrorBoundary name="表格视图">
+              <TableView apps={cc.apps} onStatusChange={handleStatusChange} readOnly={isMentor} onRefresh={cc.refresh} onRowClick={setDrawerApp} />
+            </SectionErrorBoundary>
           )}
           {cc.viewMode === 'timeline' && (
-            <TimelineView apps={cc.apps} />
+            <SectionErrorBoundary name="时间线视图">
+              <TimelineView apps={cc.apps} />
+            </SectionErrorBoundary>
           )}
           {cc.viewMode === 'lifecycle' && (
-            <LifecyclePipelineView pipelines={cc.lifecycle} />
+            <SectionErrorBoundary name="生命周期视图">
+              <LifecyclePipelineView pipelines={cc.lifecycle} />
+            </SectionErrorBoundary>
           )}
           {cc.viewMode === 'workspace' && (
-            <MyWorkspacePanel />
+            <SectionErrorBoundary name="我的工作台">
+              <MyWorkspacePanel />
+            </SectionErrorBoundary>
           )}
         </div>
       </div>
@@ -127,4 +139,9 @@ export default function CommandCenterPage() {
       />
     </div>
   )
+}
+
+CommandCenterPage.propTypes = {
+  // This is a top-level page component; all data comes from hooks.
+  // No external props required.
 }

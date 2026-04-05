@@ -94,13 +94,13 @@ export function useCommandCenter() {
       const [statsRes, alertsRes, appsRes, healthRes, lifecycleRes] = await Promise.all([
         api.commandCenter.stats(),
         api.commandCenter.riskAlerts(),
-        api.commandCenter.allApps(),
+        api.commandCenter.allApps({ limit: 500 }),
         api.commandCenter.appHealth().catch(err => { console.error('appHealth fetch failed:', err); return { health: {} } }),
         api.commandCenter.lifecycle().catch(err => { console.error('lifecycle fetch failed:', err); return { pipelines: [] } }),
       ])
       setStats(statsRes ?? {})
       setRiskAlerts(alertsRes?.alerts ?? [])
-      setApps(appsRes?.applications ?? appsRes ?? [])
+      setApps(appsRes?.data ?? appsRes?.applications ?? (Array.isArray(appsRes) ? appsRes : []))
       setHealthMap(healthRes?.health ?? {})
       setLifecycle(lifecycleRes?.pipelines ?? [])
     } catch (e) {

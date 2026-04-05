@@ -118,12 +118,14 @@ const upload = multer({
 
 // ── 安全响应头 ────────────────────────────────────────
 app.use((_req, res, next) => {
+  const nonce = crypto.randomBytes(16).toString('base64');
+  res.locals.cspNonce = nonce;
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; font-src 'self' cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self' cdn.jsdelivr.net");
+    `default-src 'self'; script-src 'self' 'nonce-${nonce}' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; font-src 'self' cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self' cdn.jsdelivr.net`);
   next();
 });
 
@@ -140,6 +142,14 @@ app.get('/react/index.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/react/index.html'));
 });
 
+// Serve index.html with CSP nonce injected into inline scripts
+app.get(['/', '/index.html'], (req, res) => {
+  const fs = require('fs');
+  const html = fs.readFileSync(path.join(__dirname, 'public/index.html'), 'utf8');
+  const nonce = res.locals.cspNonce;
+  const patched = html.replace(/<script>/g, `<script nonce="${nonce}">`);
+  res.type('html').send(patched);
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── 输入消毒：剥离所有请求体字符串中的 HTML 标签 ──
@@ -433,8 +443,7 @@ app.get('/api/benchmarks', requireRole('principal','counselor','mentor'), (req, 
 });
 
 // BUG-005: /api/dashboard 根路径 — agent/student_admin 无权访问全局统计
-app.get('/api/dashboard', requireAuth, (req, res) => {
-  if (['agent', 'student_admin'].includes(req.session.user.role)) return res.status(403).json({ error: '权限不足' });
+app.get('/api/dashboard', requireAuth, requireRole('principal','counselor','mentor','student','parent','intake_staff'), (req, res) => {
   const totalStudents = db.get('SELECT COUNT(*) as cnt FROM students WHERE status="active"').cnt;
   const totalApplications = db.get('SELECT COUNT(*) as cnt FROM applications').cnt;
   const pendingTasks = db.get('SELECT COUNT(*) as cnt FROM milestone_tasks WHERE status IN ("pending","in_progress")').cnt;

@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import PropTypes from 'prop-types'
 import { motion, AnimatePresence } from 'framer-motion'
 import { clsx } from 'clsx'
 import { ArrowUpDown, ArrowUp, ArrowDown, Clock, GraduationCap, User, CheckSquare, Square, X } from 'lucide-react'
@@ -341,4 +342,12 @@ export default function TableView({ apps, onStatusChange, readOnly, onRefresh, o
       </div>
     </motion.div>
   )
+}
+
+TableView.propTypes = {
+  apps: PropTypes.array.isRequired,
+  onStatusChange: PropTypes.func,
+  readOnly: PropTypes.bool,
+  onRefresh: PropTypes.func,
+  onRowClick: PropTypes.func,
 }

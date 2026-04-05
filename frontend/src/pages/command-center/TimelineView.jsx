@@ -94,7 +94,7 @@ export default function TimelineView({ apps }) {
                   return (
                     <div
                       key={app.id}
-                      onClick={() => { window.location.hash = 'student-detail/' + app.student_id }}
+                      onClick={() => { window.navigate ? window.navigate('student-detail', { studentId: app.student_id }) : (window.location.hash = 'student-detail/' + app.student_id) }}
                       className={clsx(
                         'rounded-lg border border-surface-2 dark:border-slate-700 bg-surface-0/50 dark:bg-slate-800/50 px-2.5 py-2 cursor-pointer active:bg-surface-1 dark:active:bg-slate-700/50',
                         daysLeft !== null && daysLeft < 0 && 'border-l-2 border-l-red-500',

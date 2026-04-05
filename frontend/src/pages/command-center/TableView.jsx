@@ -202,7 +202,7 @@ export default function TableView({ apps, onStatusChange, readOnly, onRefresh, o
                 return (
                   <tr
                     key={app.id}
-                    onClick={() => onRowClick ? onRowClick(app) : (window.location.hash = 'student-detail/' + app.student_id)}
+                    onClick={() => onRowClick ? onRowClick(app) : (window.navigate ? window.navigate('student-detail', { studentId: app.student_id }) : (window.location.hash = 'student-detail/' + app.student_id))}
                     className={clsx(
                       'border-b border-surface-2 dark:border-slate-700/50 hover:bg-surface-0 dark:hover:bg-slate-800/60 transition-colors cursor-pointer',
                       isSelected && 'bg-brand-50/50 dark:bg-brand-900/10',
@@ -291,7 +291,7 @@ export default function TableView({ apps, onStatusChange, readOnly, onRefresh, o
             return (
               <div
                 key={app.id}
-                onClick={() => { window.location.hash = 'student-detail/' + app.student_id }}
+                onClick={() => { window.navigate ? window.navigate('student-detail', { studentId: app.student_id }) : (window.location.hash = 'student-detail/' + app.student_id) }}
                 className="px-3 py-3 active:bg-surface-0 dark:active:bg-slate-800/60 cursor-pointer"
               >
                 {/* Row 1: Uni + Status */}

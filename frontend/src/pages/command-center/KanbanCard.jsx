@@ -44,7 +44,11 @@ export default function KanbanCard({ app, isDragging = false, health }) {
     // Don't navigate if we were dragging (PointerSensor activates at 8px distance)
     if (isBeingDragged) return
     e.stopPropagation()
-    window.location.hash = 'student-detail/' + app.student_id
+    if (typeof window.navigate === 'function') {
+      window.navigate('student-detail', { studentId: app.student_id })
+    } else {
+      window.location.hash = 'student-detail/' + app.student_id
+    }
   }
 
   return (

@@ -62,7 +62,7 @@ export default function DetailDrawer({ app, health, onClose }) {
               </span>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => { window.location.hash = 'student-detail/' + app.student_id }}
+                  onClick={() => { window.navigate ? window.navigate('student-detail', { studentId: app.student_id }) : (window.location.hash = 'student-detail/' + app.student_id) }}
                   className="p-1.5 rounded-md text-ink-tertiary hover:text-brand-600 hover:bg-surface-2 dark:hover:bg-slate-700 transition-colors"
                   title="打开学生详情"
                 >

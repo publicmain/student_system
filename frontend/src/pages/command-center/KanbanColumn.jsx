@@ -1,5 +1,4 @@
 import { useDroppable } from '@dnd-kit/core'
-import { motion } from 'framer-motion'
 import { clsx } from 'clsx'
 import KanbanCard from './KanbanCard.jsx'
 
@@ -29,15 +28,12 @@ export default function KanbanColumn({ column, index, healthMap, activeId }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
 
   return (
-    <motion.div
+    <div
       ref={setNodeRef}
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, delay: index * 0.04 }}
       className={clsx(
         'flex-shrink-0 w-[75vw] sm:w-auto sm:flex-1 sm:min-w-[160px] sm:max-w-[280px] flex flex-col rounded-xl border-t-[3px] bg-surface-0/50 dark:bg-slate-800/50',
         'border border-surface-3 dark:border-slate-700',
-        'snap-center',
+        'snap-center animate-fadeIn',
         columnColors[column.color] || 'border-t-slate-400',
         isOver && 'ring-2 ring-brand-500/30 bg-brand-50/30 dark:bg-brand-900/10',
         'transition-all duration-150'
@@ -64,6 +60,6 @@ export default function KanbanColumn({ column, index, healthMap, activeId }) {
           ))
         )}
       </div>
-    </motion.div>
+    </div>
   )
 }

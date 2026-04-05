@@ -6,6 +6,7 @@ import { useStudentDetail }  from '../../hooks/useStudentDetail.js'
 import { api }               from '../../lib/api.js'
 import { StudentHeader }     from './StudentHeader.jsx'
 import { TabBar }            from './TabBar.jsx'
+import { EditStudentModal, AssignMentorModal, AddTargetModal, AddParentModal, AddAssessmentModal, AddSubjectModal, ComingSoonModal } from './ActionModals.jsx'
 import { OverviewTab }       from './tabs/OverviewTab.jsx'
 import { TimelineTab }       from './tabs/TimelineTab.jsx'
 import { ApplicationsTab }   from './tabs/ApplicationsTab.jsx'
@@ -34,30 +35,35 @@ export default function StudentDetailPage({ studentId }) {
   const { data, loading, error, refresh } = useStudentDetail(studentId)
   const [activeTab, setActiveTab] = useState('overview')
 
+  // ── Modal 状态 ──────────────────────────────────────────
+  const [modal, setModal] = useState(null)
+  const openModal = (name) => setModal(name)
+  const closeModal = () => setModal(null)
+
   // ── 真实权限（接入 session 时替换）────────────────────────
-  const userRole = window.__ROLE__ || 'principal'  // 由 Express 注入到 window
+  const userRole = window.__ROLE__ || 'principal'
   const canEdit  = ['principal', 'counselor', 'intake_staff'].includes(userRole)
 
   // ── 带 refresh 的 API 操作 ─────────────────────────────────
   const act = useCallback(async (fn) => {
     try { await fn(); refresh() }
-    catch (e) { alert(e.message) }  // 实际集成时替换为 toast
+    catch (e) { alert(e.message) }
   }, [refresh])
 
   const handlers = {
     onBack:          () => window.history.back(),
-    onEdit:          () => alert('TODO: 打开编辑学生弹窗'),
-    onAssignMentor:  () => alert('TODO: 打开分配导师弹窗'),
+    onEdit:          () => openModal('edit'),
+    onAssignMentor:  () => openModal('assignMentor'),
     onRemoveMentor:  (assignId) => act(() => api.mentor.remove(assignId)),
-    onTimeline:      () => alert('TODO: 打开生成时间线弹窗'),
-    onConsent:       () => alert('TODO: 打开监护人同意弹窗'),
+    onTimeline:      () => openModal('timeline'),
+    onConsent:       () => openModal('consent'),
     onExportPDF:     () => window.open(`/api/intake-cases/export-pdf?student=${studentId}`, '_blank'),
-    onAddAssessment: () => alert('TODO: 打开添加评估弹窗'),
-    onAddSubject:    () => alert('TODO: 打开添加科目弹窗'),
+    onAddAssessment: () => openModal('addAssessment'),
+    onAddSubject:    () => openModal('addSubject'),
     onRemoveSubject: (eid) => act(() => api.subject.remove(studentId, eid)),
-    onAddTarget:     () => alert('TODO: 打开添加目标院校弹窗'),
+    onAddTarget:     () => openModal('addTarget'),
     onDeleteTarget:  (id) => act(() => api.target.delete(id)),
-    onAddParent:     () => alert('TODO: 打开添加家长弹窗'),
+    onAddParent:     () => openModal('addParent'),
   }
 
   // ── Tab 定义 ─────────────────────────────────────────────
@@ -109,7 +115,7 @@ export default function StudentDetailPage({ studentId }) {
 
       {/* ── 内容区 ── */}
       <div className="flex-1 p-4 md:p-6 overflow-y-auto">
-        <AnimatePresence mode="wait">
+        <AnimatePresence>
           <motion.div
             key={activeTab}
             initial={{ opacity: 0, y: 6 }}
@@ -152,6 +158,16 @@ export default function StudentDetailPage({ studentId }) {
           </motion.div>
         </AnimatePresence>
       </div>
+
+      {/* ── Modals ── */}
+      <EditStudentModal open={modal === 'edit'} onClose={closeModal} student={student} studentId={studentId} onSuccess={refresh} />
+      <AssignMentorModal open={modal === 'assignMentor'} onClose={closeModal} studentId={studentId} onSuccess={refresh} />
+      <AddTargetModal open={modal === 'addTarget'} onClose={closeModal} studentId={studentId} onSuccess={refresh} />
+      <AddParentModal open={modal === 'addParent'} onClose={closeModal} studentId={studentId} onSuccess={refresh} />
+      <AddAssessmentModal open={modal === 'addAssessment'} onClose={closeModal} studentId={studentId} onSuccess={refresh} />
+      <AddSubjectModal open={modal === 'addSubject'} onClose={closeModal} studentId={studentId} onSuccess={refresh} />
+      <ComingSoonModal open={modal === 'timeline'} onClose={closeModal} title="生成时间线" />
+      <ComingSoonModal open={modal === 'consent'} onClose={closeModal} title="监护人同意" />
     </div>
   )
 }

@@ -95,14 +95,14 @@ export function useCommandCenter() {
         api.commandCenter.stats(),
         api.commandCenter.riskAlerts(),
         api.commandCenter.allApps(),
-        api.commandCenter.appHealth().catch(() => ({ health: {} })),
-        api.commandCenter.lifecycle().catch(() => ({ pipelines: [] })),
+        api.commandCenter.appHealth().catch(err => { console.error('appHealth fetch failed:', err); return { health: {} } }),
+        api.commandCenter.lifecycle().catch(err => { console.error('lifecycle fetch failed:', err); return { pipelines: [] } }),
       ])
-      setStats(statsRes)
-      setRiskAlerts(alertsRes.alerts || [])
-      setApps(appsRes.applications || appsRes || [])
-      setHealthMap(healthRes.health || {})
-      setLifecycle(lifecycleRes.pipelines || [])
+      setStats(statsRes ?? {})
+      setRiskAlerts(alertsRes?.alerts ?? [])
+      setApps(appsRes?.applications ?? appsRes ?? [])
+      setHealthMap(healthRes?.health ?? {})
+      setLifecycle(lifecycleRes?.pipelines ?? [])
     } catch (e) {
       setError(e.message)
     } finally {
@@ -168,8 +168,8 @@ export function useCommandCenter() {
 
       // 状态变更成功后刷新统计和风险数据（保持一致性）
       Promise.all([
-        api.commandCenter.stats().then(setStats).catch(() => {}),
-        api.commandCenter.riskAlerts().then(r => setRiskAlerts(r.alerts || [])).catch(() => {}),
+        api.commandCenter.stats().then(s => setStats(s ?? {})).catch(err => { console.error('stats refresh failed:', err) }),
+        api.commandCenter.riskAlerts().then(r => setRiskAlerts(r?.alerts ?? [])).catch(err => { console.error('riskAlerts refresh failed:', err) }),
       ])
 
       // Feature 6: 当状态变更为 enrolled 时，提示创建入学案例

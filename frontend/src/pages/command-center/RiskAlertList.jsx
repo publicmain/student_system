@@ -29,7 +29,10 @@ export default function RiskAlertList({ sqlAlerts, aiRisks, loading, onFetchAI }
         })
       })
       setCreatedTasks(prev => new Set(prev).add(index))
-    } catch (e) { /* silent */ }
+    } catch (e) {
+      console.error('创建任务失败:', e)
+      alert('创建任务失败，请重试')
+    }
   }
 
   return (

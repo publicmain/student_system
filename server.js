@@ -130,6 +130,16 @@ app.use((_req, res, next) => {
 // ── 中间件 ───────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+// Serve /react/index.html with no-cache headers so updates are picked up immediately
+app.get('/react/index.html', (req, res) => {
+  res.set({
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+  res.sendFile(path.join(__dirname, 'public/react/index.html'));
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── 输入消毒：剥离所有请求体字符串中的 HTML 标签 ──

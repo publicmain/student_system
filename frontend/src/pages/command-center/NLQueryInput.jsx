@@ -40,9 +40,9 @@ export default function NLQueryInput({ result, loading, onQuery }) {
       {!result && !loading && (
         <div className="space-y-1.5">
           <p className="text-[10px] text-ink-tertiary dark:text-slate-500">试试这些：</p>
-          {examples.map((ex, i) => (
+          {examples.map((ex) => (
             <button
-              key={i}
+              key={ex}
               onClick={() => { setQuery(ex); onQuery(ex) }}
               className="block w-full text-left text-[11px] text-brand-600 dark:text-brand-400 hover:underline py-0.5"
             >

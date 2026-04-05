@@ -124,8 +124,8 @@ export default function ListScoreCard({ score, loading, onFetch, allApps }) {
           {score.suggestions && score.suggestions.length > 0 && (
             <div className="space-y-1">
               <h5 className="text-[10px] font-semibold text-ink-secondary dark:text-slate-300">建议</h5>
-              {score.suggestions.map((s, i) => (
-                <p key={i} className="text-[11px] text-ink-tertiary dark:text-slate-400 flex items-start gap-1">
+              {score.suggestions.map((s) => (
+                <p key={s} className="text-[11px] text-ink-tertiary dark:text-slate-400 flex items-start gap-1">
                   <span className="text-brand-600">•</span> {s}
                 </p>
               ))}

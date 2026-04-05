@@ -671,7 +671,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
       where.push("a.status != 'deleted'");
       const wClause = 'WHERE ' + where.join(' AND ');
       const rows = db.all(`
-        SELECT a.id, s.name AS student_name, a.uni_name, a.department, a.program,
+        SELECT a.id, s.name AS student_name, a.uni_name, a.department,
                a.tier, a.route, a.status, a.submit_deadline, a.cycle_year
         FROM applications a
         LEFT JOIN students s ON s.id = a.student_id
@@ -691,7 +691,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
       const data = rows.map(r => [
         r.student_name || '',
         r.uni_name || '',
-        r.department || r.program || '',
+        r.department || '',
         tierLabels[r.tier] || r.tier || '',
         r.route || '',
         statusLabels[r.status] || r.status || '',

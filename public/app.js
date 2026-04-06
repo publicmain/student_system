@@ -9164,7 +9164,9 @@ function showCreateFormModal() {
       </div>
     </div></div>
   </div>`;
-  document.getElementById('modal-container').innerHTML = html;
+  let mc = document.getElementById('modal-container');
+  if (!mc) { mc = document.createElement('div'); mc.id = 'modal-container'; document.body.appendChild(mc); }
+  mc.innerHTML = html;
   new bootstrap.Modal(document.getElementById('createFormModal')).show();
 }
 
@@ -9242,7 +9244,9 @@ async function editFormModal(formId) {
         </div>
       </div></div>
     </div>`;
-    document.getElementById('modal-container').innerHTML = html;
+    let mc2 = document.getElementById('modal-container');
+    if (!mc2) { mc2 = document.createElement('div'); mc2.id = 'modal-container'; document.body.appendChild(mc2); }
+    mc2.innerHTML = html;
     new bootstrap.Modal(document.getElementById('editFormModal')).show();
   } catch(e) { showToast('加载失败: '+e.message,'danger'); }
 }

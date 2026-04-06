@@ -570,6 +570,13 @@ db.init().then(() => {
     db.run("UPDATE intake_cases SET status='collecting_docs' WHERE status='collecting docs'");
   } catch(e) { /* ignore */ }
 
+  // 一次性迁移：导入真实学生名单
+  try {
+    const runMigration = require('./migration-import-students');
+    const migrated = runMigration(db, uuidv4);
+    if (migrated) console.log('✅ 学生数据迁移完成');
+  } catch(e) { console.error('[migration] 学生迁移失败:', e.message); }
+
   // 仅在非生产环境创建演示账号
   if (!IS_PROD) {
     _ensureAgentDemoAccount();

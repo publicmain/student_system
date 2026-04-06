@@ -1628,6 +1628,9 @@ function createSchema() {
   tryAlter('ALTER TABLE admission_assessments ADD COLUMN next_test_date TEXT');
   tryAlter('ALTER TABLE admission_assessments ADD COLUMN next_target_score REAL');
 
+  // ── users 表: 账号状态字段 ──
+  tryAlter('ALTER TABLE users ADD COLUMN status TEXT DEFAULT "active"');
+
   // ── tryAlter: agents 表合并 mat_companies 字段 ──
   tryAlter('ALTER TABLE agents ADD COLUMN city TEXT');
   tryAlter('ALTER TABLE agents ADD COLUMN country TEXT');

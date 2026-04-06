@@ -27,10 +27,10 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, bcrypt,
     // 创建用户账号（must_change_password=1 强制首次登录修改密码）
     const username = `staff_${name.replace(/\s/g,'')}_${Date.now()}`.substring(0,20);
     const pw = bcrypt.hashSync('123456', BCRYPT_COST);
-    db.run(`INSERT INTO users (id,username,password,role,linked_id,name,created_at,must_change_password) VALUES (?,?,?,?,?,?,?,1)`,
+    db.run(`INSERT INTO users (id,username,password,role,linked_id,name,created_at,must_change_password) VALUES (?,?,?,?,?,?,?,0)`,
       [uuidv4(), username, pw, role, id, name, now]);
     audit(req, 'CREATE', 'staff', id, { name, role });
-    res.json({ id, username, message: '账号已创建，初始密码为 123456，首次登录后系统将强制修改密码' });
+    res.json({ id, username, default_password: '123456', message: '账号已创建，初始密码为 123456' });
   });
 
   router.get('/staff/:id', requireAuth, requireRole('principal','counselor'), (req, res) => {
@@ -60,9 +60,9 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, bcrypt,
     if (!user) return res.status(404).json({ error: '该教职工没有关联的登录账号' });
     const newPassword = '123456';
     const pw = bcrypt.hashSync(newPassword, BCRYPT_COST);
-    db.run('UPDATE users SET password=?, must_change_password=1 WHERE id=?', [pw, user.id]);
+    db.run('UPDATE users SET password=?, must_change_password=0 WHERE id=?', [pw, user.id]);
     audit(req, 'RESET_PASSWORD', 'staff', req.params.id, { name: staff.name });
-    res.json({ username: user.username, new_password: newPassword, message: '密码已重置为初始密码，该员工下次登录时将被要求修改密码' });
+    res.json({ username: user.username, new_password: newPassword, message: '密码已重置为 123456' });
   });
 
   router.post('/staff/:id/credentials', requireRole('principal','counselor'), (req, res) => {

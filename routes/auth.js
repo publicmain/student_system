@@ -24,6 +24,9 @@ module.exports = function({ db, uuidv4, audit, requireAuth, loginAttempts, pwdCh
       return res.status(429).json({ error: `登录尝试过于频繁，请 ${wait} 秒后再试` });
     }
     const user = db.get('SELECT * FROM users WHERE username=?', [username]);
+    if (user && user.status === 'disabled') {
+      return res.status(403).json({ error: '该账号已被停用，请联系管理员' });
+    }
     if (!user || !bcrypt.compareSync(password, user.password)) {
       record.count++;
       loginAttempts.set(ip, record);

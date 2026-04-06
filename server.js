@@ -346,6 +346,9 @@ app.use('/api', require('./routes/students')(deps));
 // Staff
 app.use('/api', require('./routes/staff')(deps));
 
+// Accounts (账号管理)
+app.use('/api', require('./routes/accounts')(deps));
+
 // Applications & Timeline
 app.use('/api', require('./routes/applications')(deps));
 

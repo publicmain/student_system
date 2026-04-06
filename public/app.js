@@ -38,6 +38,7 @@ const PAGES = {
   'adm-profiles':       () => { showToast('申请表管理已整合到入学案例详情页','info'); navigate('intake-cases'); },
   'adm-form':           () => { navigate('intake-cases'); },
   'adm-case-detail':    () => { navigate('intake-cases'); },
+  'accounts':           (p) => renderAccountsPage(p),
 };
 
 const PAGE_ROLES = {
@@ -68,6 +69,7 @@ const PAGE_ROLES = {
   'adm-profiles':       ['principal', 'counselor', 'intake_staff'],
   'adm-form':           ['principal', 'counselor', 'intake_staff'],
   'adm-case-detail':    ['principal', 'counselor', 'intake_staff'],
+  'accounts':           ['principal'],
 };
 
 function canAccessPage(page) {
@@ -1287,6 +1289,17 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
               </div>`).join('')}
             </div>
 
+            <!-- 账号管理 (principal/counselor only) -->
+            ${canEdit ? `
+            <div class="stu-sb-module">
+              <div class="stu-sb-title">
+                <span><i class="bi bi-key"></i>登录账号</span>
+              </div>
+              <div id="account-cards-container">
+                <div class="text-center text-muted py-1 small"><div class="spinner-border spinner-border-sm"></div></div>
+              </div>
+            </div>` : ''}
+
             <!-- Pending Items — consolidated empty states -->
             ${emptyItems.length > 0 ? `
             <div class="stu-sb-module">
@@ -1472,6 +1485,7 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
     loadOverviewProfileTags(id);
     loadOverviewCompetitiveness(id);
     loadOverviewAwards(id);
+    if (canEdit) loadAccountCards(id, parents);
 
   } catch(e) {
     mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
@@ -1559,6 +1573,88 @@ async function loadOverviewAwards(studentId) {
   } catch(e) {
     el.innerHTML = `<div class="ov-empty" style="padding:.75rem"><i class="bi bi-award"></i><span>暂无荣誉记录</span></div>`;
   }
+}
+
+// ═══ 账号管理卡片 ═���═
+async function loadAccountCards(studentId, parents) {
+  const el = document.getElementById('account-cards-container');
+  if (!el) return;
+  try {
+    const stuAccount = await GET(`/api/accounts/student/${studentId}`);
+    const parentAccounts = await Promise.all(
+      (parents || []).map(async p => {
+        const acc = await GET(`/api/accounts/parent/${p.id}`);
+        return { parent: p, account: acc };
+      })
+    );
+
+    let html = '';
+    // Student account
+    html += `<div style="font-size:.78rem;padding:.3rem 0">`;
+    html += `<div style="font-weight:600"><i class="bi bi-mortarboard me-1"></i>学���账号</div>`;
+    if (stuAccount) {
+      html += `<div style="display:flex;align-items:center;gap:.4rem;margin-top:.2rem">
+        <span class="badge ${stuAccount.status === 'active' ? 'bg-success' : 'bg-danger'}" style="font-size:.65rem">${stuAccount.status === 'active' ? '正常' : '已停用'}</span>
+        <code style="font-size:.72rem;background:var(--bg-secondary);padding:.1rem .3rem;border-radius:3px">${escapeHtml(stuAccount.username)}</code>
+        <button class="stu-sb-btn" title="重���密码" onclick="resetAccountPassword('${stuAccount.id}','学生','${studentId}')"><i class="bi bi-key" style="font-size:.7rem"></i></button>
+      </div>`;
+    } else {
+      html += `<button class="btn btn-outline-primary btn-sm mt-1" style="font-size:.72rem;padding:.15rem .5rem" onclick="createStudentAccount('${studentId}')"><i class="bi bi-plus-circle me-1"></i>创建账号</button>`;
+    }
+    html += `</div>`;
+
+    // Parent accounts
+    parentAccounts.forEach(({ parent: p, account: acc }) => {
+      html += `<div style="font-size:.78rem;padding:.3rem 0;border-top:1px solid color-mix(in srgb, var(--border) 50%, transparent)">`;
+      html += `<div style="font-weight:600"><i class="bi bi-person-heart me-1"></i>${escapeHtml(p.name)} <span style="font-weight:400;color:var(--text-tertiary);font-size:.72rem">${escapeHtml(p.relation||'家长')}</span></div>`;
+      if (acc) {
+        html += `<div style="display:flex;align-items:center;gap:.4rem;margin-top:.2rem">
+          <span class="badge ${acc.status === 'active' ? 'bg-success' : 'bg-danger'}" style="font-size:.65rem">${acc.status === 'active' ? '正常' : '已停用'}</span>
+          <code style="font-size:.72rem;background:var(--bg-secondary);padding:.1rem .3rem;border-radius:3px">${escapeHtml(acc.username)}</code>
+          <button class="stu-sb-btn" title="重置密码" onclick="resetAccountPassword('${acc.id}','家长','${studentId}')"><i class="bi bi-key" style="font-size:.7rem"></i></button>
+        </div>`;
+      } else {
+        html += `<button class="btn btn-outline-primary btn-sm mt-1" style="font-size:.72rem;padding:.15rem .5rem" onclick="createParentAccount('${p.id}','${studentId}')"><i class="bi bi-plus-circle me-1"></i>创建账号</button>`;
+      }
+      html += `</div>`;
+    });
+
+    if (parents.length === 0) {
+      html += `<div style="font-size:.72rem;color:var(--text-tertiary);border-top:1px solid color-mix(in srgb, var(--border) 50%, transparent);padding-top:.3rem;margin-top:.3rem"><i class="bi bi-info-circle me-1"></i>添加家长后可创建家长账号</div>`;
+    }
+
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = `<div style="font-size:.78rem;color:var(--text-tertiary)">账号信息加载失败</div>`;
+  }
+}
+
+async function createStudentAccount(studentId) {
+  try {
+    const res = await POST('/api/accounts/student', { student_id: studentId });
+    showStaffCredentials(res.username, res.default_password);
+    // Reload the account cards
+    const detail = await GET(`/api/students/${studentId}`);
+    loadAccountCards(studentId, detail.parents);
+  } catch(e) { showError(e.message); }
+}
+
+async function createParentAccount(parentId, studentId) {
+  try {
+    const res = await POST('/api/accounts/parent', { parent_id: parentId });
+    showStaffCredentials(res.username, res.default_password);
+    const detail = await GET(`/api/students/${studentId}`);
+    loadAccountCards(studentId, detail.parents);
+  } catch(e) { showError(e.message); }
+}
+
+async function resetAccountPassword(accountId, label, studentId) {
+  confirmAction(`确定要重置该${label}的登录密码为 123456？`, async () => {
+    try {
+      const res = await POST(`/api/accounts/${accountId}/reset-password`, {});
+      showStaffCredentials(res.username, res.new_password);
+    } catch(e) { showError('重置密码失败：' + e.message); }
+  });
 }
 
 // 编辑扩展画像弹窗
@@ -5809,6 +5905,148 @@ async function renderAnalytics() {
 // ════════════════════════════════════════════════════════
 //  操作审计页
 // ════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+//  账号管理页 (principal only)
+// ═══════════════════════════════════════════════════════
+async function renderAccountsPage() {
+  const mc = document.getElementById('main-content');
+  mc.innerHTML = '<div class="page-loading"><div class="spinner-border text-primary"></div></div>';
+  try {
+    const accounts = await GET('/api/accounts');
+    const roleLabels = { principal: '校长', counselor: '顾问/规划师', mentor: '导师', student: '学生', parent: '家长', agent: '代理', intake_staff: '招生人员', student_admin: '学生管理员' };
+    const roleBadge = { principal: 'danger', counselor: 'primary', mentor: 'warning', student: 'success', parent: 'info', agent: 'secondary', intake_staff: 'dark', student_admin: 'secondary' };
+
+    // Stats
+    const total = accounts.length;
+    const active = accounts.filter(a => a.status === 'active').length;
+    const disabled = accounts.filter(a => a.status === 'disabled').length;
+    const byRole = {};
+    accounts.forEach(a => { byRole[a.role] = (byRole[a.role] || 0) + 1; });
+
+    mc.innerHTML = `
+      <div class="page-header mb-4">
+        <div>
+          <h4 class="fw-bold mb-1"><i class="bi bi-people-fill me-2"></i>账号管理</h4>
+          <p class="text-muted mb-0">管理所有用户的登录账号，创建、重置密码、停用账号</p>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3"><div class="stat-card accent-primary"><div class="stat-value">${total}</div><div class="stat-label">总账号数</div></div></div>
+        <div class="col-6 col-md-3"><div class="stat-card accent-success"><div class="stat-value">${active}</div><div class="stat-label">活跃</div></div></div>
+        <div class="col-6 col-md-3"><div class="stat-card accent-danger"><div class="stat-value">${disabled}</div><div class="stat-label">已停用</div></div></div>
+        <div class="col-6 col-md-3"><div class="stat-card accent-info"><div class="stat-value">${Object.keys(byRole).length}</div><div class="stat-label">角色类型</div></div></div>
+      </div>
+
+      <!-- Filter -->
+      <div class="card mb-3">
+        <div class="card-body py-2">
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <span class="fw-semibold small">筛选角色:</span>
+            <button class="btn btn-sm btn-outline-secondary active" onclick="filterAccounts('all',this)">全部 (${total})</button>
+            ${Object.entries(byRole).sort((a,b) => b[1]-a[1]).map(([role, cnt]) =>
+              `<button class="btn btn-sm btn-outline-${roleBadge[role]||'secondary'}" onclick="filterAccounts('${role}',this)">${roleLabels[role]||role} (${cnt})</button>`
+            ).join('')}
+            <div class="ms-auto">
+              <input class="form-control form-control-sm" id="account-search" placeholder="搜索用户名/姓名..." style="width:200px" oninput="filterAccountsBySearch(this.value)">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="card">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0" id="accounts-table">
+            <thead>
+              <tr>
+                <th class="small">用户名</th>
+                <th class="small">姓名</th>
+                <th class="small">角色</th>
+                <th class="small">关联信息</th>
+                <th class="small">状态</th>
+                <th class="small">创建时间</th>
+                <th class="small text-end">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${accounts.map(a => `
+                <tr class="account-row" data-role="${a.role}" data-search="${(a.username + ' ' + (a.name||'')).toLowerCase()}">
+                  <td><code class="small">${escapeHtml(a.username)}</code></td>
+                  <td class="small fw-semibold">${escapeHtml(a.name || '—')}</td>
+                  <td><span class="badge bg-${roleBadge[a.role]||'secondary'}">${roleLabels[a.role]||a.role}</span></td>
+                  <td class="small text-muted">${a.linked_name ? escapeHtml(a.linked_name) + (a.linked_detail ? ` <span class="text-secondary">(${escapeHtml(a.linked_detail)})</span>` : '') + (a.linked_students ? `<br><i class="bi bi-arrow-right-short"></i>${escapeHtml(a.linked_students)}` : '') : '—'}</td>
+                  <td><span class="badge ${a.status === 'active' ? 'bg-success' : 'bg-danger'}">${a.status === 'active' ? '正常' : '已停用'}</span></td>
+                  <td class="small text-muted">${a.created_at ? fmtDate(a.created_at) : '—'}</td>
+                  <td class="text-end">
+                    <div class="d-flex gap-1 justify-content-end">
+                      <button class="action-icon-btn" title="重置密码" onclick="resetAccountFromList('${a.id}','${escapeHtml(a.username)}')"><i class="bi bi-key"></i></button>
+                      ${a.status === 'active'
+                        ? `<button class="action-icon-btn text-warning" title="停用" onclick="toggleAccountStatus('${a.id}','disabled','${escapeHtml(a.username)}')"><i class="bi bi-pause-circle"></i></button>`
+                        : `<button class="action-icon-btn text-success" title="启用" onclick="toggleAccountStatus('${a.id}','active','${escapeHtml(a.username)}')"><i class="bi bi-play-circle"></i></button>`
+                      }
+                      <button class="action-icon-btn danger" title="删除" onclick="deleteAccount('${a.id}','${escapeHtml(a.username)}')"><i class="bi bi-trash"></i></button>
+                    </div>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        ${accounts.length === 0 ? '<div class="text-center text-muted py-4"><i class="bi bi-people" style="font-size:2rem"></i><p class="mt-2">暂无账号</p></div>' : ''}
+      </div>
+    `;
+  } catch(e) {
+    mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function filterAccounts(role, btnEl) {
+  document.querySelectorAll('.card-body .btn-sm').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  document.querySelectorAll('.account-row').forEach(row => {
+    row.style.display = (role === 'all' || row.dataset.role === role) ? '' : 'none';
+  });
+}
+
+function filterAccountsBySearch(query) {
+  const q = query.toLowerCase().trim();
+  document.querySelectorAll('.account-row').forEach(row => {
+    row.style.display = (!q || row.dataset.search.includes(q)) ? '' : 'none';
+  });
+}
+
+async function resetAccountFromList(accountId, username) {
+  confirmAction(`确定要重置 "${username}" 的密码为 123456？`, async () => {
+    try {
+      const res = await POST(`/api/accounts/${accountId}/reset-password`, {});
+      showStaffCredentials(res.username, res.new_password);
+    } catch(e) { showError('重置密码失败：' + e.message); }
+  });
+}
+
+async function toggleAccountStatus(accountId, newStatus, username) {
+  const msg = newStatus === 'disabled' ? `确定要停用 "${username}" 的账号？停用后该用户将无法登录。` : `确定要重新启用 "${username}" 的账号？`;
+  confirmAction(msg, async () => {
+    try {
+      await api('PUT', `/api/accounts/${accountId}/status`, { status: newStatus });
+      showToast(newStatus === 'disabled' ? '账号已停用' : '账号已启用', 'success');
+      renderAccountsPage();
+    } catch(e) { showError(e.message); }
+  });
+}
+
+async function deleteAccount(accountId, username) {
+  confirmAction(`确定要永久删除 "${username}" 的账号？此操作不可撤销！`, async () => {
+    try {
+      await api('DELETE', `/api/accounts/${accountId}`);
+      showToast('账号已删除', 'success');
+      renderAccountsPage();
+    } catch(e) { showError(e.message); }
+  });
+}
+
 async function renderAuditLog() {
   const mc = document.getElementById('main-content');
   const today = new Date().toISOString().slice(0,10);

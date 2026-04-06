@@ -194,7 +194,55 @@ module.exports = function ({ db, uuidv4, audit, requireAuth, requireRole }) {
       parentIds.push(pid);
     }
 
-    // 3. 标记提交为已导入
+    // 3. 导入课外活动 → student_activities
+    if (data.hobbies && data.hobbies.trim()) {
+      const items = data.hobbies.split(/[，,、;；\n]+/).map(s => s.trim()).filter(Boolean);
+      items.forEach((item, idx) => {
+        db.run(`INSERT INTO student_activities (id, student_id, category, name, description, sort_order, created_at, updated_at)
+                VALUES (?, ?, '课外活动', ?, '信息收集表单填写', ?, ?, ?)`,
+          [uuidv4(), studentId, item, idx, now, now]);
+      });
+    }
+
+    // 4. 导入学业信息 → communication_logs（作为初始信息记录）
+    const academicParts = [];
+    if (data.target_countries) academicParts.push(`意向留学国家/地区: ${data.target_countries}`);
+    if (data.target_major) academicParts.push(`意向专业方向: ${data.target_major}`);
+    if (data.enrol_date) academicParts.push(`预计入学时间: ${data.enrol_date}`);
+    if (data.current_subjects) academicParts.push(`目前在读科目:\n${data.current_subjects}`);
+    if (data.test_scores) academicParts.push(`标化考试成绩:\n${data.test_scores}`);
+    if (data.extra_notes) academicParts.push(`补充说明: ${data.extra_notes}`);
+
+    if (academicParts.length > 0) {
+      db.run(`INSERT INTO communication_logs (id, student_id, staff_id, channel, summary, comm_date, created_at)
+              VALUES (?, ?, ?, '信息收集表单', ?, ?, ?)`,
+        [uuidv4(), studentId, req.session.user.id,
+         '【学业与留学意向】\n' + academicParts.join('\n'),
+         now, now]);
+    }
+
+    // 5. 导入入学评估（标化成绩，如果有的话）
+    if (data.test_scores && data.test_scores.trim()) {
+      // 尝试解析常见格式: "雅思 6.5" "IELTS 7.0" "托福 100"
+      const scorePatterns = [
+        { pattern: /雅思\s*[:：]?\s*([\d.]+)/i, type: 'IELTS', max: 9 },
+        { pattern: /IELTS\s*[:：]?\s*([\d.]+)/i, type: 'IELTS', max: 9 },
+        { pattern: /托福\s*[:：]?\s*(\d+)/i, type: 'TOEFL', max: 120 },
+        { pattern: /TOEFL\s*[:：]?\s*(\d+)/i, type: 'TOEFL', max: 120 },
+        { pattern: /SAT\s*[:：]?\s*(\d+)/i, type: 'SAT', max: 1600 },
+        { pattern: /ACT\s*[:：]?\s*(\d+)/i, type: 'ACT', max: 36 },
+      ];
+      scorePatterns.forEach(({ pattern, type, max }) => {
+        const m = data.test_scores.match(pattern);
+        if (m) {
+          db.run(`INSERT INTO admission_assessments (id, student_id, assess_date, assess_type, score, max_score, notes, created_at)
+                  VALUES (?, ?, ?, ?, ?, ?, '信息收集表单自动导入', ?)`,
+            [uuidv4(), studentId, now.split('T')[0], type, parseFloat(m[1]), max, now]);
+        }
+      });
+    }
+
+    // 6. 标记提交为已导入
     db.run('UPDATE intake_form_submissions SET status=?, imported_student_id=?, reviewed_at=?, reviewed_by=? WHERE id=?',
       ['imported', studentId, now, req.session.user.id, sub.id]);
 
@@ -288,20 +336,40 @@ module.exports = function ({ db, uuidv4, audit, requireAuth, requireRole }) {
   // ═══════════════════════════════════════════════════════
 
   function buildStudentNotes(data) {
-    const parts = [];
-    if (data.nationality) parts.push(`国籍: ${data.nationality}`);
-    if (data.id_number) parts.push(`证件号: ${data.id_number}`);
-    if (data.current_school) parts.push(`原就读学校: ${data.current_school}`);
-    if (data.student_phone) parts.push(`学生电话: ${data.student_phone}`);
-    if (data.student_email) parts.push(`学生邮箱: ${data.student_email}`);
-    if (data.student_wechat) parts.push(`学生微信: ${data.student_wechat}`);
-    if (data.address) parts.push(`家庭地址: ${data.address}`);
-    if (data.health_notes) parts.push(`健康/特殊需求: ${data.health_notes}`);
-    if (data.hobbies) parts.push(`兴趣爱好: ${data.hobbies}`);
-    if (data.target_countries) parts.push(`意向留学国家: ${data.target_countries}`);
-    if (data.target_major) parts.push(`意向专业方向: ${data.target_major}`);
-    if (data.extra_notes) parts.push(`补充说明: ${data.extra_notes}`);
-    return parts.join('\n') || null;
+    const sections = [];
+
+    // 个人信息
+    const personal = [];
+    if (data.gender) personal.push(`性别: ${data.gender}`);
+    if (data.nationality) personal.push(`国籍: ${data.nationality}`);
+    if (data.id_number) personal.push(`证件号: ${data.id_number}`);
+    if (data.current_school) personal.push(`原就读学校: ${data.current_school}`);
+    if (personal.length) sections.push('【个人信息】\n' + personal.join('\n'));
+
+    // 联系方式
+    const contact = [];
+    if (data.student_phone) contact.push(`电话: ${data.student_phone}`);
+    if (data.student_email) contact.push(`邮箱: ${data.student_email}`);
+    if (data.student_wechat) contact.push(`微信: ${data.student_wechat}`);
+    if (data.address) contact.push(`地址: ${data.address}`);
+    if (contact.length) sections.push('【联系方式】\n' + contact.join('\n'));
+
+    // 学业与留学意向
+    const academic = [];
+    if (data.target_countries) academic.push(`意向国家: ${data.target_countries}`);
+    if (data.target_major) academic.push(`意向专业: ${data.target_major}`);
+    if (data.current_subjects) academic.push(`在读科目: ${data.current_subjects}`);
+    if (data.test_scores) academic.push(`标化成绩: ${data.test_scores}`);
+    if (academic.length) sections.push('【学业与留学意向】\n' + academic.join('\n'));
+
+    // 其他
+    const extra = [];
+    if (data.hobbies) extra.push(`兴趣爱好: ${data.hobbies}`);
+    if (data.health_notes) extra.push(`健康/特殊需求: ${data.health_notes}`);
+    if (data.extra_notes) extra.push(`补充说明: ${data.extra_notes}`);
+    if (extra.length) sections.push('【其他信息】\n' + extra.join('\n'));
+
+    return sections.join('\n\n') || null;
   }
 
   function formErrorPage(msg) {

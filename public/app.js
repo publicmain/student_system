@@ -519,7 +519,9 @@ async function selectMentorStudent(id, el) {
         <div class="col-4"><div class="stat-card accent-info" style="padding:.75rem 1rem .75rem 1.25rem"><div class="stat-value" style="font-size:1.5rem">${detail.applications.length}</div><div class="stat-label">申请</div></div></div>
       </div>
       <!-- 选科 -->
-      ${detail.subjects.length > 0 ? `<div class="card mb-3"><div class="card-header fw-semibold small py-2"><i class="bi bi-book me-1 text-info"></i>选修科目</div><div class="card-body py-2"><div class="d-flex flex-wrap gap-1">${detail.subjects.map(sub=>`<span class="badge bg-light text-dark border">${escapeHtml(sub.code||sub.subject_name||'—')}${sub.predicted_grade?` <span class="text-info">${escapeHtml(sub.predicted_grade)}</span>`:''}</span>`).join('')}</div></div></div>` : ''}
+      <div class="card mb-3"><div class="card-header fw-semibold small py-2"><i class="bi bi-book me-1 text-info"></i>选修科目</div><div class="card-body py-2">${detail.subjects.length === 0
+        ? '<div class="text-muted small">暂无选科记录</div>'
+        : `<div class="d-flex flex-wrap gap-1">${detail.subjects.map(sub=>`<span class="badge bg-light text-dark border">${escapeHtml(sub.code||sub.subject_name||'—')}${sub.predicted_grade?` <span class="text-info">${escapeHtml(sub.predicted_grade)}</span>`:''}</span>`).join('')}</div>`}</div></div>
       <!-- 待办任务 -->
       <div class="card mb-3">
         <div class="card-header fw-semibold small py-2 d-flex justify-content-between align-items-center">
@@ -538,7 +540,9 @@ async function selectMentorStudent(id, el) {
         </div>
       </div>
       <!-- 目标院校 -->
-      ${detail.targets.length > 0 ? `<div class="card"><div class="card-header fw-semibold small py-2"><i class="bi bi-mortarboard me-1 text-primary"></i>目标院校</div><div class="card-body p-0"><table class="table table-sm mb-0"><tbody>${detail.targets.map(t=>`<tr><td class="small fw-semibold">${escapeHtml(t.uni_name)}</td><td class="small text-muted">${escapeHtml(t.department||'—')}</td><td>${tierBadge(t.tier)}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+      <div class="card"><div class="card-header fw-semibold small py-2"><i class="bi bi-mortarboard me-1 text-primary"></i>目标院校</div><div class="card-body p-0">${detail.targets.length === 0
+        ? '<div class="text-muted small px-3 py-2">暂无目标院校</div>'
+        : `<table class="table table-sm mb-0"><tbody>${detail.targets.map(t=>`<tr><td class="small fw-semibold">${escapeHtml(t.uni_name)}</td><td class="small text-muted">${escapeHtml(t.department||'—')}</td><td>${tierBadge(t.tier)}</td></tr>`).join('')}</tbody></table>`}</div></div>
     `;
   } catch(e) {
     panel.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
@@ -959,10 +963,14 @@ async function _selectStudent(id, el) {
       ${s.notes ? `<div class="alert alert-light small py-2 mb-3"><i class="bi bi-sticky me-1"></i>${escapeHtml(s.notes)}</div>` : ''}
 
       <!-- 导师 -->
-      ${detail.mentors.length > 0 ? `<div class="card mb-3"><div class="card-header fw-semibold small py-2"><i class="bi bi-person-check me-1 text-warning"></i>导师/规划师</div><div class="card-body p-0">${detail.mentors.map(m=>`<div class="px-3 py-2 border-bottom d-flex align-items-center gap-2"><div class="avatar-sm">${escapeHtml(m.staff_name.charAt(0))}</div><div><div class="small fw-semibold">${escapeHtml(m.staff_name)}</div><div class="text-muted" style="font-size:11px">${escapeHtml(m.role)}</div></div></div>`).join('')}</div></div>` : ''}
+      <div class="card mb-3"><div class="card-header fw-semibold small py-2"><i class="bi bi-person-check me-1 text-warning"></i>导师/规划师</div><div class="card-body p-0">${detail.mentors.length === 0
+        ? '<div class="text-muted small px-3 py-2">暂未分配</div>'
+        : detail.mentors.map(m=>`<div class="px-3 py-2 border-bottom d-flex align-items-center gap-2"><div class="avatar-sm">${escapeHtml(m.staff_name.charAt(0))}</div><div><div class="small fw-semibold">${escapeHtml(m.staff_name)}</div><div class="text-muted" style="font-size:11px">${escapeHtml(m.role)}</div></div></div>`).join('')}</div></div>
 
       <!-- 目标院校 -->
-      ${detail.targets.length > 0 ? `<div class="card mb-3"><div class="card-header fw-semibold small py-2"><i class="bi bi-mortarboard me-1 text-primary"></i>目标院校 <span class="badge badge-soft-secondary ms-1">${detail.targets.length}</span></div><div class="card-body p-0"><table class="table table-sm mb-0"><tbody>${detail.targets.map(t=>`<tr><td class="small fw-semibold">${escapeHtml(t.uni_name)}</td><td class="small text-muted">${escapeHtml(t.department||'—')}</td><td>${tierBadge(t.tier)}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+      <div class="card mb-3"><div class="card-header fw-semibold small py-2"><i class="bi bi-mortarboard me-1 text-primary"></i>目标院校 ${detail.targets.length > 0 ? `<span class="badge badge-soft-secondary ms-1">${detail.targets.length}</span>` : ''}</div><div class="card-body p-0">${detail.targets.length === 0
+        ? '<div class="text-muted small px-3 py-2">暂无目标院校</div>'
+        : `<table class="table table-sm mb-0"><tbody>${detail.targets.map(t=>`<tr><td class="small fw-semibold">${escapeHtml(t.uni_name)}</td><td class="small text-muted">${escapeHtml(t.department||'—')}</td><td>${tierBadge(t.tier)}</td></tr>`).join('')}</tbody></table>`}</div></div>
 
       <!-- 待办任务 -->
       <div class="card mb-3">
@@ -984,7 +992,9 @@ async function _selectStudent(id, el) {
       </div>
 
       <!-- 申请概览 -->
-      ${detail.applications.length > 0 ? `<div class="card"><div class="card-header fw-semibold small py-2"><i class="bi bi-send me-1 text-primary"></i>申请院校 <span class="badge badge-soft-primary ms-1">${detail.applications.length}</span></div><div class="card-body p-0"><table class="table table-sm mb-0"><tbody>${detail.applications.slice(0,5).map(a=>`<tr><td class="small fw-semibold">${escapeHtml(a.uni_name||'—')}</td><td class="small text-muted">${escapeHtml(a.department||'—')}</td><td>${statusBadge(a.status)}</td></tr>`).join('')}</tbody></table>${detail.applications.length>5?`<div class="text-center py-2"><a href="#" onclick="event.preventDefault();navigate('student-detail',{studentId:'${id}',activeTab:'tab-apps'})" class="small text-primary">查看全部 →</a></div>`:''}</div></div>` : ''}
+      <div class="card"><div class="card-header fw-semibold small py-2"><i class="bi bi-send me-1 text-primary"></i>申请院校 ${detail.applications.length > 0 ? `<span class="badge badge-soft-primary ms-1">${detail.applications.length}</span>` : ''}</div><div class="card-body p-0">${detail.applications.length === 0
+        ? '<div class="text-muted small px-3 py-2">暂无申请记录</div>'
+        : `<table class="table table-sm mb-0"><tbody>${detail.applications.slice(0,5).map(a=>`<tr><td class="small fw-semibold">${escapeHtml(a.uni_name||'—')}</td><td class="small text-muted">${escapeHtml(a.department||'—')}</td><td>${statusBadge(a.status)}</td></tr>`).join('')}</tbody></table>${detail.applications.length>5?`<div class="text-center py-2"><a href="#" onclick="event.preventDefault();navigate('student-detail',{studentId:'${id}',activeTab:'tab-apps'})" class="small text-primary">查看全部 →</a></div>`:''}`}</div></div>
     `;
   } catch(e) {
     panel.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;

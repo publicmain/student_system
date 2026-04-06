@@ -537,6 +537,34 @@ function createSchema() {
     sort_order          INTEGER DEFAULT 0
   )`);
 
+  // ── 信息收集表单 ─────────────────────────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS intake_forms (
+    id              TEXT PRIMARY KEY,
+    token           TEXT NOT NULL UNIQUE,
+    title           TEXT NOT NULL,
+    description     TEXT DEFAULT '',
+    grade_level     TEXT DEFAULT '',
+    expires_at      TEXT,
+    max_submissions INTEGER DEFAULT 0,
+    status          TEXT DEFAULT 'active',
+    created_by      TEXT,
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS intake_form_submissions (
+    id                  TEXT PRIMARY KEY,
+    form_id             TEXT NOT NULL,
+    data                TEXT NOT NULL,
+    status              TEXT DEFAULT 'pending',
+    review_notes        TEXT DEFAULT '',
+    reviewed_by         TEXT,
+    reviewed_at         TEXT,
+    imported_student_id TEXT,
+    submitted_at        TEXT DEFAULT (datetime('now')),
+    ip_address          TEXT DEFAULT ''
+  )`);
+
   // ── 系统设置 ─────────────────────────────────────────
   db.run(`CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,

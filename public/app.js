@@ -39,6 +39,7 @@ const PAGES = {
   'adm-form':           () => { navigate('intake-cases'); },
   'adm-case-detail':    () => { navigate('intake-cases'); },
   'accounts':           (p) => renderAccountsPage(p),
+  'intake-forms':       (p) => renderIntakeFormsPage(p),
 };
 
 const PAGE_ROLES = {
@@ -70,6 +71,7 @@ const PAGE_ROLES = {
   'adm-form':           ['principal', 'counselor', 'intake_staff'],
   'adm-case-detail':    ['principal', 'counselor', 'intake_staff'],
   'accounts':           ['principal'],
+  'intake-forms':       ['principal', 'counselor', 'intake_staff'],
 };
 
 function canAccessPage(page) {
@@ -8827,6 +8829,447 @@ async function toggleAgentStudents(agentId, btn) {
   } catch(e) {
     panel.innerHTML = `<div class="text-danger small">加载失败: ${escapeHtml(e.message)}</div>`;
   }
+}
+
+// ════════════════════════════════════════════════════════
+//  信息收集表单管理
+// ════════════════════════════════════════════════════════
+async function renderIntakeFormsPage() {
+  const mc = document.getElementById('main-content');
+  mc.innerHTML = `<div class="container-fluid py-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+      <div>
+        <h3 class="mb-1"><i class="bi bi-file-earmark-text me-2 text-primary"></i>信息收集表单</h3>
+        <p class="text-muted mb-0 small">创建在线表单链接，发送给学生/家长填写，审核后一键导入系统</p>
+      </div>
+      <button class="btn btn-primary" onclick="showCreateFormModal()">
+        <i class="bi bi-plus-lg me-1"></i>创建表单链接
+      </button>
+    </div>
+    <div id="intake-forms-list"><div class="text-center py-5"><div class="spinner-border text-primary"></div></div></div>
+  </div>`;
+  await loadIntakeFormsList();
+}
+
+async function loadIntakeFormsList() {
+  try {
+    const forms = await api('GET', '/api/intake-forms');
+    const container = document.getElementById('intake-forms-list');
+    if (!forms.length) {
+      container.innerHTML = `<div class="card shadow-sm"><div class="card-body text-center py-5">
+        <i class="bi bi-inbox display-4 text-muted"></i>
+        <p class="text-muted mt-3">还没有创建任何表单链接</p>
+        <button class="btn btn-primary mt-2" onclick="showCreateFormModal()">
+          <i class="bi bi-plus-lg me-1"></i>创建第一个表单
+        </button>
+      </div></div>`;
+      return;
+    }
+
+    const statusMap = { active: '进行中', closed: '已关闭', expired: '已过期' };
+    const statusColor = { active: 'success', closed: 'secondary', expired: 'warning' };
+
+    container.innerHTML = `<div class="row g-3">${forms.map(f => {
+      const formUrl = window.location.origin + '/form/' + f.token;
+      const isExpired = f.expires_at && new Date(f.expires_at) < new Date();
+      const displayStatus = isExpired ? 'expired' : f.status;
+      return `<div class="col-12">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <div class="d-flex align-items-start justify-content-between">
+              <div class="flex-grow-1">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <h5 class="mb-0">${escapeHtml(f.title)}</h5>
+                  <span class="badge bg-${statusColor[displayStatus]||'secondary'}">${statusMap[displayStatus]||displayStatus}</span>
+                  ${f.grade_level ? `<span class="badge bg-info">${escapeHtml(f.grade_level)}</span>` : ''}
+                </div>
+                ${f.description ? `<p class="text-muted small mb-2">${escapeHtml(f.description)}</p>` : ''}
+                <div class="d-flex align-items-center gap-3 text-muted small">
+                  <span><i class="bi bi-people me-1"></i>提交: <strong class="text-dark">${f.submission_count||0}</strong></span>
+                  <span><i class="bi bi-clock me-1"></i>待审核: <strong class="${f.pending_count>0?'text-warning':'text-dark'}">${f.pending_count||0}</strong></span>
+                  ${f.expires_at ? `<span><i class="bi bi-calendar-event me-1"></i>截止: ${f.expires_at.split('T')[0]}</span>` : ''}
+                  ${f.max_submissions > 0 ? `<span><i class="bi bi-hash me-1"></i>上限: ${f.max_submissions}</span>` : ''}
+                  <span><i class="bi bi-calendar me-1"></i>创建: ${(f.created_at||'').split('T')[0]}</span>
+                </div>
+              </div>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary" onclick="copyFormLink('${f.token}')" title="复制链接">
+                  <i class="bi bi-link-45deg"></i> 复制链接
+                </button>
+                <button class="btn btn-sm btn-outline-info" onclick="viewFormSubmissions('${f.id}','${escapeHtml(f.title)}')" title="查看提交">
+                  <i class="bi bi-list-check"></i> 提交列表
+                </button>
+                <div class="dropdown">
+                  <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></button>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="/form/${f.token}" target="_blank"><i class="bi bi-box-arrow-up-right me-2"></i>预览表单</a></li>
+                    <li><a class="dropdown-item" href="#" onclick="editFormModal('${f.id}');return false"><i class="bi bi-pencil me-2"></i>编辑</a></li>
+                    <li><a class="dropdown-item" href="#" onclick="toggleFormStatus('${f.id}','${f.status}');return false"><i class="bi bi-toggle-on me-2"></i>${f.status==='active'?'关闭':'重新开启'}</a></li>
+                    ${State.user?.role === 'principal' ? `<li><hr class="dropdown-divider"></li><li><a class="dropdown-item text-danger" href="#" onclick="deleteIntakeForm('${f.id}');return false"><i class="bi bi-trash me-2"></i>删除</a></li>` : ''}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+  } catch (e) {
+    document.getElementById('intake-forms-list').innerHTML =
+      `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function copyFormLink(token) {
+  const url = window.location.origin + '/form/' + token;
+  navigator.clipboard.writeText(url).then(() => showToast('链接已复制到剪贴板','success'));
+}
+
+function showCreateFormModal() {
+  const html = `<div class="modal fade" id="createFormModal" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">创建表单链接</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">表单标题 <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="formTitle" placeholder="如：2025秋季新生信息收集">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">描述说明</label>
+          <textarea class="form-control" id="formDesc" rows="2" placeholder="向填写者展示的说明文字"></textarea>
+        </div>
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">默认年级</label>
+            <select class="form-select" id="formGrade">
+              <option value="">不限</option>
+              <option value="G9">G9</option><option value="G10">G10</option>
+              <option value="G11">G11</option><option value="G12">G12</option>
+            </select>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">最大提交数</label>
+            <input type="number" class="form-control" id="formMaxSub" min="0" value="0" placeholder="0=不限">
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">截止日期</label>
+          <input type="date" class="form-control" id="formExpires">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="createFormBtn" onclick="doCreateForm()">创建</button>
+      </div>
+    </div></div>
+  </div>`;
+  document.getElementById('modal-container').innerHTML = html;
+  new bootstrap.Modal(document.getElementById('createFormModal')).show();
+}
+
+async function doCreateForm() {
+  const title = document.getElementById('formTitle').value.trim();
+  if (!title) { showToast('请输入标题','warning'); return; }
+  const btn = document.getElementById('createFormBtn');
+  btn.disabled = true;
+  try {
+    const result = await api('POST', '/api/intake-forms', {
+      title,
+      description: document.getElementById('formDesc').value.trim(),
+      grade_level: document.getElementById('formGrade').value,
+      max_submissions: parseInt(document.getElementById('formMaxSub').value) || 0,
+      expires_at: document.getElementById('formExpires').value || null
+    });
+    bootstrap.Modal.getInstance(document.getElementById('createFormModal')).hide();
+    showToast('表单创建成功！', 'success');
+
+    // 显示链接
+    const url = window.location.origin + '/form/' + result.token;
+    navigator.clipboard.writeText(url).then(() => {
+      showToast('表单链接已复制到剪贴板', 'info');
+    });
+
+    await loadIntakeFormsList();
+  } catch (e) {
+    showToast('创建失败: ' + e.message, 'danger');
+    btn.disabled = false;
+  }
+}
+
+async function editFormModal(formId) {
+  try {
+    const forms = await api('GET', '/api/intake-forms');
+    const form = forms.find(f => f.id === formId);
+    if (!form) { showToast('表单不存在','danger'); return; }
+
+    const html = `<div class="modal fade" id="editFormModal" tabindex="-1">
+      <div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">编辑表单</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">表单标题</label>
+            <input type="text" class="form-control" id="editFormTitle" value="${escapeHtml(form.title)}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">描述说明</label>
+            <textarea class="form-control" id="editFormDesc" rows="2">${escapeHtml(form.description||'')}</textarea>
+          </div>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label fw-semibold">默认年级</label>
+              <select class="form-select" id="editFormGrade">
+                <option value="">不限</option>
+                <option value="G9" ${form.grade_level==='G9'?'selected':''}>G9</option>
+                <option value="G10" ${form.grade_level==='G10'?'selected':''}>G10</option>
+                <option value="G11" ${form.grade_level==='G11'?'selected':''}>G11</option>
+                <option value="G12" ${form.grade_level==='G12'?'selected':''}>G12</option>
+              </select>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label fw-semibold">最大提交数</label>
+              <input type="number" class="form-control" id="editFormMaxSub" min="0" value="${form.max_submissions||0}">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">截止日期</label>
+            <input type="date" class="form-control" id="editFormExpires" value="${(form.expires_at||'').split('T')[0]}">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button class="btn btn-primary" onclick="doEditForm('${form.id}')">保存</button>
+        </div>
+      </div></div>
+    </div>`;
+    document.getElementById('modal-container').innerHTML = html;
+    new bootstrap.Modal(document.getElementById('editFormModal')).show();
+  } catch(e) { showToast('加载失败: '+e.message,'danger'); }
+}
+
+async function doEditForm(formId) {
+  try {
+    await api('PUT', '/api/intake-forms/' + formId, {
+      title: document.getElementById('editFormTitle').value.trim(),
+      description: document.getElementById('editFormDesc').value.trim(),
+      grade_level: document.getElementById('editFormGrade').value,
+      max_submissions: parseInt(document.getElementById('editFormMaxSub').value) || 0,
+      expires_at: document.getElementById('editFormExpires').value || null
+    });
+    bootstrap.Modal.getInstance(document.getElementById('editFormModal')).hide();
+    showToast('已更新', 'success');
+    await loadIntakeFormsList();
+  } catch(e) { showToast('更新失败: '+e.message, 'danger'); }
+}
+
+async function toggleFormStatus(formId, currentStatus) {
+  const newStatus = currentStatus === 'active' ? 'closed' : 'active';
+  try {
+    await api('PUT', '/api/intake-forms/' + formId, { status: newStatus });
+    showToast(newStatus === 'active' ? '表单已重新开启' : '表单已关闭', 'success');
+    await loadIntakeFormsList();
+  } catch(e) { showToast('操作失败: '+e.message, 'danger'); }
+}
+
+async function deleteIntakeForm(formId) {
+  if (!confirm('确认删除该表单及其所有提交记录？此操作不可恢复。')) return;
+  try {
+    await api('DELETE', '/api/intake-forms/' + formId);
+    showToast('已删除', 'success');
+    await loadIntakeFormsList();
+  } catch(e) { showToast('删除失败: '+e.message, 'danger'); }
+}
+
+// ── 提交列表 ──────────────────────────────────────────
+async function viewFormSubmissions(formId, formTitle) {
+  const mc = document.getElementById('main-content');
+  mc.innerHTML = `<div class="container-fluid py-4">
+    <div class="d-flex align-items-center mb-4">
+      <button class="btn btn-sm btn-outline-secondary me-3" onclick="renderIntakeFormsPage()">
+        <i class="bi bi-arrow-left"></i> 返回
+      </button>
+      <div>
+        <h4 class="mb-0">${escapeHtml(formTitle)} — 提交列表</h4>
+        <small class="text-muted">审核学生/家长填写的信息，通过后可一键导入系统</small>
+      </div>
+    </div>
+    <div id="submissions-list"><div class="text-center py-5"><div class="spinner-border text-primary"></div></div></div>
+  </div>`;
+
+  try {
+    const subs = await api('GET', '/api/intake-forms/' + formId + '/submissions');
+    const container = document.getElementById('submissions-list');
+    if (!subs.length) {
+      container.innerHTML = `<div class="card shadow-sm"><div class="card-body text-center py-5">
+        <i class="bi bi-inbox display-4 text-muted"></i>
+        <p class="text-muted mt-3">暂无提交</p>
+      </div></div>`;
+      return;
+    }
+
+    const statusMap = { pending: '待审核', approved: '已通过', rejected: '已驳回', imported: '已导入' };
+    const statusColor = { pending: 'warning', approved: 'success', rejected: 'danger', imported: 'info' };
+
+    container.innerHTML = `<div class="card shadow-sm"><div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr><th>学生姓名</th><th>年级</th><th>家长</th><th>家长电话</th><th>提交时间</th><th>状态</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+          ${subs.map(s => `<tr>
+            <td class="fw-semibold">${escapeHtml(s.student_name||'—')}</td>
+            <td>${escapeHtml(s.grade_level||'—')}</td>
+            <td>${escapeHtml(s.parent_name||'—')}</td>
+            <td class="small">${escapeHtml(s.parent_phone||'—')}</td>
+            <td class="small text-muted">${fmtDate(s.submitted_at)}</td>
+            <td><span class="badge bg-${statusColor[s.status]||'secondary'}">${statusMap[s.status]||s.status}</span></td>
+            <td>
+              <button class="btn btn-xs btn-sm btn-outline-primary py-0 px-2" onclick="viewSubmissionDetail('${s.id}','${formId}','${escapeHtml(formTitle)}')">详情</button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div></div>`;
+  } catch(e) {
+    document.getElementById('submissions-list').innerHTML =
+      `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// ── 提交详情 ──────────────────────────────────────────
+async function viewSubmissionDetail(subId, formId, formTitle) {
+  const mc = document.getElementById('main-content');
+  mc.innerHTML = `<div class="container-fluid py-4"><div class="text-center py-5"><div class="spinner-border text-primary"></div></div></div>`;
+
+  try {
+    const sub = await api('GET', '/api/intake-form-submissions/' + subId);
+    const data = JSON.parse(sub.data || '{}');
+
+    const statusMap = { pending: '待审核', approved: '已通过', rejected: '已驳回', imported: '已导入' };
+    const statusColor = { pending: 'warning', approved: 'success', rejected: 'danger', imported: 'info' };
+
+    const fieldLabels = {
+      student_name:'学生姓名', gender:'性别', date_of_birth:'出生日期', nationality:'国籍',
+      id_number:'证件号码', grade_level:'当前年级', exam_board:'考试体系', current_school:'原就读学校',
+      student_phone:'学生电话', student_email:'学生邮箱', student_wechat:'学生微信', address:'家庭地址',
+      parent1_name:'家长1姓名', parent1_relation:'家长1关系', parent1_phone:'家长1电话',
+      parent1_email:'家长1邮箱', parent1_wechat:'家长1微信',
+      parent2_name:'家长2姓名', parent2_relation:'家长2关系', parent2_phone:'家长2电话',
+      parent2_email:'家长2邮箱', parent2_wechat:'家长2微信',
+      target_countries:'意向留学国家', target_major:'意向专业', enrol_date:'预计入学时间',
+      current_subjects:'在读科目', test_scores:'标化成绩',
+      hobbies:'兴趣爱好', health_notes:'健康/特殊需求', extra_notes:'补充说明'
+    };
+
+    const sections = [
+      { title: '学生基本信息', fields: ['student_name','gender','date_of_birth','nationality','id_number','grade_level','exam_board','current_school'] },
+      { title: '学生联系方式', fields: ['student_phone','student_email','student_wechat','address'] },
+      { title: '家长1信息', fields: ['parent1_name','parent1_relation','parent1_phone','parent1_email','parent1_wechat'] },
+      { title: '家长2信息', fields: ['parent2_name','parent2_relation','parent2_phone','parent2_email','parent2_wechat'] },
+      { title: '学业与留学意向', fields: ['target_countries','target_major','enrol_date','current_subjects','test_scores'] },
+      { title: '补充信息', fields: ['hobbies','health_notes','extra_notes'] },
+    ];
+
+    const canAction = sub.status === 'pending' && ['principal','counselor'].includes(State.user?.role);
+    const canImport = (sub.status === 'approved' || sub.status === 'pending') && !sub.imported_student_id && ['principal','counselor'].includes(State.user?.role);
+
+    mc.innerHTML = `<div class="container-fluid py-4">
+      <div class="d-flex align-items-center mb-4">
+        <button class="btn btn-sm btn-outline-secondary me-3" onclick="viewFormSubmissions('${formId}','${escapeHtml(formTitle)}')">
+          <i class="bi bi-arrow-left"></i> 返回列表
+        </button>
+        <div class="flex-grow-1">
+          <h4 class="mb-0">提交详情 — ${escapeHtml(data.student_name||'未命名')}</h4>
+          <small class="text-muted">提交时间: ${fmtDate(sub.submitted_at)}  |  IP: ${escapeHtml(sub.ip_address||'—')}</small>
+        </div>
+        <span class="badge bg-${statusColor[sub.status]||'secondary'} fs-6">${statusMap[sub.status]||sub.status}</span>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-lg-8">
+          ${sections.map(sec => {
+            const hasData = sec.fields.some(f => data[f]);
+            if (!hasData) return '';
+            return `<div class="card shadow-sm mb-3">
+              <div class="card-header bg-light"><h6 class="mb-0">${sec.title}</h6></div>
+              <div class="card-body">
+                <div class="row g-3">
+                  ${sec.fields.map(f => data[f] ? `<div class="col-md-6">
+                    <div class="small text-muted">${fieldLabels[f]||f}</div>
+                    <div class="fw-medium">${escapeHtml(data[f])}</div>
+                  </div>` : '').join('')}
+                </div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+
+        <div class="col-lg-4">
+          ${sub.imported_student_id ? `<div class="card border-info shadow-sm mb-3">
+            <div class="card-body text-center">
+              <i class="bi bi-check-circle-fill text-info display-6"></i>
+              <p class="mt-2 mb-1 fw-semibold">已导入系统</p>
+              <button class="btn btn-sm btn-outline-info" onclick="navigate('student-detail',{studentId:'${sub.imported_student_id}'})">
+                <i class="bi bi-person me-1"></i>查看学生档案
+              </button>
+            </div>
+          </div>` : ''}
+
+          ${canAction ? `<div class="card shadow-sm mb-3">
+            <div class="card-header bg-light"><h6 class="mb-0">审核操作</h6></div>
+            <div class="card-body">
+              <div class="mb-3">
+                <label class="form-label small">审核备注</label>
+                <textarea class="form-control" id="reviewNotes" rows="2" placeholder="可选"></textarea>
+              </div>
+              <div class="d-grid gap-2">
+                <button class="btn btn-success" onclick="reviewSubmission('${sub.id}','approved','${formId}','${escapeHtml(formTitle)}')">
+                  <i class="bi bi-check-lg me-1"></i>通过审核
+                </button>
+                <button class="btn btn-outline-danger" onclick="reviewSubmission('${sub.id}','rejected','${formId}','${escapeHtml(formTitle)}')">
+                  <i class="bi bi-x-lg me-1"></i>驳回
+                </button>
+              </div>
+            </div>
+          </div>` : ''}
+
+          ${canImport ? `<div class="card shadow-sm mb-3">
+            <div class="card-header bg-light"><h6 class="mb-0">导入操作</h6></div>
+            <div class="card-body">
+              <p class="small text-muted mb-3">将此提交的信息导入为正式学生档案（含家长信息）。</p>
+              <button class="btn btn-primary w-100" onclick="importSubmission('${sub.id}','${formId}','${escapeHtml(formTitle)}')">
+                <i class="bi bi-box-arrow-in-down me-1"></i>一键导入为学生
+              </button>
+            </div>
+          </div>` : ''}
+
+          ${sub.review_notes ? `<div class="card shadow-sm mb-3">
+            <div class="card-header bg-light"><h6 class="mb-0">审核备注</h6></div>
+            <div class="card-body"><p class="mb-0 small">${escapeHtml(sub.review_notes)}</p></div>
+          </div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  } catch(e) {
+    mc.innerHTML = `<div class="container-fluid py-4"><div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div></div>`;
+  }
+}
+
+async function reviewSubmission(subId, status, formId, formTitle) {
+  const notes = document.getElementById('reviewNotes')?.value || '';
+  try {
+    await api('PUT', '/api/intake-form-submissions/' + subId + '/status', { status, review_notes: notes });
+    showToast(status === 'approved' ? '已通过审核' : '已驳回', 'success');
+    viewSubmissionDetail(subId, formId, formTitle);
+  } catch(e) { showToast('操作失败: '+e.message, 'danger'); }
+}
+
+async function importSubmission(subId, formId, formTitle) {
+  if (!confirm('确认导入为正式学生？将自动创建学生档案和家长信息。')) return;
+  try {
+    const result = await api('POST', '/api/intake-form-submissions/' + subId + '/import');
+    showToast(`导入成功！学生「${result.student_name}」已创建`, 'success');
+    viewSubmissionDetail(subId, formId, formTitle);
+  } catch(e) { showToast('导入失败: '+e.message, 'danger'); }
 }
 
 

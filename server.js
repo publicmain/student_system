@@ -405,6 +405,11 @@ app.use('/api', agentPortalRouter);
 // ADM Profiles
 app.use('/api', require('./routes/adm-profiles')(deps));
 
+// Intake Forms (信息收集表单：session + public)
+const intakeForms = require('./routes/intake-forms')(deps);
+app.use('/api', intakeForms.apiRouter);
+app.use('/', intakeForms.publicRouter);
+
 // P0 新模块：课外活动 + 文书管理
 app.use('/api', require('./routes/activities')(deps));
 app.use('/api', require('./routes/essays')(deps));

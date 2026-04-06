@@ -51,12 +51,13 @@ module.exports = function({ db, uuidv4, requireAuth, requireRole }) {
   router.put('/tasks/:id', requireRole('principal','counselor','mentor','intake_staff'), (req, res) => {
     try {
       const { title, description, category, due_date, status, priority, assigned_to } = req.body;
-      if (!title) return res.status(400).json({ error: '任务标题不能为空' });
       const existing = db.get('SELECT * FROM milestone_tasks WHERE id=?', [req.params.id]);
       if (!existing) return res.status(404).json({ error: '任务不存在' });
-      const completed_at = status === 'done' ? (existing.completed_at || new Date().toISOString()) : null;
+      const finalTitle = title || existing.title;
+      if (!finalTitle) return res.status(400).json({ error: '任务标题不能为空' });
+      const completed_at = (status || existing.status) === 'done' ? (existing.completed_at || new Date().toISOString()) : null;
       db.run(`UPDATE milestone_tasks SET title=?,description=?,category=?,due_date=?,status=?,priority=?,assigned_to=?,completed_at=?,updated_at=? WHERE id=?`,
-        [title, description||'', category||'其他', due_date||null, status||'pending', priority||'normal', assigned_to||null, completed_at, new Date().toISOString(), req.params.id]);
+        [finalTitle, description ?? existing.description ?? '', category || existing.category || '其他', due_date ?? existing.due_date, status || existing.status || 'pending', priority || existing.priority || 'normal', assigned_to ?? existing.assigned_to, completed_at, new Date().toISOString(), req.params.id]);
       res.json({ ok: true });
     } catch(e) {
       console.error('[tasks]', e);

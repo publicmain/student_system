@@ -21,7 +21,6 @@ const PAGES = {
   'audit':              (p) => renderAuditLog(p),
   'command-center':     () => renderCommandCenter(),
   'admission-programs': (p) => renderAdmissionPrograms(p),
-  'intake-dashboard':   (p) => renderIntakeDashboard(p),
   'intake-cases':       (p) => renderIntakeCases(p),
   'intake-case-detail': (params) => {
     const caseId = params?.caseId || State.currentCaseId;
@@ -60,7 +59,6 @@ const PAGE_ROLES = {
   'student-portal':     ['student'],
   'parent-portal':      ['parent'],
   'agent-portal':       ['agent'],
-  'intake-dashboard':   ['principal', 'intake_staff', 'student_admin'],
   'intake-cases':       ['principal', 'intake_staff', 'student_admin'],
   'intake-case-detail': ['principal', 'intake_staff', 'student_admin'],
   'agents-management':  ['principal'],
@@ -4183,8 +4181,8 @@ function initApp() {
     student: 'student-portal',
     parent: 'parent-portal',
     agent: 'agent-portal',
-    intake_staff: 'intake-dashboard',
-    student_admin: 'intake-dashboard',
+    intake_staff: 'intake-cases',
+    student_admin: 'intake-cases',
   };
   let restored = false;
   try {

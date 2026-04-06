@@ -30,14 +30,14 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     if (req.session.user.role === 'student') {
       where.push('s.id=?'); params.push(req.session.user.linked_id);
     }
-    // 导师只看自己负责的学生
+    // 导师只看自己负责的学生（活跃分配）
     if (req.session.user.role === 'mentor') {
-      where.push('s.id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?)');
+      where.push('s.id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=? AND end_date IS NULL)');
       params.push(req.session.user.linked_id);
     }
-    // 规划师只看自己负责的学生
+    // 规划师只看自己负责的学生（活跃分配）
     if (req.session.user.role === 'counselor') {
-      where.push('s.id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?)');
+      where.push('s.id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=? AND end_date IS NULL)');
       params.push(req.session.user.linked_id);
     }
     // 家长只看自己关联的学生

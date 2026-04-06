@@ -856,7 +856,7 @@ async function submitMentorQuickComm() {
   if (!studentId) { showToast('请选择学生', 'warning'); return; }
   if (!summary) { showToast('请输入沟通内容', 'warning'); return; }
   try {
-    await api('POST', `/api/students/${studentId}/communications`, { type, summary });
+    await api('POST', `/api/students/${studentId}/communications`, { channel: type, summary });
     showToast('沟通记录已保存', 'success');
     renderMentorWorkbench();
   } catch (e) { showToast('保存失败: ' + e.message, 'danger'); }

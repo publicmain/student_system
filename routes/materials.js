@@ -292,7 +292,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
   });
 
   // GET /calendar — 聚合日历事件（任务截止日+申请截止日+锚点事件）
-  router.get('/calendar', requireAuth, requireRole('principal','counselor','mentor'), (req, res) => {
+  router.get('/calendar', requireAuth, requireRole('principal','counselor','mentor','parent','student'), (req, res) => {
     const u = req.session.user;
     let studentFilter = '', params = [];
     if (u.role === 'student') {

@@ -568,7 +568,7 @@ async function renderStudentPortal() {
 }
 
 // ════════════════════════════════════════════════════════
-//  家长门户
+//  家长门户 (v2 — Tab 分区全面改版)
 // ════════════════════════════════════════════════════════
 async function renderParentPortal(params = {}) {
   const mc = document.getElementById('main-content');
@@ -576,245 +576,165 @@ async function renderParentPortal(params = {}) {
   try {
     const students = await GET('/api/students');
     if (students.length === 0) {
-      mc.innerHTML = '<div class="alert alert-info">暂无关联学生。</div>';
+      mc.innerHTML = '<div class="alert alert-info mt-4"><i class="bi bi-info-circle me-2"></i>暂无关联学生，请联系顾问添加您的孩子。</div>';
       return;
     }
-    // Support multiple children: use selected id or default to first
     const selectedId = params.studentId || State._parentSelectedStudentId || students[0].id;
     State._parentSelectedStudentId = selectedId;
     const s = students.find(x => x.id === selectedId) || students[0];
-    const [detail, tasks, comms, examSittings, assessments] = await Promise.all([
+
+    // Load all data in parallel
+    const [detail, tasks, comms, examSittings, assessments, activities, essays, materials, ps, feedback, calendar] = await Promise.all([
       GET(`/api/students/${s.id}`),
       GET(`/api/students/${s.id}/tasks`),
       GET(`/api/students/${s.id}/communications`),
       GET(`/api/students/${s.id}/exam-sittings`).catch(() => []),
       GET(`/api/students/${s.id}/assessments`).catch(() => []),
+      GET(`/api/students/${s.id}/activities`).catch(() => []),
+      GET(`/api/students/${s.id}/essays`).catch(() => []),
+      GET(`/api/students/${s.id}/materials`).catch(() => []),
+      GET(`/api/students/${s.id}/personal-statement`).catch(() => []),
+      GET(`/api/students/${s.id}/feedback`).catch(() => []),
+      GET('/api/calendar').catch(() => ({ tasks: [], deadlines: [], anchors: [] })),
     ]);
 
-    const stu = detail.student || s;
+    const { student: stu, subjects, targets, mentors, applications, parents } = detail;
     const doneTasks = tasks.filter(t => t.status === 'done').length;
     const totalTasks = tasks.length;
     const overdueTasks = tasks.filter(t => isOverdue(t.due_date, t.status));
     const pendingTasks = tasks.filter(t => t.status !== 'done');
 
-    const appStatusMap = {
-      'pending':'准备中','applied':'已提交','offer':'有Offer','firm':'已确认',
-      'declined':'已拒绝','enrolled':'已入学','withdrawn':'已撤回','waitlist':'候补','interview':'面试中'
-    };
+    // Stage detection
+    const hasSubjects = subjects.length > 0;
+    const hasAssessments = assessments.length > 0;
+    const hasActivities = activities.length > 0;
+    const hasEssays = essays.length > 0 || ps.length > 0;
+    const hasApps = applications.length > 0;
+    const hasOffer = applications.some(a => ['offer','conditional_offer','conditional','unconditional','firm','enrolled'].includes(a.status));
+    const stages = [
+      { label: '选科', done: hasSubjects },
+      { label: '标化', done: hasAssessments },
+      { label: '活动', done: hasActivities },
+      { label: '文书', done: hasEssays },
+      { label: '申请', done: hasApps },
+      { label: 'Offer', done: hasOffer },
+    ];
+    let currentFound = false;
+    stages.forEach(st => { if (!st.done && !currentFound) { st.current = true; currentFound = true; } });
 
     mc.innerHTML = `
-    <div class="page-header">
-      <div class="d-flex align-items-center gap-2 flex-wrap">
-        <h4 class="mb-0"><i class="bi bi-people-fill me-2"></i>家长门户</h4>
-        ${students.length > 1 ? `<select class="form-select form-select-sm" style="width:auto" onchange="renderParentPortal({studentId:this.value})">
-          ${students.map(x => `<option value="${x.id}" ${x.id===s.id?'selected':''}>${escapeHtml(x.name)}</option>`).join('')}
-        </select>` : `<span class="text-muted">— ${escapeHtml(stu.name)} 的学业档案</span>`}
+    <!-- ═══ Header ═══ -->
+    <div class="stu-hero" style="padding-bottom:0">
+      <div class="stu-hero-top">
+        <div class="stu-hero-identity">
+          <h4><i class="bi bi-people-fill me-2"></i>家长门户</h4>
+          ${students.length > 1 ? `<select class="form-select form-select-sm" style="width:auto" onchange="renderParentPortal({studentId:this.value})">
+            ${students.map(x => `<option value="${x.id}" ${x.id===s.id?'selected':''}>${escapeHtml(x.name)}</option>`).join('')}
+          </select>` : `<span class="text-muted">— ${escapeHtml(stu.name)} 的学业档案</span>`}
+          <span class="badge badge-soft-secondary">${escapeHtml(stu.grade_level)}</span>
+          <span class="badge badge-soft-info">${escapeHtml(stu.exam_board||'—')}</span>
+        </div>
+        <div class="stu-hero-actions">
+          <button class="btn btn-outline-primary btn-sm" onclick="openFeedbackModal('${s.id}')"><i class="bi bi-chat-left-text me-1"></i>提交反馈</button>
+        </div>
       </div>
-      <button class="btn btn-outline-primary btn-sm" onclick="openFeedbackModal('${s.id}')">
-        <i class="bi bi-chat-left-text me-1"></i>提交反馈
-      </button>
+
+      <!-- Stage Progress Bar -->
+      <div class="stu-stage-bar">
+        ${stages.map((st, i) => `
+          <div class="stu-stage-step">
+            <div style="display:flex;flex-direction:column;align-items:center">
+              <div class="stu-stage-dot ${st.done ? 'done' : st.current ? 'current' : ''}">${st.done ? '<i class="bi bi-check2"></i>' : (i+1)}</div>
+              <div class="stu-stage-label">${st.label}</div>
+            </div>
+            ${i < stages.length - 1 ? `<div class="stu-stage-line ${st.done ? 'done' : ''}"></div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+
+      <!-- Tabs -->
+      <ul class="nav nav-tabs mt-3 mb-0" id="parent-tabs" style="padding:0 .5rem">
+        <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#ptab-overview">概览</a></li>
+        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ptab-academic">学业</a></li>
+        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ptab-apps">申请 ${applications.length?`<span class="badge badge-soft-primary ms-1">${applications.length}</span>`:''}</a></li>
+        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ptab-essays">文书活动</a></li>
+        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ptab-comms">沟通反馈</a></li>
+        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ptab-calendar">日历</a></li>
+      </ul>
     </div>
 
-    <!-- 学生基本信息 -->
-    <div class="card mb-4">
-      <div class="card-header fw-semibold bg-light">
-        <i class="bi bi-person-badge me-1 text-primary"></i>学生基本信息
-      </div>
-      <div class="card-body">
-        <div class="row g-3">
-          <div class="col-6 col-md-3">
-            <div class="text-muted small">姓名</div>
-            <div class="fw-semibold">${escapeHtml(stu.name)}</div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="text-muted small">年级</div>
-            <div class="fw-semibold">${escapeHtml(stu.grade_level||'—')}</div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="text-muted small">考试局</div>
-            <div class="fw-semibold">${escapeHtml(stu.exam_board||'—')}</div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="text-muted small">入学日期</div>
-            <div class="fw-semibold">${fmtDate(stu.enrol_date)}</div>
-          </div>
-          ${stu.date_of_birth ? `<div class="col-6 col-md-3">
-            <div class="text-muted small">出生日期</div>
-            <div class="fw-semibold">${fmtDate(stu.date_of_birth)}</div>
-          </div>` : ''}
-          ${stu.notes ? `<div class="col-12">
-            <div class="text-muted small">备注</div>
-            <div class="small">${escapeHtml(stu.notes)}</div>
-          </div>` : ''}
-        </div>
-      </div>
-    </div>
+    <div class="tab-content" style="padding:1.5rem .5rem">
 
-    <!-- 进度概览 -->
-    <div class="row g-3 mb-4">
-      <div class="col-6 col-md-3">
-        <div class="card text-center p-3">
-          <div class="display-5 fw-bold text-primary">${doneTasks}<span class="fs-6 text-muted">/${totalTasks}</span></div>
-          <div class="text-muted small">任务完成</div>
-          <div class="progress mt-2" style="height:6px">
-            <div class="progress-bar bg-primary" style="width:${totalTasks?Math.round(doneTasks/totalTasks*100):0}%"></div>
+      <!-- ═══ Tab: 概览 ═══ -->
+      <div class="tab-pane fade show active" id="ptab-overview">
+        <!-- KPI Cards -->
+        <div class="row g-3 mb-4">
+          <div class="col-6 col-md-3"><div class="stat-card accent-primary"><div class="stat-value">${doneTasks}<span style="font-size:.875rem;color:var(--text-tertiary)">/${totalTasks}</span></div><div class="stat-label">任务完成</div><div class="progress mt-2" style="height:4px"><div class="progress-bar" style="width:${totalTasks?Math.round(doneTasks/totalTasks*100):0}%"></div></div></div></div>
+          <div class="col-6 col-md-3"><div class="stat-card ${overdueTasks.length>0?'accent-danger':'accent-success'}"><div class="stat-value" ${overdueTasks.length>0?'style="color:var(--danger)"':''}>${overdueTasks.length}</div><div class="stat-label">逾期任务</div></div></div>
+          <div class="col-6 col-md-3"><div class="stat-card accent-info"><div class="stat-value">${applications.length}</div><div class="stat-label">申请院校</div></div></div>
+          <div class="col-6 col-md-3"><div class="stat-card accent-warning"><div class="stat-value">${subjects.length}</div><div class="stat-label">选修科目</div></div></div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <!-- 导师团队 -->
+          <div class="col-md-4">
+            <div class="card h-100">
+              <div class="card-header fw-semibold py-2"><i class="bi bi-person-check me-1 text-warning"></i>导师团队</div>
+              <div class="card-body p-0">
+                ${mentors.length === 0
+                  ? '<div class="text-muted small px-3 py-3 text-center">暂未分配导师</div>'
+                  : mentors.map(m => `<div class="px-3 py-2 border-bottom d-flex align-items-center gap-2">
+                      <div class="avatar-sm">${escapeHtml((m.staff_name||'?').charAt(0))}</div>
+                      <div><div class="small fw-semibold">${escapeHtml(m.staff_name)}</div><div class="text-muted" style="font-size:11px">${escapeHtml(m.role||m.staff_role||'')}</div></div>
+                    </div>`).join('')}
+              </div>
+            </div>
+          </div>
+
+          <!-- 竞争力 + 画像 -->
+          <div class="col-md-4">
+            <div class="card h-100">
+              <div class="card-header fw-semibold py-2"><i class="bi bi-graph-up me-1 text-danger"></i>综合竞争力</div>
+              <div class="card-body" id="parent-competitiveness-card">
+                <div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 画像标签 + 荣誉 -->
+          <div class="col-md-4">
+            <div class="card h-100">
+              <div class="card-header fw-semibold py-2"><i class="bi bi-tags me-1 text-primary"></i>画像标签</div>
+              <div class="card-body" id="parent-profile-card">
+                <div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="card text-center p-3">
-          <div class="display-5 fw-bold ${overdueTasks.length>0?'text-danger':'text-success'}">${overdueTasks.length}</div>
-          <div class="text-muted small">逾期任务</div>
-          <div class="mt-2 small ${overdueTasks.length>0?'text-danger':'text-success'}">${overdueTasks.length>0?'需要关注':'按时推进'}</div>
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="card text-center p-3">
-          <div class="display-5 fw-bold text-info">${detail.applications.length}</div>
-          <div class="text-muted small">申请院校</div>
-          <div class="mt-2 small text-muted">${detail.targets.length} 个目标院校</div>
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="card text-center p-3">
-          <div class="display-5 fw-bold text-warning">${detail.subjects.length}</div>
-          <div class="text-muted small">选修科目</div>
-          <div class="mt-2 small text-muted">${examSittings.length} 条考试记录</div>
-        </div>
-      </div>
-    </div>
 
-    <div class="row g-3 mb-3">
-      <!-- 选修科目 -->
-      <div class="col-md-6">
-        <div class="card h-100">
-          <div class="card-header fw-semibold"><i class="bi bi-book me-1 text-success"></i>选修科目</div>
-          <div class="card-body p-0">
-            ${detail.subjects.length === 0
-              ? emptyStateSm('暂无选科记录','book')
-              : `<table class="table table-sm mb-0">
-                  <thead class="table-light"><tr><th>科目</th><th>等级</th><th>预测成绩</th><th>实际成绩</th></tr></thead>
-                  <tbody>
-                    ${detail.subjects.map(sub => `<tr>
-                      <td class="small">${escapeHtml(sub.subject_name||sub.code||'—')}</td>
-                      <td class="small text-muted">${escapeHtml(sub.level||'—')}</td>
-                      <td class="small">${sub.predicted_grade ? `<span class="badge bg-info text-dark">${escapeHtml(sub.predicted_grade)}</span>` : '—'}</td>
-                      <td class="small">${sub.actual_grade ? `<span class="badge bg-success">${escapeHtml(sub.actual_grade)}</span>` : '—'}</td>
-                    </tr>`).join('')}
-                  </tbody>
-                </table>`}
+        <!-- 荣誉奖项 -->
+        <div class="card mb-3">
+          <div class="card-header fw-semibold py-2"><i class="bi bi-award me-1 text-warning"></i>荣誉奖项</div>
+          <div class="card-body" id="parent-awards-card">
+            <div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div></div>
           </div>
         </div>
-      </div>
 
-      <!-- 考试记录 -->
-      <div class="col-md-6">
-        <div class="card h-100">
-          <div class="card-header fw-semibold"><i class="bi bi-clipboard-data me-1 text-warning"></i>考试成绩记录</div>
-          <div class="card-body p-0">
-            ${examSittings.length === 0
-              ? emptyStateSm('暂无考试记录','clipboard-data')
-              : `<table class="table table-sm mb-0">
-                  <thead class="table-light"><tr><th>科目</th><th>成绩</th><th>考试日期</th><th>状态</th></tr></thead>
-                  <tbody>
-                    ${examSittings.slice(0,8).map(e => `<tr>
-                      <td class="small">${escapeHtml(e.subject_name||e.subject_code||'—')}</td>
-                      <td class="small fw-semibold">${e.grade ? `<span class="badge bg-primary">${escapeHtml(e.grade)}</span>` : (e.predicted_grade ? `<span class="badge bg-info text-dark">${escapeHtml(e.predicted_grade)}(预)</span>` : '—')}</td>
-                      <td class="small text-muted">${fmtDate(e.sitting_date)||'—'}</td>
-                      <td class="small">${e.grade ? '<span class="badge bg-success">已出分</span>' : '<span class="badge bg-secondary">待出分</span>'}</td>
-                    </tr>`).join('')}
-                  </tbody>
-                </table>`}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="row g-3 mb-3">
-      <!-- 申请状态 -->
-      <div class="col-md-6">
-        <div class="card h-100">
-          <div class="card-header fw-semibold"><i class="bi bi-send me-1 text-primary"></i>申请院校状态</div>
-          <div class="card-body p-0">
-            ${detail.applications.length === 0
-              ? emptyStateSm('暂无申请记录','file-earmark-text')
-              : `<table class="table table-sm mb-0">
-                  <thead class="table-light"><tr><th>院校</th><th>专业</th><th>状态</th><th>截止</th></tr></thead>
-                  <tbody>
-                    ${detail.applications.map(app => {
-                      return `<tr>
-                        <td class="small">${escapeHtml(app.uni_name||'—')}</td>
-                        <td class="small text-muted">${escapeHtml(app.department||'—')}</td>
-                        <td>${statusBadge(app.status)}</td>
-                        <td class="small text-muted">${fmtDate(app.deadline)||'—'}</td>
-                      </tr>`;
-                    }).join('')}
-                  </tbody>
-                </table>`}
-          </div>
-        </div>
-      </div>
-
-      <!-- 目标院校 -->
-      <div class="col-md-6">
-        <div class="card h-100">
-          <div class="card-header fw-semibold"><i class="bi bi-building me-1 text-info"></i>目标院校规划</div>
-          <div class="card-body p-0">
-            ${detail.targets.length === 0
-              ? emptyStateSm('暂无目标院校','mortarboard')
-              : `<table class="table table-sm mb-0">
-                  <thead class="table-light"><tr><th>院校</th><th>专业</th><th>梯度</th></tr></thead>
-                  <tbody>
-                    ${detail.targets.map(t => `<tr>
-                      <td class="small">${escapeHtml(t.uni_name)}</td>
-                      <td class="small text-muted">${escapeHtml(t.department||'—')}</td>
-                      <td>${tierBadge(t.tier)}</td>
-                    </tr>`).join('')}
-                  </tbody>
-                </table>`}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="row g-3 mb-3">
-      <!-- 近期模拟测试成绩 -->
-      ${assessments.length > 0 ? `
-      <div class="col-md-6">
-        <div class="card h-100">
-          <div class="card-header fw-semibold"><i class="bi bi-graph-up me-1 text-danger"></i>近期测试成绩</div>
-          <div class="card-body p-0">
-            <table class="table table-sm mb-0">
-              <thead class="table-light"><tr><th>测试类型</th><th>科目</th><th>分数</th><th>日期</th></tr></thead>
-              <tbody>
-                ${assessments.slice(0,6).map(a => `<tr>
-                  <td class="small">${escapeHtml(a.assess_type||'—')}</td>
-                  <td class="small text-muted">${escapeHtml(a.subject||'—')}</td>
-                  <td class="small fw-semibold">${a.score != null ? `${a.score}/${a.max_score||100}` : '—'}</td>
-                  <td class="small text-muted">${fmtDate(a.assess_date)}</td>
-                </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>` : ''}
-
-      <!-- 待完成任务 -->
-      <div class="${assessments.length > 0 ? 'col-md-6' : 'col-12'}">
-        <div class="card h-100">
-          <div class="card-header fw-semibold"><i class="bi bi-calendar-check me-1 text-warning"></i>待完成任务</div>
+        <!-- 待完成任务 -->
+        <div class="card mb-3">
+          <div class="card-header fw-semibold py-2"><i class="bi bi-calendar-check me-1 text-warning"></i>待完成任务 ${pendingTasks.length ? `<span class="badge badge-soft-warning ms-1">${pendingTasks.length}</span>` : ''}</div>
           <div class="card-body p-0">
             ${pendingTasks.length === 0
-              ? '<p class="text-center text-success py-3 small"><i class="bi bi-check-circle me-1"></i>所有任务已完成</p>'
-              : pendingTasks.slice(0,6).map(t => {
-                  const overdue = isOverdue(t.due_date, t.status);
-                  return `<div class="d-flex align-items-start gap-2 p-2 border-bottom">
-                    <i class="bi bi-circle${overdue?' text-danger':' text-muted'} mt-1"></i>
+              ? '<p class="text-center text-success py-3 small mb-0"><i class="bi bi-check-circle me-1"></i>所有任务已完成</p>'
+              : pendingTasks.slice(0,8).map(t => {
+                  const od = isOverdue(t.due_date, t.status);
+                  return `<div class="d-flex align-items-start gap-2 px-3 py-2 border-bottom">
+                    <i class="bi ${od?'bi-exclamation-circle-fill text-danger':'bi-circle text-muted'} mt-1"></i>
                     <div class="flex-grow-1">
-                      <div class="small ${overdue?'text-danger fw-bold':''}">${escapeHtml(t.title)}</div>
+                      <div class="small ${od?'text-danger fw-bold':''}">${escapeHtml(t.title)}</div>
                       <div class="d-flex gap-2 mt-1">
                         <small class="text-muted">${fmtDate(t.due_date)||'无截止日期'}</small>
-                        ${overdue ? '<small class="text-danger fw-bold">已逾期</small>' : ''}
+                        ${od ? '<small class="text-danger fw-bold">已逾期</small>' : ''}
                         <small class="badge bg-light text-dark border">${escapeHtml(t.category||'其他')}</small>
                       </div>
                     </div>
@@ -823,27 +743,394 @@ async function renderParentPortal(params = {}) {
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- 沟通记录 -->
-    <div class="card">
-      <div class="card-header fw-semibold"><i class="bi bi-chat-left-dots me-1 text-secondary"></i>近期沟通记录</div>
-      <div class="card-body p-0">
-        ${comms.length === 0 ? emptyStateSm('暂无沟通记录','chat-dots') :
-        comms.slice(0,5).map(c => `<div class="border-bottom p-3">
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <span class="badge bg-light text-dark border">${escapeHtml(c.channel||'—')}</span>
-            <small class="text-muted">${fmtDatetime(c.comm_date)}</small>
+      <!-- ═══ Tab: 学业 ═══ -->
+      <div class="tab-pane fade" id="ptab-academic">
+        <!-- 学生基本信息 -->
+        <div class="card mb-3">
+          <div class="card-header fw-semibold py-2"><i class="bi bi-person-badge me-1 text-primary"></i>基本信息</div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-6 col-md-3"><div class="text-muted small">姓名</div><div class="fw-semibold">${escapeHtml(stu.name)}</div></div>
+              <div class="col-6 col-md-3"><div class="text-muted small">年级</div><div class="fw-semibold">${escapeHtml(stu.grade_level||'—')}</div></div>
+              <div class="col-6 col-md-3"><div class="text-muted small">考试局</div><div class="fw-semibold">${escapeHtml(stu.exam_board||'—')}</div></div>
+              <div class="col-6 col-md-3"><div class="text-muted small">入学日期</div><div class="fw-semibold">${fmtDate(stu.enrol_date)}</div></div>
+              ${stu.date_of_birth ? `<div class="col-6 col-md-3"><div class="text-muted small">出生日期</div><div class="fw-semibold">${fmtDate(stu.date_of_birth)}</div></div>` : ''}
+            </div>
           </div>
-          <p class="small mb-1">${escapeHtml(c.summary||'')}</p>
-          ${c.action_items ? `<div class="small text-primary"><i class="bi bi-arrow-right me-1"></i>待办：${escapeHtml(c.action_items)}</div>` : ''}
-          ${c.staff_name ? `<div class="small text-muted mt-1">规划师：${escapeHtml(c.staff_name)}</div>` : ''}
-        </div>`).join('')}
+        </div>
+
+        <div class="row g-3 mb-3">
+          <!-- 选修科目 -->
+          <div class="col-md-6">
+            <div class="card h-100">
+              <div class="card-header fw-semibold py-2"><i class="bi bi-book me-1 text-success"></i>选修科目</div>
+              <div class="card-body p-0">
+                ${subjects.length === 0 ? emptyStateSm('暂无选科记录','book') : `<table class="table table-sm mb-0">
+                  <thead class="table-light"><tr><th>科目</th><th>等级</th><th>预测</th><th>实际</th></tr></thead>
+                  <tbody>${subjects.map(sub => `<tr>
+                    <td class="small">${escapeHtml(sub.subject_name||sub.code||'—')}</td>
+                    <td class="small text-muted">${escapeHtml(sub.level||'—')}</td>
+                    <td class="small">${sub.predicted_grade ? `<span class="badge bg-info text-dark">${escapeHtml(sub.predicted_grade)}</span>` : '—'}</td>
+                    <td class="small">${sub.actual_grade ? `<span class="badge bg-success">${escapeHtml(sub.actual_grade)}</span>` : '—'}</td>
+                  </tr>`).join('')}</tbody></table>`}
+              </div>
+            </div>
+          </div>
+
+          <!-- 考试记录 -->
+          <div class="col-md-6">
+            <div class="card h-100">
+              <div class="card-header fw-semibold py-2"><i class="bi bi-clipboard-data me-1 text-warning"></i>考试成绩</div>
+              <div class="card-body p-0">
+                ${examSittings.length === 0 ? emptyStateSm('暂无考试记录','clipboard-data') : `<table class="table table-sm mb-0">
+                  <thead class="table-light"><tr><th>科目</th><th>成绩</th><th>日期</th><th>状态</th></tr></thead>
+                  <tbody>${examSittings.map(e => `<tr>
+                    <td class="small">${escapeHtml(e.subject_name||e.subject_code||'—')}</td>
+                    <td class="small fw-semibold">${e.grade ? `<span class="badge bg-primary">${escapeHtml(e.grade)}</span>` : (e.predicted_grade ? `<span class="badge bg-info text-dark">${escapeHtml(e.predicted_grade)}(预)</span>` : '—')}</td>
+                    <td class="small text-muted">${fmtDate(e.sitting_date)||'—'}</td>
+                    <td>${e.grade ? '<span class="badge bg-success">已出分</span>' : '<span class="badge bg-secondary">待出分</span>'}</td>
+                  </tr>`).join('')}</tbody></table>`}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 标化测试 -->
+        <div class="card mb-3">
+          <div class="card-header fw-semibold py-2"><i class="bi bi-graph-up me-1 text-danger"></i>标化测试成绩</div>
+          <div class="card-body p-0">
+            ${assessments.length === 0 ? emptyStateSm('暂无标化测试记录','graph-up') : `<table class="table table-sm mb-0">
+              <thead class="table-light"><tr><th>测试类型</th><th>科目</th><th>分数</th><th>百分位</th><th>目标分</th><th>日期</th></tr></thead>
+              <tbody>${assessments.map(a => `<tr>
+                <td class="small fw-semibold">${escapeHtml(a.assess_type||'—')}</td>
+                <td class="small">${escapeHtml(a.subject||'—')}</td>
+                <td class="small fw-bold">${a.score != null ? `${a.score}<span class="text-muted">/${a.max_score||100}</span>` : '—'}</td>
+                <td class="small">${a.percentile ? `P${a.percentile}` : '—'}</td>
+                <td class="small">${a.target_score ? `<span class="text-primary">${a.target_score}</span>` : '—'}</td>
+                <td class="small text-muted">${fmtDate(a.assess_date)}</td>
+              </tr>`).join('')}</tbody></table>`}
+          </div>
+        </div>
       </div>
+
+      <!-- ═══ Tab: 申请 ═══ -->
+      <div class="tab-pane fade" id="ptab-apps">
+        <div class="row g-3 mb-3">
+          <!-- 申请状态 -->
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header fw-semibold py-2"><i class="bi bi-send me-1 text-primary"></i>申请状态</div>
+              <div class="card-body p-0">
+                ${applications.length === 0 ? emptyStateSm('暂无申请记录，规划师将在确认目标后开始申请。','send') : `<table class="table table-sm mb-0">
+                  <thead class="table-light"><tr><th>院校</th><th>专业</th><th>状态</th><th>提交截止</th><th>备注</th></tr></thead>
+                  <tbody>${applications.map(app => `<tr>
+                    <td class="small fw-semibold">${escapeHtml(app.uni_name||'—')}</td>
+                    <td class="small">${escapeHtml(app.department||'—')}</td>
+                    <td>${statusBadge(app.status)}</td>
+                    <td class="small text-muted">${fmtDate(app.deadline||app.submit_deadline)||'—'}</td>
+                    <td class="small text-muted" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(app.notes||'—')}</td>
+                  </tr>`).join('')}</tbody></table>`}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <!-- 目标院校 -->
+          <div class="col-md-6">
+            <div class="card h-100">
+              <div class="card-header fw-semibold py-2"><i class="bi bi-building me-1 text-info"></i>目标院校</div>
+              <div class="card-body p-0">
+                ${targets.length === 0 ? emptyStateSm('暂无目标院校','mortarboard') : `<table class="table table-sm mb-0">
+                  <thead class="table-light"><tr><th>院校</th><th>专业</th><th>梯度</th></tr></thead>
+                  <tbody>${targets.map(t => `<tr>
+                    <td class="small fw-semibold">${escapeHtml(t.uni_name)}</td>
+                    <td class="small text-muted">${escapeHtml(t.department||'—')}</td>
+                    <td>${tierBadge(t.tier)}</td>
+                  </tr>`).join('')}</tbody></table>`}
+              </div>
+            </div>
+          </div>
+
+          <!-- 材料清单 -->
+          <div class="col-md-6">
+            <div class="card h-100">
+              <div class="card-header fw-semibold py-2"><i class="bi bi-folder me-1 text-secondary"></i>材料清单</div>
+              <div class="card-body p-0">
+                ${materials.length === 0 ? emptyStateSm('暂无材料记录','folder') : `<table class="table table-sm mb-0">
+                  <thead class="table-light"><tr><th>材料</th><th>类型</th><th>状态</th></tr></thead>
+                  <tbody>${materials.slice(0,10).map(m => {
+                    const st = m.status || 'pending';
+                    const stClass = st === 'done' ? 'success' : st === 'in_progress' ? 'warning' : 'secondary';
+                    const stLabel = st === 'done' ? '已完成' : st === 'in_progress' ? '进行中' : '待准备';
+                    return `<tr>
+                      <td class="small">${escapeHtml(m.title||m.name||'—')}</td>
+                      <td class="small text-muted">${escapeHtml(m.category||m.type||'—')}</td>
+                      <td><span class="badge bg-${stClass}">${stLabel}</span></td>
+                    </tr>`;
+                  }).join('')}</tbody></table>`}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ Tab: 文书活动 ═══ -->
+      <div class="tab-pane fade" id="ptab-essays">
+        <!-- 个人陈述 -->
+        <div class="card mb-3">
+          <div class="card-header fw-semibold py-2"><i class="bi bi-file-earmark-text me-1 text-primary"></i>个人陈述 (Personal Statement)</div>
+          <div class="card-body p-0">
+            ${ps.length === 0 ? emptyStateSm('个人陈述尚未开始撰写','file-earmark-text') : `<table class="table table-sm mb-0">
+              <thead class="table-light"><tr><th>版本</th><th>字数</th><th>更新时间</th></tr></thead>
+              <tbody>${ps.map((p, i) => `<tr>
+                <td class="small fw-semibold">V${ps.length - i}</td>
+                <td class="small">${p.word_count || (p.content ? p.content.length : '—')} 字</td>
+                <td class="small text-muted">${fmtDate(p.updated_at || p.created_at)}</td>
+              </tr>`).join('')}</tbody></table>`}
+          </div>
+        </div>
+
+        <!-- 文书列表 -->
+        <div class="card mb-3">
+          <div class="card-header fw-semibold py-2"><i class="bi bi-journal-text me-1 text-info"></i>申请文书 (Essays) ${essays.length ? `<span class="badge badge-soft-info ms-1">${essays.length}</span>` : ''}</div>
+          <div class="card-body p-0">
+            ${essays.length === 0 ? emptyStateSm('暂无申请文书','journal-text') : `<table class="table table-sm mb-0">
+              <thead class="table-light"><tr><th>标题</th><th>关联申请</th><th>状态</th><th>更新时间</th></tr></thead>
+              <tbody>${essays.map(e => {
+                const essayStatus = { draft: '草稿', review: '审阅中', revision: '修改中', final: '定稿', submitted: '已提交' };
+                const essayBadge = { draft: 'secondary', review: 'warning', revision: 'info', final: 'success', submitted: 'primary' };
+                return `<tr>
+                  <td class="small fw-semibold">${escapeHtml(e.title||'—')}</td>
+                  <td class="small text-muted">${escapeHtml(e.uni_name||e.application_label||'—')}</td>
+                  <td><span class="badge bg-${essayBadge[e.status]||'secondary'}">${essayStatus[e.status]||e.status||'—'}</span></td>
+                  <td class="small text-muted">${fmtDate(e.updated_at)}</td>
+                </tr>`;
+              }).join('')}</tbody></table>`}
+          </div>
+        </div>
+
+        <!-- 课外活动 -->
+        <div class="card mb-3">
+          <div class="card-header fw-semibold py-2"><i class="bi bi-trophy me-1 text-warning"></i>课外活动 ${activities.length ? `<span class="badge badge-soft-warning ms-1">${activities.length}</span>` : ''}</div>
+          <div class="card-body p-0">
+            ${activities.length === 0 ? emptyStateSm('暂无课外活动记录','trophy') : `<table class="table table-sm mb-0">
+              <thead class="table-light"><tr><th>活动名称</th><th>类别</th><th>角色</th><th>影响力</th><th>时间</th></tr></thead>
+              <tbody>${activities.map(a => {
+                const impactBadge = { international: 'danger', national: 'warning', province: 'info', city: 'secondary', school: 'light text-dark' };
+                const impactLabel = { international: '国际', national: '国家', province: '省级', city: '市级', school: '校级' };
+                const catLabel = { academic_competition: '学术竞赛', club_leadership: '社团领导', community_service: '社区服务', arts_performance: '文艺表演', sports: '体育运动', research: '科研项目', internship: '实习', other: '其他' };
+                return `<tr>
+                  <td class="small fw-semibold">${escapeHtml(a.name||'—')}</td>
+                  <td class="small">${catLabel[a.category]||escapeHtml(a.category||'—')}</td>
+                  <td class="small text-muted">${escapeHtml(a.role||'—')}</td>
+                  <td>${a.impact_level ? `<span class="badge bg-${impactBadge[a.impact_level]||'secondary'}">${impactLabel[a.impact_level]||a.impact_level}</span>` : '—'}</td>
+                  <td class="small text-muted">${a.start_date ? fmtDate(a.start_date) : ''}${a.end_date ? ' ~ '+fmtDate(a.end_date) : ''}</td>
+                </tr>`;
+              }).join('')}</tbody></table>`}
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ Tab: 沟通反馈 ═══ -->
+      <div class="tab-pane fade" id="ptab-comms">
+        <!-- 沟通记录 -->
+        <div class="card mb-3">
+          <div class="card-header fw-semibold py-2 d-flex justify-content-between"><span><i class="bi bi-chat-left-dots me-1 text-secondary"></i>沟通记录</span><span class="badge bg-light text-dark border">${comms.length} 条</span></div>
+          <div class="card-body p-0">
+            ${comms.length === 0 ? emptyStateSm('暂无沟通记录','chat-dots') :
+            comms.map(c => `<div class="border-bottom p-3">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <div class="d-flex gap-2 align-items-center">
+                  <span class="badge bg-light text-dark border">${escapeHtml(c.channel||'—')}</span>
+                  ${c.staff_name ? `<span class="small text-muted"><i class="bi bi-person me-1"></i>${escapeHtml(c.staff_name)}</span>` : ''}
+                </div>
+                <small class="text-muted">${fmtDatetime(c.comm_date)}</small>
+              </div>
+              <p class="small mb-1">${escapeHtml(c.summary||'')}</p>
+              ${c.action_items ? `<div class="small text-primary mt-1"><i class="bi bi-arrow-right-circle me-1"></i>待办：${escapeHtml(c.action_items)}</div>` : ''}
+            </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 反馈历史 -->
+        <div class="card">
+          <div class="card-header fw-semibold py-2 d-flex justify-content-between">
+            <span><i class="bi bi-chat-heart me-1 text-info"></i>反馈历史</span>
+            <button class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size:11px" onclick="openFeedbackModal('${s.id}')"><i class="bi bi-plus"></i> 新反馈</button>
+          </div>
+          <div class="card-body p-0">
+            ${feedback.length === 0 ? emptyStateSm('暂无反馈记录，点击"提交反馈"表达您的意见','chat-heart') :
+            feedback.map(f => `<div class="border-bottom p-3">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="small fw-semibold">${escapeHtml(f.from_name || f.from_role || '家长')}</span>
+                <small class="text-muted">${fmtDatetime(f.created_at)}</small>
+              </div>
+              <p class="small mb-0">${escapeHtml(f.content||'')}</p>
+              ${f.reply ? `<div class="bg-light rounded p-2 mt-2 small"><i class="bi bi-reply me-1 text-primary"></i><strong>回复：</strong>${escapeHtml(f.reply)}</div>` : ''}
+            </div>`).join('')}
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ Tab: 日历 ═══ -->
+      <div class="tab-pane fade" id="ptab-calendar">
+        <div class="card">
+          <div class="card-header fw-semibold py-2"><i class="bi bi-calendar3 me-1 text-primary"></i>重要日期</div>
+          <div class="card-body p-0" id="parent-calendar-container">
+            <div class="text-center text-muted py-3 small"><div class="spinner-border spinner-border-sm"></div> 加载日历...</div>
+          </div>
+        </div>
+      </div>
+
     </div>`;
+
+    // ── Async card loading ──
+    _loadParentCompetitiveness(s.id);
+    _loadParentProfileTags(s.id);
+    _loadParentAwards(s.id);
+    _loadParentCalendar(calendar, s.id);
+
   } catch(e) {
     mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
   }
+}
+
+// ═══ Parent portal async card loaders ═══
+async function _loadParentCompetitiveness(studentId) {
+  const el = document.getElementById('parent-competitiveness-card');
+  if (!el) return;
+  try {
+    const c = await GET(`/api/students/${studentId}/competitiveness`);
+    if (!c || (c.academics === 0 && c.tests === 0 && c.activities === 0 && c.leadership === 0 && c.essays === 0)) {
+      el.innerHTML = `<div class="text-center text-muted small py-2"><i class="bi bi-graph-up me-1"></i>暂无竞争力数据</div>`;
+      return;
+    }
+    const dims = [['academics','学术',c.academics],['tests','标化',c.tests],['activities','活动',c.activities],['leadership','领导力',c.leadership],['essays','文书',c.essays]];
+    const overall = c.overall;
+    const overallClass = overall >= 70 ? 'success' : overall >= 40 ? 'warning' : 'danger';
+    let bars = dims.map(([k,label,v]) => {
+      const pct = Math.round(v);
+      const cls = pct >= 70 ? 'high' : pct >= 30 ? 'medium' : 'low';
+      return `<div class="stu-comp-row"><div class="stu-comp-label">${label}</div><div class="stu-comp-bar"><div class="stu-comp-fill ${cls}" style="width:${pct}%"></div></div><div class="stu-comp-pct">${pct}%</div></div>`;
+    }).join('');
+    el.innerHTML = `<div style="display:flex;align-items:center;gap:1rem;margin-bottom:.75rem">
+      <div style="font-size:2rem;font-weight:800;line-height:1">${overall}<span style="font-size:.875rem;font-weight:500;color:var(--text-tertiary)">%</span></div>
+      <div style="font-size:.75rem;color:var(--text-tertiary)">综合竞争力<br><span class="badge badge-soft-${overallClass}" style="font-size:.65rem">${overall >= 70 ? '优秀' : overall >= 40 ? '中等' : '待提升'}</span></div>
+    </div>${bars}`;
+  } catch(e) { el.innerHTML = `<div class="text-muted small py-2 text-center">暂无数据</div>`; }
+}
+
+async function _loadParentProfileTags(studentId) {
+  const el = document.getElementById('parent-profile-card');
+  if (!el) return;
+  try {
+    const p = await GET(`/api/students/${studentId}/profile-ext`);
+    if (!p || (!p.mbti && !p.holland_code && !p.academic_interests && !p.strengths && !p.career_goals)) {
+      el.innerHTML = `<div class="text-muted small text-center py-2">暂无画像数据</div>`;
+      return;
+    }
+    let html = '<div class="d-flex flex-wrap gap-1 mb-2">';
+    if (p.mbti) html += `<span class="badge bg-primary">MBTI: ${escapeHtml(p.mbti)}</span>`;
+    if (p.holland_code) html += `<span class="badge bg-success">Holland: ${escapeHtml(p.holland_code)}</span>`;
+    html += '</div>';
+    const interests = p.academic_interests ? (typeof p.academic_interests === 'string' ? JSON.parse(p.academic_interests) : p.academic_interests) : [];
+    if (interests.length) html += `<div class="small mb-1"><span class="text-muted">兴趣：</span>${interests.map(i => `<span class="badge bg-light text-dark border me-1">${escapeHtml(i)}</span>`).join('')}</div>`;
+    const strengths = p.strengths ? (typeof p.strengths === 'string' ? JSON.parse(p.strengths) : p.strengths) : [];
+    if (strengths.length) html += `<div class="small mb-1"><span class="text-muted">优势：</span>${strengths.map(s => `<span class="badge bg-light text-dark border me-1">${escapeHtml(s)}</span>`).join('')}</div>`;
+    if (p.career_goals) html += `<div class="small"><span class="text-muted">目标：</span>${escapeHtml(p.career_goals)}</div>`;
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = `<div class="text-muted small text-center py-2">暂无数据</div>`; }
+}
+
+async function _loadParentAwards(studentId) {
+  const el = document.getElementById('parent-awards-card');
+  if (!el) return;
+  try {
+    const awards = await GET(`/api/students/${studentId}/awards`);
+    if (!awards || awards.length === 0) {
+      el.innerHTML = `<div class="text-muted small text-center py-2">暂无荣誉记录</div>`;
+      return;
+    }
+    const levelBadge = { international: 'danger', national: 'warning', province: 'info', city: 'secondary', school: 'light text-dark' };
+    const levelLabel = { international: '国际', national: '国家', province: '省级', city: '市级', school: '校级' };
+    el.innerHTML = `<div class="d-flex flex-wrap gap-2">${awards.map(a => `
+      <div class="border rounded p-2" style="min-width:200px">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <i class="bi bi-award-fill text-warning"></i>
+          <span class="small fw-semibold">${escapeHtml(a.name)}</span>
+        </div>
+        <div class="d-flex gap-1">
+          ${a.level ? `<span class="badge bg-${levelBadge[a.level]||'secondary'}" style="font-size:.65rem">${levelLabel[a.level]||a.level}</span>` : ''}
+          ${a.category ? `<span class="badge bg-light text-dark border" style="font-size:.65rem">${escapeHtml(a.category)}</span>` : ''}
+          ${a.award_date ? `<span class="text-muted" style="font-size:.65rem">${fmtDate(a.award_date)}</span>` : ''}
+        </div>
+        ${a.description ? `<div class="small text-muted mt-1">${escapeHtml(a.description)}</div>` : ''}
+      </div>
+    `).join('')}</div>`;
+  } catch(e) { el.innerHTML = `<div class="text-muted small text-center py-2">暂无数据</div>`; }
+}
+
+function _loadParentCalendar(calendarData, studentId) {
+  const el = document.getElementById('parent-calendar-container');
+  if (!el) return;
+
+  const allEvents = [];
+  // Tasks
+  (calendarData.tasks || []).filter(t => t.student_id === studentId).forEach(t => {
+    allEvents.push({ date: t.date, title: t.title, type: 'task', status: t.status, category: t.category });
+  });
+  // Deadlines
+  (calendarData.deadlines || []).filter(d => d.student_id === studentId).forEach(d => {
+    allEvents.push({ date: d.date, title: d.title + ' 截止', type: 'deadline', status: d.status });
+  });
+  // Anchor events (global)
+  (calendarData.anchors || []).forEach(a => {
+    allEvents.push({ date: a.date, title: a.title, type: 'anchor', description: a.description });
+  });
+
+  // Sort by date
+  allEvents.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+  if (allEvents.length === 0) {
+    el.innerHTML = `<div class="text-muted small text-center py-4">暂无日历事件</div>`;
+    return;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const typeIcon = { task: 'bi-check-circle', deadline: 'bi-alarm', anchor: 'bi-calendar-event' };
+  const typeColor = { task: 'primary', deadline: 'danger', anchor: 'info' };
+
+  // Group by month
+  const groups = {};
+  allEvents.forEach(e => {
+    const month = e.date ? e.date.substring(0, 7) : 'unknown';
+    if (!groups[month]) groups[month] = [];
+    groups[month].push(e);
+  });
+
+  let html = '';
+  Object.entries(groups).forEach(([month, events]) => {
+    const [y, m] = month.split('-');
+    const monthLabel = `${y}年${parseInt(m)}月`;
+    html += `<div class="px-3 py-2 bg-light fw-semibold small border-bottom">${monthLabel}</div>`;
+    events.forEach(e => {
+      const isPast = e.date < today;
+      const isToday = e.date === today;
+      html += `<div class="d-flex align-items-start gap-2 px-3 py-2 border-bottom ${isPast ? 'opacity-50' : ''}">
+        <i class="bi ${typeIcon[e.type]||'bi-circle'} text-${typeColor[e.type]||'muted'} mt-1"></i>
+        <div class="flex-grow-1">
+          <div class="small ${isToday?'fw-bold text-primary':''}">${escapeHtml(e.title)}</div>
+          <div class="d-flex gap-2">
+            <small class="text-muted">${fmtDate(e.date)}${isToday?' <span class="badge bg-primary">今天</span>':''}</small>
+            <small class="badge bg-${typeColor[e.type]||'secondary'}" style="font-size:.6rem">${e.type === 'task' ? '任务' : e.type === 'deadline' ? '截止' : '事件'}</small>
+          </div>
+        </div>
+      </div>`;
+    });
+  });
+  el.innerHTML = html;
 }
 
 // ════════════════════════════════════════════════════════

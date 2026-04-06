@@ -3032,6 +3032,9 @@ function seedData() {
     console.log(`[DB] Cleaned up junk staff: ${s.id}`);
   }
 
+  // ── 演示用学生数据（苏瑶 + 林子轩）──────────────────────
+  try { require('./seed-demo').seedDemo({ run, get, all, save }); } catch(e) { console.error('[DB] seed-demo error:', e.message); }
+
   // 确保所有 seedData 写入的数据持久化到磁盘
   save();
 }

@@ -2,15 +2,18 @@
 /**
  * seed-demo.js — 插入两位高仿真演示学生数据
  *
- * 用法: node seed-demo.js
+ * 可独立运行: node seed-demo.js
+ * 也可从 db.js seedData() 调用: require('./seed-demo').seedDemo(db)
  *
  * 学生 1: 苏瑶 (Sophie Su) — G12 CIE, 申请 UK + SG, 高分学霸, 多维数据丰富
  * 学生 2: 林子轩 (Jason Lin) — G12 Edexcel, 申请 UK + US, 有风险/逾期任务, 触发 AI 预警
  */
-const db = require('./db');
 
-async function main() {
-  await db.init();
+function seedDemo(db) {
+  // 防止重复插入
+  const existingDemo = db.get("SELECT id FROM students WHERE name='苏瑶' LIMIT 1");
+  if (existingDemo) { return; }
+
   const { v4: uuid } = require('uuid');
   const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
@@ -785,10 +788,20 @@ async function main() {
   console.log('  → ⚠️ 3个逾期任务将触发AI风险预警');
   console.log('');
 
-  process.exit(0);
 }
 
-main().catch(err => {
-  console.error('❌ 错误:', err);
-  process.exit(1);
-});
+module.exports = { seedDemo };
+
+// 独立运行支持
+if (require.main === module) {
+  const db = require('./db');
+  db.init().then(() => {
+    seedDemo(db);
+    db.save();
+    console.log('✅ 演示数据插入完成');
+    process.exit(0);
+  }).catch(err => {
+    console.error('❌ 错误:', err);
+    process.exit(1);
+  });
+}

@@ -306,8 +306,8 @@ module.exports = function({ db, requireAuth, requireRole }) {
       // ── 学生卡片速览 ──
       const studentCards = db.all(
         `SELECT s.id, s.name, s.grade_level, s.exam_board,
-           (SELECT GROUP_CONCAT(sub.subject_name || COALESCE(' '||sub.predicted_grade,''), '｜')
-            FROM student_subjects sub WHERE sub.student_id=s.id) as subjects_summary,
+           (SELECT GROUP_CONCAT(subj.name || COALESCE(' '||se.level,''), '｜')
+            FROM subject_enrollments se JOIN subjects subj ON subj.id=se.subject_id WHERE se.student_id=s.id) as subjects_summary,
            (SELECT COUNT(*) FROM essays e WHERE e.student_id=s.id) as essay_total,
            (SELECT COUNT(*) FROM essays e WHERE e.student_id=s.id AND e.status IN ('final','submitted')) as essay_done,
            COUNT(CASE WHEN mt.status NOT IN ('done') AND mt.due_date < date('now') THEN 1 END) as overdue_count,

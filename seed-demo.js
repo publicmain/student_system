@@ -790,13 +790,402 @@ function seedDemo(db) {
 
 }
 
-module.exports = { seedDemo };
+// ════════════════════════════════════════════════════════════
+//  补全所有已有学生的缺失数据
+// ════════════════════════════════════════════════════════════
+function enrichExistingStudents(db) {
+  const existingProfile = db.get("SELECT spe.id FROM student_profiles_ext spe JOIN students s ON s.id=spe.student_id WHERE s.name='陈美琳'");
+  if (existingProfile) return; // 已补全过
+
+  const { v4: uuid } = require('uuid');
+  const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  const bcrypt = require('bcryptjs');
+  const hash = (pw) => bcrypt.hashSync(pw, 10);
+
+  const cId = db.get("SELECT id FROM staff WHERE role='counselor' LIMIT 1")?.id;
+  const mId = db.get("SELECT id FROM staff WHERE role='mentor' LIMIT 1")?.id;
+
+  // 获取学生ID
+  const sid = (name) => db.get("SELECT id FROM students WHERE name=?", [name])?.id;
+  const sA = sid('陈美琳'), sB = sid('刘浩然'), sC = sid('王雅欣'),
+        sD = sid('赵天宇'), sE = sid('林佳怡'),
+        s1 = sid('张三'), s2 = sid('李四'), s3 = sid('王五');
+
+  if (!sA) return; // 如果没有这些学生就跳过
+
+  // 获取科目ID
+  const sub = (code) => db.get("SELECT id FROM subjects WHERE code=?", [code])?.id;
+  const MATH=sub('MATH'), PHYS=sub('PHYS'), CHEM=sub('CHEM'), BIO=sub('BIO'),
+        ECON=sub('ECON'), CS=sub('CS'), ENG=sub('ENG'), HIST=sub('HIST');
+
+  // ════════════════════════════════════════════
+  //  补全 date_of_birth
+  // ════════════════════════════════════════════
+  const dobs = [
+    [sA, '2007-05-12'], [sB, '2007-01-28'], [sC, '2008-07-19'],
+    [sD, '2007-09-03'], [sE, '2007-11-15'],
+    [s1, '2007-04-22'], [s2, '2008-06-10'], [s3, '2007-02-14']
+  ];
+  for (const [id, dob] of dobs) {
+    if (id) db.run("UPDATE students SET date_of_birth=? WHERE id=? AND date_of_birth IS NULL", [dob, id]);
+  }
+
+  // ════════════════════════════════════════════
+  //  补全扩展档案
+  // ════════════════════════════════════════════
+  const profiles = [
+    [sA, 'INFJ', 'ISA', '分子生物学、医学伦理、公共卫生', '成为临床医生或生物医学研究员', '医学 Medicine / 生物医学 Biomedical Sciences', '学术功底扎实、有耐心、沟通能力好', '面试紧张、时间管理需加强', 'IGCSE 7A*，AS预测3A，目标牛津生物医学'],
+    [sB, 'INTP', 'IRE', '人工智能、算法设计、量子计算', '进入顶尖科技公司或攻读CS博士', '计算机科学 Computer Science', '数学能力极强(SAT数学800)、编程经验丰富(Python/C++)', '英语写作一般、社交活动较少', 'MIT被拒但UCLA/NYU在申，USACO银牌'],
+    [sC, 'ENFJ', 'SEC', '宏观经济学、发展经济学、社会政策', '从事经济政策分析或国际组织工作', '经济学 Economics / 政治经济学 PPE', '写作能力强、领导力好、关心社会议题', '数学基础需加强、还在G11阶段较早', 'G11提前规划，目标LSE经济学'],
+    [sD, 'ESTJ', 'ECS', '金融市场、企业管理、创业', '投行或管理咨询方向', '金融学 Finance / 商学 Business', '务实高效、量化分析能力好', '个人陈述深度不够、课外活动单一', '已收巴斯Unconditional，华威Conditional'],
+    [sE, 'ISFJ', 'CSE', '国际贸易、东南亚经济、可持续发展', '在新加坡金融或咨询行业发展', '商科 Business / 经济学 Economics', '踏实认真、跨文化沟通能力强', '雅思写作偏低6.5、需要提升学术英语', 'NUS/NTU双申，商科方向'],
+    [s1, 'ENTJ', 'EIR', '机械工程、新能源技术、工业设计', '成为工程师或技术创业者', '工程学 Engineering / 机械工程', '动手能力强、领导力好、逻辑思维清晰', '有时过于急躁、英语口语需提升', 'Edexcel体系，目标帝国理工工程'],
+    [s2, 'INFP', 'AIS', '心理学、教育学、人文关怀', '成为心理咨询师或教育工作者', '心理学 Psychology / 教育学', '共情能力强、写作好、有创造力', 'G11阶段，还在探索方向', 'CIE体系，早期规划阶段'],
+    [s3, 'ISTP', 'RIC', '数据科学、统计学、金融工程', '从事量化分析或数据科学', '数学与统计 Mathematics & Statistics', '数学直觉好、编程有基础', '写作和沟通偏弱、不够主动', 'A-Level体系，数学方向']
+  ];
+  for (const [id, mbti, holland, interests, goals, major, strengths, weaknesses, notes] of profiles) {
+    if (id) db.run(`INSERT INTO student_profiles_ext (id,student_id,mbti,holland_code,academic_interests,career_goals,major_preferences,strengths,weaknesses,notes,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, [uuid(), id, mbti, holland, interests, goals, major, strengths, weaknesses, notes, now, now]);
+  }
+
+  // ════════════════════════════════════════════
+  //  补全家长 + 家长用户
+  // ════════════════════════════════════════════
+  const parentData = [
+    [sA, '陈建明', '父', '13611112222', 'chenjm@email.com', 'chen_jm_wx'],
+    [sA, '李敏华', '母', '13611113333', 'limh@email.com', 'limh_wx'],
+    [sB, '刘志强', '父', '13622221111', 'liuzq@email.com', 'liuzq_wx'],
+    [sB, '张晓燕', '母', '13622222222', 'zhangxy@email.com', 'zhangxy_wx'],
+    [sC, '王建华', '父', '13633331111', 'wangjh@email.com', 'wangjh_wx'],
+    [sD, '赵德明', '父', '13644441111', 'zhaodm@email.com', 'zhaodm_wx'],
+    [sE, '林国平', '父', '13655551111', 'lingp@email.com', 'lingp_wx'],
+    [sE, '陈美玲', '母', '13655552222', 'chenml@email.com', 'chenml_wx'],
+    [s2, '李明', '父', '13677771111', 'liming@email.com', 'liming_wx'],
+    [s3, '王强', '父', '13688881111', 'wangqiang@email.com', 'wangq_wx'],
+  ];
+  for (const [studentId, name, relation, phone, email, wechat] of parentData) {
+    if (!studentId) continue;
+    const existing = db.get("SELECT p.id FROM parent_guardians p JOIN student_parents sp ON sp.parent_id=p.id WHERE sp.student_id=? AND p.name=?", [studentId, name]);
+    if (existing) continue;
+    const pid = uuid();
+    db.run("INSERT INTO parent_guardians VALUES (?,?,?,?,?,?,?)", [pid, name, relation, phone, email, wechat, now]);
+    db.run("INSERT INTO student_parents VALUES (?,?)", [studentId, pid]);
+  }
+
+  // ════════════════════════════════════════════
+  //  补全导师分配（检查已有的不重复）
+  // ════════════════════════════════════════════
+  const allStudents = [sA, sB, sC, sD, sE, s1, s2, s3].filter(Boolean);
+  for (const sid2 of allStudents) {
+    const hasCounselor = db.get("SELECT ma.id FROM mentor_assignments ma WHERE ma.student_id=? AND ma.role='升学规划师' AND ma.end_date IS NULL", [sid2]);
+    if (!hasCounselor && cId) db.run("INSERT INTO mentor_assignments VALUES (?,?,?,?,?,?,?,?)", [uuid(), sid2, cId, '升学规划师', '2024-09-10', null, '', now]);
+    const hasMentor = db.get("SELECT ma.id FROM mentor_assignments ma WHERE ma.student_id=? AND ma.role='导师' AND ma.end_date IS NULL", [sid2]);
+    if (!hasMentor && mId) db.run("INSERT INTO mentor_assignments VALUES (?,?,?,?,?,?,?,?)", [uuid(), sid2, mId, '导师', '2024-09-10', null, '', now]);
+  }
+
+  // ════════════════════════════════════════════
+  //  补全考试记录 (exam_sittings)
+  // ════════════════════════════════════════════
+  const examInsert = (sid2, board, series, year, subj, code, comp, sDate, rDate, pred, actual, status, resit) => {
+    db.run(`INSERT INTO exam_sittings (id,student_id,exam_board,series,year,subject,subject_code,component,sitting_date,results_date,predicted_grade,actual_grade,ums_score,status,is_resit,notes,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [uuid(), sid2, board, series, year, subj, code, comp, sDate, rDate, pred, actual, null, status, resit?1:0, '', now, now]);
+  };
+
+  // 陈美琳 CIE AS (已出分) + A2 (即将)
+  examInsert(sA, 'CIE','June',2025,'Mathematics','9709','P1+P2','2025-05-12','2025-08-14','A','A','result_received');
+  examInsert(sA, 'CIE','June',2025,'Biology','9700','P1+P2+P3','2025-05-20','2025-08-14','A*','A','result_received');
+  examInsert(sA, 'CIE','June',2025,'Chemistry','9701','P1+P2','2025-05-22','2025-08-14','A','A','result_received');
+  examInsert(sA, 'CIE','June',2026,'Mathematics','9709','P3+P4','2026-05-11','2026-08-13','A*',null,'registered');
+  examInsert(sA, 'CIE','June',2026,'Biology','9700','P3+P4+P5','2026-05-20','2026-08-13','A*',null,'registered');
+  examInsert(sA, 'CIE','June',2026,'Chemistry','9701','P3+P4+P5','2026-05-22','2026-08-13','A*',null,'registered');
+
+  // 刘浩然 CIE AS + A2
+  examInsert(sB, 'CIE','June',2025,'Mathematics','9709','P1+P2','2025-05-12','2025-08-14','A*','A*','result_received');
+  examInsert(sB, 'CIE','June',2025,'Physics','9702','P1+P2','2025-05-16','2025-08-14','A','A','result_received');
+  examInsert(sB, 'CIE','June',2025,'Computer Science','9618','P1+P2','2025-06-05','2025-08-14','A*','A*','result_received');
+  examInsert(sB, 'CIE','June',2026,'Mathematics','9709','P3+P4','2026-05-11','2026-08-13','A*',null,'registered');
+  examInsert(sB, 'CIE','June',2026,'Physics','9702','P3+P4+P5','2026-05-16','2026-08-13','A*',null,'registered');
+  examInsert(sB, 'CIE','June',2026,'Computer Science','9618','P3+P4','2026-06-03','2026-08-13','A*',null,'registered');
+
+  // 赵天宇 Edexcel AS + A2
+  examInsert(sD, 'Edexcel','January',2025,'Mathematics','WMA12','Unit 2','2025-01-13','2025-03-20','A','A','result_received');
+  examInsert(sD, 'Edexcel','January',2025,'Economics','WEC12','Unit 2','2025-01-17','2025-03-20','A','B','result_received');
+  examInsert(sD, 'Edexcel','June',2025,'Economics','WEC12','Unit 2 Resit','2025-06-10','2025-08-14','A','A','result_received',true);
+  examInsert(sD, 'Edexcel','June',2026,'Mathematics','WMA14','Unit 4','2026-06-08','2026-08-13','A*',null,'registered');
+  examInsert(sD, 'Edexcel','June',2026,'Economics','WEC14','Unit 4','2026-06-12','2026-08-13','A',null,'registered');
+
+  // 林佳怡 CIE AS + A2
+  examInsert(sE, 'CIE','June',2025,'Mathematics','9709','P1+P2','2025-05-12','2025-08-14','A','A','result_received');
+  examInsert(sE, 'CIE','June',2025,'Economics','9708','P1+P2','2025-05-18','2025-08-14','B','B','result_received');
+  examInsert(sE, 'CIE','June',2025,'Biology','9700','P1+P2','2025-05-22','2025-08-14','A','A','result_received');
+  examInsert(sE, 'CIE','June',2026,'Mathematics','9709','P3+P4','2026-05-11','2026-08-13','A*',null,'registered');
+  examInsert(sE, 'CIE','June',2026,'Economics','9708','P3+P4','2026-05-18','2026-08-13','A',null,'registered');
+  examInsert(sE, 'CIE','June',2026,'Biology','9700','P3+P4+P5','2026-05-22','2026-08-13','A',null,'registered');
+
+  // 张三 Edexcel (已有选科但无考试)
+  if (s1) {
+    examInsert(s1, 'Edexcel','January',2025,'Mathematics','WMA12','Unit 2','2025-01-13','2025-03-20','A','A','result_received');
+    examInsert(s1, 'Edexcel','June',2025,'Physics','WPH12','Unit 2','2025-06-10','2025-08-14','A','B','result_received');
+    examInsert(s1, 'Edexcel','June',2025,'Chemistry','WCH12','Unit 2','2025-06-12','2025-08-14','B','B','result_received');
+    examInsert(s1, 'Edexcel','June',2026,'Mathematics','WMA14','Unit 4','2026-06-08','2026-08-13','A*',null,'registered');
+    examInsert(s1, 'Edexcel','June',2026,'Physics','WPH14','Unit 4+5','2026-06-12','2026-08-13','A',null,'registered');
+    examInsert(s1, 'Edexcel','June',2026,'Chemistry','WCH14','Unit 4+5','2026-06-16','2026-08-13','A',null,'registered');
+  }
+
+  // ════════════════════════════════════════════
+  //  补全课外活动
+  // ════════════════════════════════════════════
+  const actInsert = (sid2, cat, name2, org, role, start, end2, hpw, wpy, impact, desc, ach, tags, sort) => {
+    db.run(`INSERT INTO student_activities (id,student_id,category,name,organization,role,start_date,end_date,hours_per_week,weeks_per_year,impact_level,description,achievements,related_major_tags,sort_order,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [uuid(), sid2, cat, name2, org, role, start, end2, hpw, wpy, impact, desc, ach, JSON.stringify(tags), sort, now, now]);
+  };
+
+  // 陈美琳 — 医学方向
+  actInsert(sA, 'volunteer', '社区诊所志愿者', '仁爱社区诊所', '志愿者', '2024-03-01', null, 4, 40, 'city',
+    '每周在社区诊所协助健康检查和患者引导，了解基层医疗服务流程', '累计服务150+小时，获优秀志愿者称号', ['medicine','public_health'], 1);
+  actInsert(sA, 'academic_competition', '英国生物奥林匹克 BBO', 'Royal Society of Biology', '参赛选手', '2025-01-10', '2025-03-20', 5, 10, 'national',
+    '系统备赛，覆盖分子生物学、遗传学、生态学', 'Bronze Medal', ['biology'], 2);
+  actInsert(sA, 'club_leadership', '校科学社副社长', '学校科学社', '副社长', '2024-09-01', null, 3, 36, 'school',
+    '协助组织科学讲座和实验展示活动，带领低年级同学准备科学竞赛', '组织了4场学术讲座', ['science'], 3);
+  actInsert(sA, 'research', '医学伦理研究项目', '学校人文社科项目', '研究员', '2025-02-01', '2025-05-30', 3, 16, 'school',
+    '独立调研"基因编辑的伦理边界"，撰写5000字研究报告', '报告获校内学术论文比赛二等奖', ['medicine','ethics'], 4);
+
+  // 刘浩然 — CS方向
+  actInsert(sB, 'personal_project', 'AlgoViz 算法可视化工具', 'GitHub Open Source', '独立开发者', '2024-08-01', null, 6, 40, 'international',
+    '使用React+D3.js开发的算法可视化教学工具，支持排序、图论、DP等15种算法的动态演示', 'GitHub 150+ stars', ['computer_science'], 1);
+  actInsert(sB, 'academic_competition', 'USACO 美国计算机奥林匹克', 'USA Computing Olympiad', '参赛选手', '2024-06-01', null, 8, 48, 'international',
+    '自学算法与数据结构，Silver级别稳定', 'Silver Division', ['computer_science','algorithms'], 2);
+  actInsert(sB, 'club_leadership', '校机器人社社长', '学校机器人社', '社长', '2024-09-01', null, 4, 36, 'school',
+    '带领团队参加FRC机器人竞赛，负责软件控制系统设计', '校际机器人挑战赛亚军', ['robotics','engineering'], 3);
+  actInsert(sB, 'internship', '远程AI实习', 'DeepTech Labs (远程)', '算法实习生', '2025-07-01', '2025-08-10', 25, 6, 'international',
+    '参与NLP项目，使用PyTorch训练文本分类模型，F1提升8%', '获得导师推荐信', ['machine_learning','NLP'], 4);
+
+  // 王雅欣 — 经济/社科方向 (G11)
+  actInsert(sC, 'club_leadership', '校辩论社社长', '学校辩论社', '社长', '2024-09-01', null, 5, 36, 'school',
+    '组织校内辩论赛，代表学校参加市级辩论锦标赛', '市级辩论赛最佳辩手', ['economics','politics'], 1);
+  actInsert(sC, 'volunteer', '公益经济学讲座', 'TEDx Youth组织', '组织者', '2025-01-15', '2025-03-15', 3, 8, 'city',
+    '策划并组织了面向高中生的经济学普及讲座系列', '3场讲座共吸引200+听众', ['economics'], 2);
+  actInsert(sC, 'academic_competition', '全国经济学知识竞赛', '中国经济学会', '参赛选手', '2025-03-01', '2025-04-15', 4, 6, 'national',
+    '参加全国高中生经济学知识竞赛', '全国三等奖', ['economics'], 3);
+
+  // 赵天宇 — 商科/金融方向
+  actInsert(sD, 'club_leadership', '校商业社创始人', '学校商业社', '创始人兼社长', '2024-03-01', null, 4, 36, 'school',
+    '创办学校第一个商业社团，组织模拟投资大赛和商业案例分析活动', '社团发展到25人，举办3次校际模拟投资赛', ['business','finance'], 1);
+  actInsert(sD, 'academic_competition', '模拟联合国 MUN', 'THIMUN Singapore', '代表', '2024-11-01', '2024-11-04', 30, 1, 'international',
+    '代表学校参加新加坡THIMUN会议，担任经济与金融委员会代表', 'Honorable Mention Award', ['international_relations','economics'], 2);
+  actInsert(sD, 'internship', '银行暑期实习', '汇丰银行（新加坡）', '实习生', '2025-06-15', '2025-07-15', 35, 4, 'international',
+    '在财富管理部门实习，协助客户数据分析和市场调研', '完成独立研究报告，获得主管推荐信', ['finance','banking'], 3);
+
+  // 林佳怡 — 新加坡商科方向
+  actInsert(sE, 'volunteer', '社区英语教学', '社区教育中心', '志愿者老师', '2024-06-01', null, 3, 40, 'city',
+    '为社区低收入家庭的孩子提供免费英语辅导', '累计教授40+名学生', ['education'], 1);
+  actInsert(sE, 'club_leadership', '校学生会财务部长', '学校学生会', '财务部长', '2024-09-01', null, 3, 36, 'school',
+    '管理学生会年度预算，审批社团活动经费', '优化预算分配流程，节省15%开支', ['business','management'], 2);
+  actInsert(sE, 'academic_competition', 'NUS商业案例分析赛', 'NUS Business School', '参赛队长', '2025-08-10', '2025-08-12', 40, 1, 'international',
+    '带领3人团队参加NUS主办的高中生商业案例分析比赛', '前10名（共40队）', ['business'], 3);
+
+  // 张三 — 工程方向
+  if (s1) {
+    actInsert(s1, 'personal_project', '3D打印机械臂', '学校创客实验室', '项目负责人', '2024-10-01', '2025-03-15', 5, 20, 'school',
+      '设计并3D打印了一个4自由度机械臂，用Arduino控制', '校科技创新展一等奖', ['engineering','robotics'], 1);
+    actInsert(s1, 'sports', '校足球队', '学校体育部', '队员', '2023-09-01', null, 5, 36, 'school',
+      '校足球队主力中场，参加校际联赛', '校际联赛季军', ['sports'], 2);
+  }
+
+  // 李四 — G11探索阶段
+  if (s2) {
+    actInsert(s2, 'volunteer', '心理热线志愿者', '青少年心理热线', '志愿者', '2025-01-01', null, 2, 30, 'city',
+      '接听青少年心理咨询热线，提供倾听和初步支持', '培训合格，每周值班2小时', ['psychology'], 1);
+    actInsert(s2, 'arts', '校话剧社', '学校话剧社', '演员', '2024-09-01', null, 4, 30, 'school',
+      '参演校内话剧，体验角色心理分析', '年度话剧《等待戈多》主演', ['arts','psychology'], 2);
+  }
+
+  // 王五 — 数学/数据方向
+  if (s3) {
+    actInsert(s3, 'academic_competition', 'UKMT高级数学挑战赛', 'UK Mathematics Trust', '参赛选手', '2024-11-01', '2024-11-15', 3, 2, 'national',
+      '参加UKMT Senior Mathematical Challenge', 'Silver Certificate', ['mathematics'], 1);
+    actInsert(s3, 'personal_project', '数据分析小工具', 'GitHub', '开发者', '2025-01-01', null, 4, 20, 'school',
+      '用Python+pandas写了一个分析学校考试成绩的自动化工具', '被数学老师用于班级成绩分析', ['data_science','statistics'], 2);
+  }
+
+  // ════════════════════════════════════════════
+  //  补全荣誉奖项
+  // ════════════════════════════════════════════
+  const honorInsert = (sid2, name2, level, rank, date, desc, sort) => {
+    db.run(`INSERT INTO student_honors (id,student_id,name,level,award_rank,award_date,description,sort_order,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [uuid(), sid2, name2, level, rank, date, desc, sort, now, now]);
+  };
+
+  honorInsert(sA, 'BBO Bronze Medal', 'national', 'Bronze', '2025-03-20', '英国生物奥林匹克铜牌', 1);
+  honorInsert(sA, '校内科学论文二等奖', 'school', '二等奖', '2025-05-15', '医学伦理研究报告', 2);
+  honorInsert(sA, 'CIE Top in School Biology', 'school', '第一名', '2025-09-01', 'AS Biology校内最高分', 3);
+
+  honorInsert(sB, 'USACO Silver Division', 'international', 'Silver', '2025-02-01', '美国计算机奥林匹克银级', 1);
+  honorInsert(sB, '校际机器人挑战赛亚军', 'city', '第二名', '2025-03-15', 'FRC赛季校际赛', 2);
+  honorInsert(sB, 'GitHub AlgoViz 150+ Stars', 'international', null, '2025-06-01', '开源项目获得社区认可', 3);
+
+  honorInsert(sC, '市级辩论赛最佳辩手', 'city', '最佳辩手', '2025-02-20', '市级高中英语辩论锦标赛', 1);
+  honorInsert(sC, '全国经济学知识竞赛三等奖', 'national', '三等奖', '2025-04-15', '', 2);
+
+  honorInsert(sD, 'THIMUN Honorable Mention', 'international', 'Honorable Mention', '2024-11-04', '新加坡THIMUN模联', 1);
+  honorInsert(sD, '汇丰实习优秀实习生', 'international', null, '2025-07-15', '财富管理部门实习表现优秀', 2);
+
+  honorInsert(sE, 'NUS商业案例赛前10', 'international', 'Top 10', '2025-08-12', '全国40队中前10', 1);
+
+  if (s1) honorInsert(s1, '校科技创新展一等奖', 'school', '一等奖', '2025-03-15', '3D打印机械臂项目', 1);
+  if (s3) honorInsert(s3, 'UKMT Silver Certificate', 'national', 'Silver', '2024-11-15', '英国高级数学挑战赛银奖', 1);
+
+  // ════════════════════════════════════════════
+  //  补全个人陈述
+  // ════════════════════════════════════════════
+  const appId = (studentId, uniNameLike) => db.get("SELECT a.id FROM applications a WHERE a.student_id=? AND a.uni_name LIKE ?", [studentId, '%'+uniNameLike+'%'])?.id;
+
+  // 陈美琳 — 牛津PS
+  const appA1 = appId(sA, '牛津');
+  if (appA1) {
+    db.run(`INSERT INTO personal_statements (id,student_id,application_id,version,status,q1_content,q2_content,q3_content,word_count,char_count,reviewer_id,review_notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [
+      uuid(), sA, appA1, 2, '已提交',
+      'My desire to study Biomedical Sciences stems from a profound curiosity about the mechanisms underlying human disease. Volunteering at a community clinic, I witnessed the gap between scientific knowledge and patient outcomes, igniting my resolve to bridge this divide through research.',
+      'Studying CIE A-Level Biology, Chemistry, and Mathematics has provided me with a rigorous scientific foundation. My independent research on the ethics of gene editing deepened my understanding of both the molecular biology of CRISPR and the societal implications of its application.',
+      'As vice-president of our school Science Society, I have organised academic seminars and mentored younger students. My 150+ hours of clinical volunteering have reinforced my commitment to medicine and given me insight into the holistic nature of patient care.',
+      480, 2900, cId, '二稿终稿，UCAS已提交', now, now
+    ]);
+  }
+
+  // 赵天宇 — 华威金融PS
+  const appD1 = appId(sD, '华威');
+  if (appD1) {
+    db.run(`INSERT INTO personal_statements (id,student_id,application_id,version,status,q1_content,q2_content,q3_content,word_count,char_count,reviewer_id,review_notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [
+      uuid(), sD, appD1, 2, '已提交',
+      'My fascination with finance began when I founded our school Business Society. Organising simulated investment competitions revealed how quantitative analysis and behavioural economics intersect in real market decisions.',
+      'Studying A-Level Mathematics and Economics has equipped me with analytical tools essential for finance. My summer internship at HSBC Singapore exposed me to wealth management and portfolio analysis in a professional context.',
+      'Leading the school Business Society and participating in THIMUN Model UN have honed my leadership and communication skills. The MUN experience in particular taught me to negotiate complex economic policy positions.',
+      420, 2500, cId, '已提交UCAS', now, now
+    ]);
+  }
+
+  // 林佳怡 — NUS商科PS
+  const appE1 = appId(sE, 'NUS');
+  if (appE1) {
+    db.run(`INSERT INTO personal_statements (id,student_id,application_id,version,status,q1_content,q2_content,q3_content,word_count,char_count,reviewer_id,review_notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [
+      uuid(), sE, appE1, 2, '已提交',
+      'Growing up in a multicultural environment has shaped my understanding of how international business transcends borders. I am drawn to NUS Business School for its emphasis on Asian markets and global connectivity.',
+      'My academic foundation in Mathematics, Economics, and Biology has given me a unique interdisciplinary perspective. Serving as Student Council Treasurer taught me practical financial management and budget optimisation.',
+      'Participating in the NUS Business Case Competition was a transformative experience. Leading my team to a Top 10 finish among 40 teams validated my analytical skills and confirmed my passion for strategic business thinking.',
+      450, 2700, cId, 'NUS格式已提交', now, now
+    ]);
+  }
+
+  // ════════════════════════════════════════════
+  //  补全文书 (刘浩然已有，其他学生补)
+  // ════════════════════════════════════════════
+  // 王雅欣 — LSE PS草稿 (G11早期)
+  const appC1 = appId(sC, 'LSE');
+  if (appC1) {
+    const essayC = uuid();
+    db.run(`INSERT INTO essays (id,student_id,application_id,essay_type,title,prompt,word_limit,status,current_version,assigned_reviewer_id,review_deadline,strategy_notes,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [
+      essayC, sC, appC1, 'personal_statement', 'LSE Economics PS Framework',
+      'Write about why you want to study Economics at LSE',
+      4000, 'collecting_material', 0, cId, '2026-08-01',
+      'G11阶段先积累素材，暑假开始写初稿', now, now
+    ]);
+  }
+
+  // ════════════════════════════════════════════
+  //  补全反馈
+  // ════════════════════════════════════════════
+  const fbInsert = (sid2, fromRole, fromId, type, content, rating, status) => {
+    db.run("INSERT INTO feedback VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", [
+      uuid(), sid2, fromRole, fromId, type, content, rating, status, null, null, null, now
+    ]);
+  };
+
+  // 家长反馈
+  const parentOf = (studentId) => db.get("SELECT p.id FROM parent_guardians p JOIN student_parents sp ON sp.parent_id=p.id WHERE sp.student_id=? LIMIT 1", [studentId])?.id;
+
+  fbInsert(sA, 'parent', parentOf(sA), '满意度', '对李老师的牛津申请指导非常满意，PS修改很专业。孩子信心增强了很多。', 5, 'reviewed');
+  fbInsert(sB, 'parent', parentOf(sB), '疑问', 'MIT被拒后，UCLA的录取概率有多大？是否需要调整选校策略？', 3, 'pending');
+  fbInsert(sD, 'parent', parentOf(sD), '满意度', '巴斯的Unconditional Offer来得很及时，感谢老师的指导！', 5, 'reviewed');
+  fbInsert(sE, 'student', sE, '阶段反馈', '雅思写作一直提不上去，有点担心NUS的语言要求。希望能有专门的写作辅导。', 3, 'pending');
+  if (s1) fbInsert(s1, 'parent', parentOf(s1), '建议', '希望能增加一些工程方向的实习或项目机会推荐。', 4, 'pending');
+
+  // ════════════════════════════════════════════
+  //  补全更多沟通记录
+  // ════════════════════════════════════════════
+  const commInsert = (sid2, staffId, parentId, channel, summary, actions, date) => {
+    db.run("INSERT INTO communication_logs VALUES (?,?,?,?,?,?,?,?,?)", [
+      uuid(), sid2, staffId, parentId, channel, summary, actions, date, now
+    ]);
+  };
+
+  commInsert(sA, cId, parentOf(sA), '面谈', '与陈美琳及父亲面谈牛津面试准备事项，讨论模拟面试安排。家长非常配合，已确认12月面试日期。', '安排3次模拟面试', '2025-11-10 14:00:00');
+  commInsert(sA, mId, null, '微信', '与陈美琳讨论A2化学有机合成部分的备考重点，建议多做past paper。', '化学有机合成重点练习', '2026-03-15 16:00:00');
+
+  commInsert(sB, cId, parentOf(sB), '面谈', '与刘浩然及父母面谈MIT被拒后的策略调整。建议保持UCLA申请质量，NYU已有Offer作为保底。', '优化UCLA Supplement', '2025-01-20 10:00:00');
+  commInsert(sB, mId, null, '微信', '刘浩然A2复习进展：数学和CS稳定，物理需要加强力学部分。', '每周增加2小时物理复习', '2026-03-10 11:00:00');
+
+  commInsert(sC, cId, parentOf(sC), '电话', '与王雅欣父亲通话，讨论G11阶段的规划路径。建议暑假参加经济学夏校或研究项目。', '暑假调研LSE夏校', '2025-04-20 15:00:00');
+
+  commInsert(sD, cId, parentOf(sD), '微信', '赵天宇确认巴斯大学为Firm Choice，华威为Insurance。奖学金申请已提交。', '等待奖学金结果', '2026-03-20 09:30:00');
+
+  commInsert(sE, cId, parentOf(sE), '面谈', '与林佳怡及母亲讨论NUS面试准备。建议重点准备Why NUS和商科案例分析。', '面试模拟安排', '2026-03-05 14:00:00');
+  commInsert(sE, mId, null, '微信', '林佳怡雅思写作辅导进展，当前6.5，目标7.0。建议每周写2篇Task 2。', '每周2篇雅思写作练习', '2026-03-18 10:00:00');
+
+  // ════════════════════════════════════════════
+  //  补全选科 (所有缺选科的学生)
+  // ════════════════════════════════════════════
+  const enroll = (sid2, subId, level, board) => {
+    if (!sid2 || !subId) return;
+    const exists = db.get("SELECT se.id FROM subject_enrollments se WHERE se.student_id=? AND se.subject_id=?", [sid2, subId]);
+    if (!exists) db.run("INSERT INTO subject_enrollments VALUES (?,?,?,?,?,?)", [uuid(), sid2, subId, level, board, now]);
+  };
+
+  // 陈美琳 CIE (医学: Math, Bio, Chem)
+  enroll(sA, MATH, 'A2', 'CIE'); enroll(sA, BIO, 'A2', 'CIE'); enroll(sA, CHEM, 'A2', 'CIE');
+
+  // 刘浩然 CIE (CS: Math, CS, Phys)
+  enroll(sB, MATH, 'A2', 'CIE'); enroll(sB, CS, 'A2', 'CIE'); enroll(sB, PHYS, 'A2', 'CIE');
+
+  // 王雅欣 CIE G11 (经济: Math, Econ, Hist)
+  enroll(sC, MATH, 'AS', 'CIE'); enroll(sC, ECON, 'AS', 'CIE'); enroll(sC, HIST, 'AS', 'CIE');
+
+  // 赵天宇 Edexcel (商科: Math, Econ)
+  enroll(sD, MATH, 'A2', 'Edexcel'); enroll(sD, ECON, 'A2', 'Edexcel');
+
+  // 林佳怡 CIE (商科: Math, Econ, Bio)
+  enroll(sE, MATH, 'A2', 'CIE'); enroll(sE, ECON, 'A2', 'CIE'); enroll(sE, BIO, 'A2', 'CIE');
+
+  // 张三 Edexcel (工程: Math, Phys, Chem — 已有但可能缺)
+  if (s1) { enroll(s1, MATH, 'A2', 'Edexcel'); enroll(s1, PHYS, 'A2', 'Edexcel'); enroll(s1, CHEM, 'A2', 'Edexcel'); }
+
+  // 李四 CIE (心理学方向)
+  if (s2) {
+    const PSYCH = db.get("SELECT id FROM subjects WHERE code='PSYCH'")?.id;
+    enroll(s2, MATH, 'AS', 'CIE');
+    enroll(s2, ENG, 'AS', 'CIE');
+    if (PSYCH) enroll(s2, PSYCH, 'AS', 'CIE');
+    else if (BIO) enroll(s2, BIO, 'AS', 'CIE');
+  }
+
+  // 王五 (数学/统计方向)
+  if (s3) {
+    enroll(s3, MATH, 'A2', 'CIE');
+    enroll(s3, PHYS, 'A2', 'CIE');
+    enroll(s3, CS, 'AS', 'CIE');
+  }
+
+  console.log('✅ 已补全所有学生的缺失数据');
+}
+
+module.exports = { seedDemo, enrichExistingStudents };
 
 // 独立运行支持
 if (require.main === module) {
   const db = require('./db');
   db.init().then(() => {
     seedDemo(db);
+    enrichExistingStudents(db);
     db.save();
     console.log('✅ 演示数据插入完成');
     process.exit(0);

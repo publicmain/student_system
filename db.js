@@ -2550,7 +2550,15 @@ function seedData() {
 
   // 检查是否已有数据
   const existing = get('SELECT COUNT(*) as cnt FROM users');
-  if (existing && existing.cnt > 0) return;
+  if (existing && existing.cnt > 0) {
+    // 已有数据 → 只补全演示数据
+    try {
+      const demo = require('./seed-demo');
+      demo.seedDemo({ run, get, all, save });
+      demo.enrichExistingStudents({ run, get, all, save });
+    } catch(e) { console.error('[DB] seed-demo error:', e.message); }
+    save(); return;
+  }
 
   const now = new Date().toISOString();
 
@@ -3032,8 +3040,12 @@ function seedData() {
     console.log(`[DB] Cleaned up junk staff: ${s.id}`);
   }
 
-  // ── 演示用学生数据（苏瑶 + 林子轩）──────────────────────
-  try { require('./seed-demo').seedDemo({ run, get, all, save }); } catch(e) { console.error('[DB] seed-demo error:', e.message); }
+  // ── 演示用学生数据（苏瑶 + 林子轩 + 补全已有学生）────────
+  try {
+    const demo = require('./seed-demo');
+    demo.seedDemo({ run, get, all, save });
+    demo.enrichExistingStudents({ run, get, all, save });
+  } catch(e) { console.error('[DB] seed-demo error:', e.message); }
 
   // 确保所有 seedData 写入的数据持久化到磁盘
   save();

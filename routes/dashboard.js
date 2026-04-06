@@ -22,7 +22,63 @@ module.exports = function({ db, requireAuth, requireRole }) {
     // 按梯度统计
     const tierStats = db.all(`SELECT tier, COUNT(*) as cnt FROM target_uni_lists GROUP BY tier`);
 
-    res.json({ totalStudents, totalApplications, pendingTasks, overdueTasks, totalStaff, pendingMaterials, tierStats });
+    // ── 新增统计维度 ──
+    const offerStatuses = "('offer','conditional_offer','conditional','unconditional','firm','enrolled')";
+
+    // Offer 数 & 录取率
+    const totalOffers = db.get(`SELECT COUNT(*) as cnt FROM applications WHERE status IN ${offerStatuses}`).cnt;
+    const appliedCount = db.get(`SELECT COUNT(*) as cnt FROM applications WHERE status NOT IN ('pending','draft')`).cnt;
+    const acceptanceRate = appliedCount > 0 ? Math.round(totalOffers / appliedCount * 1000) / 10 : 0;
+
+    // 文书完成率
+    const essayTotal = db.get('SELECT COUNT(*) as cnt FROM essays').cnt;
+    const essayDone = db.get(`SELECT COUNT(*) as cnt FROM essays WHERE status IN ('final','submitted')`).cnt;
+    const essayRate = essayTotal > 0 ? Math.round(essayDone / essayTotal * 100) : 0;
+
+    // 年级分布
+    const gradeDistribution = db.all(`SELECT grade_level, COUNT(*) as cnt FROM students WHERE status='active' GROUP BY grade_level ORDER BY grade_level DESC`);
+
+    // 最新 Offer 动态 (最近10条)
+    const recentOffers = db.all(`
+      SELECT a.id, a.uni_name, a.department, a.status, a.updated_at,
+        s.name as student_name, s.grade_level
+      FROM applications a
+      JOIN students s ON s.id = a.student_id
+      WHERE a.status IN ${offerStatuses}
+      ORDER BY a.updated_at DESC
+      LIMIT 10
+    `);
+
+    // 按梯度的申请结果分析 (申请数 vs 录取数)
+    const tierResults = db.all(`
+      SELECT
+        COALESCE(tul.tier, '未分类') as tier,
+        COUNT(*) as applied,
+        COUNT(CASE WHEN a.status IN ${offerStatuses} THEN 1 END) as offered
+      FROM applications a
+      LEFT JOIN target_uni_lists tul ON tul.student_id = a.student_id AND tul.uni_name = a.uni_name
+      GROUP BY tier
+      ORDER BY applied DESC
+    `);
+
+    // 文书进度（按学生）
+    const essayProgress = db.all(`
+      SELECT s.id, s.name, s.grade_level,
+        COUNT(e.id) as total,
+        COUNT(CASE WHEN e.status IN ('final','submitted') THEN 1 END) as completed
+      FROM students s
+      LEFT JOIN essays e ON e.student_id = s.id
+      WHERE s.status='active'
+      GROUP BY s.id
+      HAVING total > 0
+      ORDER BY (CAST(completed AS REAL) / total) ASC
+    `);
+
+    res.json({
+      totalStudents, totalApplications, pendingTasks, overdueTasks, totalStaff, pendingMaterials, tierStats,
+      totalOffers, acceptanceRate, essayRate, essayTotal, essayDone,
+      gradeDistribution, recentOffers, tierResults, essayProgress
+    });
   });
 
   router.get('/risks', requireRole('principal','counselor'), (req, res) => {
@@ -30,14 +86,20 @@ module.exports = function({ db, requireAuth, requireRole }) {
     const scopeMy = u.role === 'counselor';
     const risks = db.all(`
       SELECT s.id, s.name, s.grade_level, s.exam_board,
-        COUNT(CASE WHEN mt.status NOT IN ('done') AND mt.due_date < date('now') THEN 1 END) as overdue_count
+        COUNT(CASE WHEN mt.status NOT IN ('done') AND mt.due_date < date('now') THEN 1 END) as overdue_count,
+        (SELECT COUNT(*) FROM essays e2 WHERE e2.student_id=s.id) as essay_total,
+        (SELECT COUNT(*) FROM essays e3 WHERE e3.student_id=s.id AND e3.status IN ('final','submitted')) as essay_done,
+        (SELECT MAX(c.created_at) FROM communication_logs c WHERE c.student_id=s.id) as last_comm_date,
+        (SELECT COUNT(*) FROM feedback f WHERE f.student_id=s.id AND f.status='pending') as pending_feedback
       FROM students s
       LEFT JOIN milestone_tasks mt ON mt.student_id = s.id
       WHERE s.status='active'
         ${scopeMy ? 'AND s.id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=? AND end_date IS NULL)' : ''}
       GROUP BY s.id
       HAVING overdue_count > 0
-      ORDER BY overdue_count DESC
+        OR last_comm_date IS NULL OR last_comm_date < datetime('now','-14 days')
+        OR pending_feedback > 0
+      ORDER BY overdue_count DESC, pending_feedback DESC
       LIMIT 10
     `, scopeMy ? [u.linked_id] : []);
     res.json(risks);

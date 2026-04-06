@@ -103,11 +103,7 @@ async function renderPrincipalDashboard() {
 
     const tierMap = {};
     (stats.tierStats || []).forEach(t => tierMap[t.tier] = t.cnt);
-
-    const warnStaff = workload.filter(w => {
-      const pct = w.capacity_students > 0 ? Math.round(w.current_students/w.capacity_students*100) : 0;
-      return pct >= 70;
-    });
+    const roleLabels = { counselor:'规划师', mentor:'导师', principal:'校长' };
 
     mc.innerHTML = `
     <div class="page-header">
@@ -118,145 +114,258 @@ async function renderPrincipalDashboard() {
       </div>
     </div>
 
-    <!-- KPI 指标条 -->
+    <!-- ═══ KPI 指标条 (6列) ═══ -->
     <div class="row g-3 mb-4">
-      <div class="col-6 col-md-3">
+      <div class="col-6 col-md-2">
         <div class="stat-card accent-primary" onclick="navigate('students')" style="cursor:pointer">
           <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
           <div class="stat-value">${stats.totalStudents}</div>
           <div class="stat-label">在读学生</div>
         </div>
       </div>
-      <div class="col-6 col-md-3">
-        <div class="stat-card accent-success">
-          <div class="stat-icon"><i class="bi bi-file-earmark-check-fill"></i></div>
+      <div class="col-6 col-md-2">
+        <div class="stat-card accent-info">
+          <div class="stat-icon"><i class="bi bi-send-fill"></i></div>
           <div class="stat-value">${stats.totalApplications}</div>
           <div class="stat-label">总申请数</div>
         </div>
       </div>
-      <div class="col-6 col-md-3">
+      <div class="col-6 col-md-2">
+        <div class="stat-card accent-success">
+          <div class="stat-icon"><i class="bi bi-trophy-fill"></i></div>
+          <div class="stat-value">${stats.totalOffers || 0}</div>
+          <div class="stat-label">Offer 数</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="stat-card accent-warning">
+          <div class="stat-icon"><i class="bi bi-percent"></i></div>
+          <div class="stat-value">${stats.acceptanceRate || 0}<span style="font-size:.75rem">%</span></div>
+          <div class="stat-label">录取率</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
         <div class="stat-card ${stats.overdueTasks>0?'accent-danger':'accent-success'}">
           <div class="stat-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
           <div class="stat-value" style="${stats.overdueTasks>0?'color:var(--danger)':''}">${stats.overdueTasks}</div>
           <div class="stat-label">逾期任务</div>
         </div>
       </div>
-      <div class="col-6 col-md-3">
-        <div class="stat-card accent-info">
-          <div class="stat-icon"><i class="bi bi-folder-check"></i></div>
-          <div class="stat-value">${stats.pendingMaterials}</div>
-          <div class="stat-label">待处理材料</div>
+      <div class="col-6 col-md-2">
+        <div class="stat-card accent-primary">
+          <div class="stat-icon"><i class="bi bi-journal-check"></i></div>
+          <div class="stat-value">${stats.essayRate || 0}<span style="font-size:.75rem">%</span></div>
+          <div class="stat-label">文书完成率</div>
         </div>
       </div>
     </div>
 
-    ${ccStats ? `
-    <!-- 申请指挥中心快捷入口 -->
-    <div class="row g-3 mb-4">
-      <div class="col-12">
-        <div class="card">
-          <div class="card-body py-3 d-flex justify-content-between align-items-center">
-            <div class="d-flex align-items-center gap-2">
-              <i class="bi bi-rocket-takeoff-fill text-primary fs-5"></i>
-              <span class="fw-semibold">申请指挥中心</span>
-              <span class="badge badge-soft-primary ms-1">${ccStats.total || 0} 个申请</span>
-              ${(ccStats.offers || 0) > 0 ? `<span class="badge badge-soft-success">${ccStats.offers} 个Offer</span>` : ''}
-              ${(ccStats.atRisk || 0) > 0 ? `<span class="badge badge-soft-danger">${ccStats.atRisk} 个风险</span>` : ''}
-            </div>
-            <a href="#" onclick="event.preventDefault();navigate('command-center')" class="btn btn-sm btn-outline-primary">进入指挥中心 <i class="bi bi-chevron-right"></i></a>
-          </div>
+    <!-- ═══ Offer 动态 ═══ -->
+    ${(stats.recentOffers || []).length > 0 ? `
+    <div class="card mb-4">
+      <div class="card-header fw-semibold py-2 d-flex justify-content-between align-items-center" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7)">
+        <span><i class="bi bi-stars me-1 text-success"></i>最新 Offer 动态</span>
+        <span class="badge bg-success">${stats.totalOffers} 个 Offer</span>
+      </div>
+      <div class="card-body p-0">
+        <div style="display:flex;overflow-x:auto;gap:.75rem;padding:.75rem 1rem">
+          ${(stats.recentOffers || []).slice(0,6).map(o => {
+            const stMap = {offer:'Offer',conditional_offer:'Con. Offer',conditional:'Conditional',unconditional:'Unconditional',firm:'Firm',enrolled:'已入学'};
+            return `<div style="min-width:220px;border:1px solid var(--border);border-radius:8px;padding:.75rem;flex-shrink:0;background:var(--bg-primary)">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <div class="avatar-sm" style="background:var(--success);color:#fff">${escapeHtml((o.student_name||'?').charAt(0))}</div>
+                <div>
+                  <div class="small fw-bold">${escapeHtml(o.student_name)}</div>
+                  <div style="font-size:.65rem" class="text-muted">${escapeHtml(o.grade_level||'')}</div>
+                </div>
+              </div>
+              <div class="small fw-semibold mb-1"><i class="bi bi-building me-1 text-primary"></i>${escapeHtml(o.uni_name)}</div>
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="small text-muted">${escapeHtml(o.department||'')}</span>
+                <span class="badge bg-success" style="font-size:.6rem">${stMap[o.status]||o.status}</span>
+              </div>
+              <div class="text-muted mt-1" style="font-size:.6rem">${fmtDate(o.updated_at)}</div>
+            </div>`;
+          }).join('')}
         </div>
       </div>
     </div>` : ''}
 
+    ${ccStats ? `
+    <!-- 申请指挥中心快捷入口 -->
+    <div class="card mb-4">
+      <div class="card-body py-3 d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-rocket-takeoff-fill text-primary fs-5"></i>
+          <span class="fw-semibold">申请指挥中心</span>
+          <span class="badge badge-soft-primary ms-1">${ccStats.total || 0} 个申请</span>
+          ${(ccStats.offers || 0) > 0 ? `<span class="badge badge-soft-success">${ccStats.offers} 个Offer</span>` : ''}
+          ${(ccStats.atRisk || 0) > 0 ? `<span class="badge badge-soft-danger">${ccStats.atRisk} 个风险</span>` : ''}
+        </div>
+        <a href="#" onclick="event.preventDefault();navigate('command-center')" class="btn btn-sm btn-outline-primary">进入指挥中心 <i class="bi bi-chevron-right"></i></a>
+      </div>
+    </div>` : ''}
+
+    <!-- ═══ 申请结果 + 需要关注 ═══ -->
     <div class="row g-3 mb-4">
-      <!-- 梯度分布 -->
-      <div class="col-md-4">
+      <!-- 申请结果分析（按梯度） -->
+      <div class="col-md-5">
         <div class="card h-100">
-          <div class="card-header fw-semibold"><i class="bi bi-bar-chart-fill me-1 text-primary"></i> 院校梯度分布</div>
-          <div class="card-body">
-            ${(() => {
-              const gradients = {'冲刺':'progress-bar-gradient-red','意向':'progress-bar-gradient-blue','保底':'progress-bar-gradient-green'};
-              const maxCnt = Math.max(...['冲刺','意向','保底'].map(t => tierMap[t]||0), 1);
-              return ['冲刺','意向','保底'].map(tier => {
+          <div class="card-header fw-semibold py-2"><i class="bi bi-bar-chart-fill me-1 text-primary"></i>申请结果分析</div>
+          <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+              <thead class="table-light"><tr><th>梯度</th><th>申请</th><th>录取</th><th>录取率</th><th></th></tr></thead>
+              <tbody>
+                ${(stats.tierResults || []).map(t => {
+                  const rate = t.applied > 0 ? Math.round(t.offered / t.applied * 100) : 0;
+                  const barColor = t.tier === '冲刺' ? 'danger' : t.tier === '意向' ? 'primary' : t.tier === '保底' ? 'success' : 'secondary';
+                  return `<tr>
+                    <td class="small fw-semibold">${escapeHtml(t.tier)}</td>
+                    <td class="small">${t.applied}</td>
+                    <td class="small fw-bold text-success">${t.offered}</td>
+                    <td class="small">${rate}%</td>
+                    <td style="width:80px"><div class="progress" style="height:6px;border-radius:999px"><div class="progress-bar bg-${barColor}" style="width:${rate}%;border-radius:999px"></div></div></td>
+                  </tr>`;
+                }).join('')}
+                ${(stats.tierResults || []).length === 0 ? '<tr><td colspan="5" class="text-center text-muted small py-3">暂无申请数据</td></tr>' : ''}
+              </tbody>
+            </table>
+            <!-- 梯度目标分布 -->
+            <div class="px-3 py-2 border-top bg-light">
+              <div class="small text-muted fw-semibold mb-2">目标院校梯度分布</div>
+              ${['冲刺','意向','保底'].map(tier => {
                 const cnt = tierMap[tier] || 0;
+                const maxCnt = Math.max(...['冲刺','意向','保底'].map(t => tierMap[t]||0), 1);
                 const pct = Math.round(cnt / maxCnt * 100);
-                return `<div class="mb-3">
-                  <div class="d-flex justify-content-between mb-1">
-                    <span class="small fw-semibold">${tier}</span><span class="fw-bold">${cnt}</span>
-                  </div>
-                  <div class="progress" style="height:8px;border-radius:999px">
-                    <div class="progress-bar ${gradients[tier]}" style="width:${pct}%;border-radius:999px"></div>
-                  </div>
-                </div>`;
-              }).join('');
-            })()}
+                const gradients = {'冲刺':'progress-bar-gradient-red','意向':'progress-bar-gradient-blue','保底':'progress-bar-gradient-green'};
+                return `<div class="mb-2"><div class="d-flex justify-content-between mb-1"><span style="font-size:.75rem" class="fw-semibold">${tier}</span><span style="font-size:.75rem" class="fw-bold">${cnt}</span></div><div class="progress" style="height:6px;border-radius:999px"><div class="progress-bar ${gradients[tier]}" style="width:${pct}%;border-radius:999px"></div></div></div>`;
+              }).join('')}
+            </div>
           </div>
         </div>
       </div>
-      <!-- 需要关注 -->
-      <div class="col-md-8">
+
+      <!-- 需要关注（多维预警） -->
+      <div class="col-md-7">
         <div class="card h-100">
-          <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-exclamation-triangle me-1 text-warning"></i> 需要关注</span>
+          <div class="card-header fw-semibold py-2 d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-exclamation-triangle me-1 text-warning"></i>需要关注</span>
             <a href="#" onclick="event.preventDefault();navigate('students')" class="small text-primary text-decoration-none">查看全部学生 →</a>
           </div>
           <div class="card-body p-0">
             ${risks.length === 0
-              ? '<div class="empty-state-block" style="padding:2rem"><i class="bi bi-check-circle" style="color:var(--success)"></i><p>所有学生任务均按时推进</p></div>'
+              ? '<div class="text-center text-muted py-4"><i class="bi bi-check-circle text-success me-1"></i>所有学生状态良好</div>'
               : `<ul class="attention-list">
-                ${risks.slice(0,5).map(r => `<li>
-                  <div>
-                    <div class="att-name">${escapeHtml(r.name)} <span class="badge badge-soft-secondary ms-1">${escapeHtml(r.grade_level)}</span></div>
-                    <div class="att-desc"><span class="badge badge-soft-danger">${r.overdue_count} 项逾期</span></div>
-                  </div>
-                  <div class="att-action">
-                    <button class="action-icon-btn" title="查看" onclick="navigate('student-detail',{studentId:'${r.id}'})"><i class="bi bi-chevron-right"></i></button>
-                  </div>
-                </li>`).join('')}
+                ${risks.slice(0,6).map(r => {
+                  const tags = [];
+                  if (r.overdue_count > 0) tags.push(`<span class="badge badge-soft-danger">${r.overdue_count} 项逾期</span>`);
+                  if (r.essay_total > 0 && r.essay_done < r.essay_total) {
+                    const epct = Math.round(r.essay_done/r.essay_total*100);
+                    tags.push(`<span class="badge badge-soft-${epct < 30 ? 'danger' : 'warning'}">文书 ${epct}%</span>`);
+                  }
+                  if (r.pending_feedback > 0) tags.push(`<span class="badge badge-soft-info">${r.pending_feedback} 条反馈</span>`);
+                  if (r.last_comm_date && r.last_comm_date < new Date(Date.now()-14*86400000).toISOString()) {
+                    tags.push(`<span class="badge badge-soft-secondary">14天+无沟通</span>`);
+                  } else if (!r.last_comm_date) {
+                    tags.push(`<span class="badge badge-soft-secondary">从未沟通</span>`);
+                  }
+                  return `<li>
+                    <div>
+                      <div class="att-name">${escapeHtml(r.name)} <span class="badge badge-soft-secondary ms-1">${escapeHtml(r.grade_level||'')}</span></div>
+                      <div class="att-desc d-flex flex-wrap gap-1">${tags.join('')}</div>
+                    </div>
+                    <div class="att-action">
+                      <button class="action-icon-btn" title="查看" onclick="navigate('student-detail',{studentId:'${r.id}'})"><i class="bi bi-chevron-right"></i></button>
+                    </div>
+                  </li>`;
+                }).join('')}
               </ul>`}
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 师资负载 -->
-    <div class="card">
-      <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-person-fill-gear me-1 text-muted"></i> 师资负载</span>
-        <a href="#" onclick="event.preventDefault();navigate('staff')" class="small text-primary text-decoration-none">查看全部师资 →</a>
+    <!-- ═══ 年级分布 + 师资负载 ═══ -->
+    <div class="row g-3 mb-4">
+      <!-- 年级分布 -->
+      <div class="col-md-3">
+        <div class="card h-100">
+          <div class="card-header fw-semibold py-2"><i class="bi bi-diagram-3 me-1 text-info"></i>年级分布</div>
+          <div class="card-body">
+            ${(stats.gradeDistribution || []).length === 0
+              ? '<div class="text-center text-muted small py-2">暂无数据</div>'
+              : (() => {
+                  const maxG = Math.max(...(stats.gradeDistribution||[]).map(g=>g.cnt), 1);
+                  return (stats.gradeDistribution||[]).map(g => {
+                    const pct = Math.round(g.cnt / maxG * 100);
+                    return `<div class="mb-2">
+                      <div class="d-flex justify-content-between mb-1"><span class="small fw-semibold">${escapeHtml(g.grade_level)}</span><span class="small fw-bold">${g.cnt}</span></div>
+                      <div class="progress" style="height:6px;border-radius:999px"><div class="progress-bar progress-bar-gradient-blue" style="width:${pct}%;border-radius:999px"></div></div>
+                    </div>`;
+                  }).join('');
+                })()}
+          </div>
+        </div>
       </div>
+
+      <!-- 师资负载 (全局) -->
+      <div class="col-md-9">
+        <div class="card h-100">
+          <div class="card-header fw-semibold py-2 d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-person-fill-gear me-1 text-muted"></i>师资负载</span>
+            <a href="#" onclick="event.preventDefault();navigate('staff')" class="small text-primary text-decoration-none">查看全部师资 →</a>
+          </div>
+          <div class="card-body p-0">
+            ${workload.length === 0
+              ? '<div class="text-center text-muted py-3 small">暂无教师数据</div>'
+              : `<div class="table-responsive"><table class="table table-sm table-hover mb-0">
+                  <thead class="table-light"><tr><th>姓名</th><th>角色</th><th>学生数</th><th>容量</th><th colspan="2">负载</th></tr></thead>
+                  <tbody>
+                    ${workload.map(w => {
+                      const pct = w.capacity_students > 0 ? Math.round(w.current_students/w.capacity_students*100) : 0;
+                      const cls = pct >= 90 ? 'danger' : pct >= 70 ? 'warning' : pct >= 40 ? 'primary' : 'success';
+                      const barGrad = cls === 'danger' ? 'progress-bar-gradient-red' : cls === 'warning' ? 'progress-bar-gradient-yellow' : cls === 'primary' ? 'progress-bar-gradient-blue' : 'progress-bar-gradient-green';
+                      return `<tr>
+                        <td class="fw-semibold small">${escapeHtml(w.name)}</td>
+                        <td><span class="badge badge-soft-${w.role==='counselor'?'success':w.role==='mentor'?'info':'primary'}" style="font-size:.65rem">${roleLabels[w.role]||w.role}</span></td>
+                        <td class="small">${w.current_students}</td>
+                        <td class="small">${w.capacity_students||'—'}</td>
+                        <td style="width:100px"><div class="progress" style="height:6px;border-radius:999px"><div class="progress-bar ${barGrad}" style="width:${Math.min(pct,100)}%;border-radius:999px"></div></div></td>
+                        <td class="small text-${cls} fw-semibold" style="width:45px">${pct}%</td>
+                      </tr>`;
+                    }).join('')}
+                  </tbody>
+                </table></div>`}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 文书进度（按学生） ═══ -->
+    ${(stats.essayProgress || []).length > 0 ? `
+    <div class="card mb-4">
+      <div class="card-header fw-semibold py-2"><i class="bi bi-journal-text me-1 text-primary"></i>文书完成进度 <span class="badge badge-soft-primary ms-1">${stats.essayDone||0}/${stats.essayTotal||0} 篇完成</span></div>
       <div class="card-body p-0">
-        ${warnStaff.length === 0
-          ? `<div class="d-flex align-items-center justify-content-center py-3 gap-2 text-muted" style="font-size:.85rem">
-              <i class="bi bi-check-circle text-success"></i> 暂无过载教师
-            </div>`
-          : `<div class="table-responsive">
-            <table class="table table-sm table-hover mb-0">
-              <thead class="table-light"><tr><th>姓名</th><th>角色</th><th>学生数</th><th>容量</th><th>负载</th></tr></thead>
-              <tbody>
-                ${warnStaff.map(w => {
-                  const pct = w.capacity_students > 0 ? Math.round(w.current_students/w.capacity_students*100) : 0;
-                  const cls = pct >= 90 ? 'danger' : 'warning';
-                  const barGrad = cls === 'danger' ? 'progress-bar-gradient-red' : 'progress-bar-gradient-yellow';
-                  return `<tr>
-                    <td class="fw-semibold">${escapeHtml(w.name)}</td>
-                    <td><span class="badge badge-soft-${w.role==='counselor'?'success':w.role==='mentor'?'info':'primary'}">${escapeHtml(w.role)}</span></td>
-                    <td>${w.current_students}</td>
-                    <td>${w.capacity_students||'—'}</td>
-                    <td>
-                      <div class="progress" style="height:6px;min-width:80px;border-radius:999px">
-                        <div class="progress-bar ${barGrad}" style="width:${pct}%;border-radius:999px"></div>
-                      </div>
-                      <small class="text-${cls} fw-semibold">${pct}%</small>
-                    </td>
-                  </tr>`;
-                }).join('')}
-              </tbody>
-            </table>
-          </div>`}
+        <div class="table-responsive"><table class="table table-sm table-hover mb-0">
+          <thead class="table-light"><tr><th>学生</th><th>年级</th><th>完成</th><th colspan="2">进度</th></tr></thead>
+          <tbody>
+            ${(stats.essayProgress || []).map(ep => {
+              const pct = ep.total > 0 ? Math.round(ep.completed / ep.total * 100) : 0;
+              const cls = pct >= 80 ? 'success' : pct >= 40 ? 'primary' : 'danger';
+              const barGrad = pct >= 80 ? 'progress-bar-gradient-green' : pct >= 40 ? 'progress-bar-gradient-blue' : 'progress-bar-gradient-red';
+              return `<tr style="cursor:pointer" onclick="navigate('student-detail',{studentId:'${ep.id}'})">
+                <td class="fw-semibold small">${escapeHtml(ep.name)}</td>
+                <td class="small text-muted">${escapeHtml(ep.grade_level||'')}</td>
+                <td class="small">${ep.completed}/${ep.total}</td>
+                <td style="width:120px"><div class="progress" style="height:6px;border-radius:999px"><div class="progress-bar ${barGrad}" style="width:${pct}%;border-radius:999px"></div></div></td>
+                <td class="small text-${cls} fw-semibold" style="width:45px">${pct}%</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table></div>
       </div>
-    </div>`;
+    </div>` : ''}
+    `;
   } catch (e) {
     mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
   }

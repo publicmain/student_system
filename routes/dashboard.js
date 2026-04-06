@@ -22,57 +22,58 @@ module.exports = function({ db, requireAuth, requireRole }) {
     // 按梯度统计
     const tierStats = db.all(`SELECT tier, COUNT(*) as cnt FROM target_uni_lists GROUP BY tier`);
 
-    // ── 新增统计维度 ──
-    const offerStatuses = "('offer','conditional_offer','conditional','unconditional','firm','enrolled')";
+    // ── 新增统计维度（安全包裹，避免单条查询失败导致整个接口 500）──
+    let totalOffers = 0, acceptanceRate = 0, essayRate = 0, essayTotal = 0, essayDone = 0;
+    let gradeDistribution = [], recentOffers = [], tierResults = [], essayProgress = [];
 
-    // Offer 数 & 录取率
-    const totalOffers = db.get(`SELECT COUNT(*) as cnt FROM applications WHERE status IN ${offerStatuses}`).cnt;
-    const appliedCount = db.get(`SELECT COUNT(*) as cnt FROM applications WHERE status NOT IN ('pending','draft')`).cnt;
-    const acceptanceRate = appliedCount > 0 ? Math.round(totalOffers / appliedCount * 1000) / 10 : 0;
+    try {
+      const offerStatuses = "('offer','conditional_offer','conditional','unconditional','firm','enrolled')";
 
-    // 文书完成率
-    const essayTotal = db.get('SELECT COUNT(*) as cnt FROM essays').cnt;
-    const essayDone = db.get(`SELECT COUNT(*) as cnt FROM essays WHERE status IN ('final','submitted')`).cnt;
-    const essayRate = essayTotal > 0 ? Math.round(essayDone / essayTotal * 100) : 0;
+      totalOffers = (db.get(`SELECT COUNT(*) as cnt FROM applications WHERE status IN ${offerStatuses}`) || {}).cnt || 0;
+      const appliedCount = (db.get(`SELECT COUNT(*) as cnt FROM applications WHERE status NOT IN ('pending','draft')`) || {}).cnt || 0;
+      acceptanceRate = appliedCount > 0 ? Math.round(totalOffers / appliedCount * 1000) / 10 : 0;
 
-    // 年级分布
-    const gradeDistribution = db.all(`SELECT grade_level, COUNT(*) as cnt FROM students WHERE status='active' GROUP BY grade_level ORDER BY grade_level DESC`);
+      essayTotal = (db.get('SELECT COUNT(*) as cnt FROM essays') || {}).cnt || 0;
+      essayDone = (db.get(`SELECT COUNT(*) as cnt FROM essays WHERE status IN ('final','submitted')`) || {}).cnt || 0;
+      essayRate = essayTotal > 0 ? Math.round(essayDone / essayTotal * 100) : 0;
 
-    // 最新 Offer 动态 (最近10条)
-    const recentOffers = db.all(`
-      SELECT a.id, a.uni_name, a.department, a.status, a.updated_at,
-        s.name as student_name, s.grade_level
-      FROM applications a
-      JOIN students s ON s.id = a.student_id
-      WHERE a.status IN ${offerStatuses}
-      ORDER BY a.updated_at DESC
-      LIMIT 10
-    `);
+      gradeDistribution = db.all(`SELECT grade_level, COUNT(*) as cnt FROM students WHERE status='active' GROUP BY grade_level ORDER BY grade_level DESC`) || [];
 
-    // 按梯度的申请结果分析 (申请数 vs 录取数)
-    const tierResults = db.all(`
-      SELECT
-        COALESCE(tul.tier, '未分类') as tier,
-        COUNT(*) as applied,
-        COUNT(CASE WHEN a.status IN ${offerStatuses} THEN 1 END) as offered
-      FROM applications a
-      LEFT JOIN target_uni_lists tul ON tul.student_id = a.student_id AND tul.uni_name = a.uni_name
-      GROUP BY tier
-      ORDER BY applied DESC
-    `);
+      recentOffers = db.all(`
+        SELECT a.id, a.uni_name, a.department, a.status, a.updated_at,
+          s.name as student_name, s.grade_level
+        FROM applications a
+        JOIN students s ON s.id = a.student_id
+        WHERE a.status IN ${offerStatuses}
+        ORDER BY a.updated_at DESC
+        LIMIT 10
+      `) || [];
 
-    // 文书进度（按学生）
-    const essayProgress = db.all(`
-      SELECT s.id, s.name, s.grade_level,
-        COUNT(e.id) as total,
-        COUNT(CASE WHEN e.status IN ('final','submitted') THEN 1 END) as completed
-      FROM students s
-      LEFT JOIN essays e ON e.student_id = s.id
-      WHERE s.status='active'
-      GROUP BY s.id
-      HAVING total > 0
-      ORDER BY (CAST(completed AS REAL) / total) ASC
-    `);
+      tierResults = db.all(`
+        SELECT
+          COALESCE(tul.tier, '未分类') as tier,
+          COUNT(*) as applied,
+          COUNT(CASE WHEN a.status IN ${offerStatuses} THEN 1 END) as offered
+        FROM applications a
+        LEFT JOIN target_uni_lists tul ON tul.student_id = a.student_id AND tul.uni_name = a.uni_name
+        GROUP BY tier
+        ORDER BY applied DESC
+      `) || [];
+
+      essayProgress = db.all(`
+        SELECT s.id, s.name, s.grade_level,
+          COUNT(e.id) as total,
+          COUNT(CASE WHEN e.status IN ('final','submitted') THEN 1 END) as completed
+        FROM students s
+        LEFT JOIN essays e ON e.student_id = s.id
+        WHERE s.status='active'
+        GROUP BY s.id
+        HAVING total > 0
+        ORDER BY (CAST(completed AS REAL) / total) ASC
+      `) || [];
+    } catch(e) {
+      console.error('[dashboard] extended stats error:', e.message);
+    }
 
     res.json({
       totalStudents, totalApplications, pendingTasks, overdueTasks, totalStaff, pendingMaterials, tierStats,

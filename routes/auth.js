@@ -23,7 +23,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, loginAttempts, pwdCh
       const wait = Math.ceil((record.resetAt - now) / 1000);
       return res.status(429).json({ error: `登录尝试过于频繁，请 ${wait} 秒后再试` });
     }
-    const user = db.get('SELECT * FROM users WHERE username=?', [username]);
+    const user = db.get("SELECT *, COALESCE(status,'active') as status FROM users WHERE username=?", [username]);
     if (user && user.status === 'disabled') {
       return res.status(403).json({ error: '该账号已被停用，请联系管理员' });
     }

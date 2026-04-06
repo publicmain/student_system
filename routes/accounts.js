@@ -113,9 +113,6 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, bcrypt,
     // Don't allow disabling own account
     if (user.id === req.session.user.id) return res.status(400).json({ error: '不能停用自己的账号' });
 
-    // Add status column if not exists (migration)
-    try { db.run('ALTER TABLE users ADD COLUMN status TEXT DEFAULT "active"'); } catch(e) { /* already exists */ }
-
     db.run('UPDATE users SET status=? WHERE id=?', [status, user.id]);
 
     // If disabling, destroy all their sessions
@@ -152,13 +149,13 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, bcrypt,
   });
 
   // ── GET /api/accounts/student/:studentId — 查询学生的账号状态 ──
-  router.get('/accounts/student/:studentId', requireAuth, (req, res) => {
+  router.get('/accounts/student/:studentId', requireRole('principal','counselor','intake_staff'), (req, res) => {
     const user = db.get('SELECT id, username, created_at, COALESCE(status,"active") as status FROM users WHERE linked_id=? AND role="student"', [req.params.studentId]);
     res.json(user || null);
   });
 
   // ── GET /api/accounts/parent/:parentId — 查询家长的账号状态 ──
-  router.get('/accounts/parent/:parentId', requireAuth, (req, res) => {
+  router.get('/accounts/parent/:parentId', requireRole('principal','counselor','intake_staff'), (req, res) => {
     const user = db.get('SELECT id, username, created_at, COALESCE(status,"active") as status FROM users WHERE linked_id=? AND role="parent"', [req.params.parentId]);
     res.json(user || null);
   });

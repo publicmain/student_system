@@ -1575,7 +1575,7 @@ async function loadOverviewAwards(studentId) {
   }
 }
 
-// ═══ 账号管理卡片 ═���═
+// ═══ 账号管理卡片 ═══
 async function loadAccountCards(studentId, parents) {
   const el = document.getElementById('account-cards-container');
   if (!el) return;
@@ -1591,12 +1591,12 @@ async function loadAccountCards(studentId, parents) {
     let html = '';
     // Student account
     html += `<div style="font-size:.78rem;padding:.3rem 0">`;
-    html += `<div style="font-weight:600"><i class="bi bi-mortarboard me-1"></i>学���账号</div>`;
+    html += `<div style="font-weight:600"><i class="bi bi-mortarboard me-1"></i>学生账号</div>`;
     if (stuAccount) {
       html += `<div style="display:flex;align-items:center;gap:.4rem;margin-top:.2rem">
         <span class="badge ${stuAccount.status === 'active' ? 'bg-success' : 'bg-danger'}" style="font-size:.65rem">${stuAccount.status === 'active' ? '正常' : '已停用'}</span>
         <code style="font-size:.72rem;background:var(--bg-secondary);padding:.1rem .3rem;border-radius:3px">${escapeHtml(stuAccount.username)}</code>
-        <button class="stu-sb-btn" title="重���密码" onclick="resetAccountPassword('${stuAccount.id}','学生','${studentId}')"><i class="bi bi-key" style="font-size:.7rem"></i></button>
+        <button class="stu-sb-btn" title="重置密码" onclick="resetAccountPassword('${stuAccount.id}','学生','${studentId}')"><i class="bi bi-key" style="font-size:.7rem"></i></button>
       </div>`;
     } else {
       html += `<button class="btn btn-outline-primary btn-sm mt-1" style="font-size:.72rem;padding:.15rem .5rem" onclick="createStudentAccount('${studentId}')"><i class="bi bi-plus-circle me-1"></i>创建账号</button>`;

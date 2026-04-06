@@ -15,7 +15,6 @@ const SQLiteSessionStore = require('./session-store');
 const { sendMail } = require('./mailer');
 const archiver = require('archiver');
 const xlsx = require('xlsx');
-const crypto = require('crypto');
 let aiPlanner = null, aiEval = null;
 try { aiPlanner = require('./ai-planner'); } catch(e) { console.warn('[警告] ai-planner 模块加载失败:', e.message); }
 try { aiEval    = require('./ai-eval');    } catch(e) { console.warn('[警告] ai-eval 模块加载失败:',    e.message); }
@@ -118,14 +117,15 @@ const upload = multer({
 
 // ── 安全响应头 ────────────────────────────────────────
 app.use((_req, res, next) => {
-  const nonce = crypto.randomBytes(16).toString('base64');
-  res.locals.cspNonce = nonce;
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Note: 'unsafe-inline' needed for script-src because the vanilla JS SPA
+  // uses onclick/onchange inline event handlers extensively (~8000 lines).
+  // Migrating to addEventListener would be required to use nonce-only CSP.
   res.setHeader('Content-Security-Policy',
-    `default-src 'self'; script-src 'self' 'nonce-${nonce}' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; font-src 'self' cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self' cdn.jsdelivr.net`);
+    `default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; font-src 'self' cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self' cdn.jsdelivr.net`);
   next();
 });
 
@@ -142,14 +142,6 @@ app.get('/react/index.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/react/index.html'));
 });
 
-// Serve index.html with CSP nonce injected into inline scripts
-app.get(['/', '/index.html'], (req, res) => {
-  const fs = require('fs');
-  const html = fs.readFileSync(path.join(__dirname, 'public/index.html'), 'utf8');
-  const nonce = res.locals.cspNonce;
-  const patched = html.replace(/<script>/g, `<script nonce="${nonce}">`);
-  res.type('html').send(patched);
-});
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── 输入消毒：剥离所有请求体字符串中的 HTML 标签 ──

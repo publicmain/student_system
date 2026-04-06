@@ -584,6 +584,12 @@ db.init().then(() => {
     if (demoMigrated) console.log('✅ 演示学生数据创建完成');
   } catch(e) { console.error('[migration] 演示学生创建失败:', e.message); }
 
+  // 磁盘清理（每次启动时运行）
+  try {
+    const runCleanup = require('./cleanup-disk');
+    runCleanup(db);
+  } catch(e) { console.error('[cleanup] 磁盘清理失败:', e.message); }
+
   // 仅在非生产环境创建演示账号
   if (!IS_PROD) {
     _ensureAgentDemoAccount();

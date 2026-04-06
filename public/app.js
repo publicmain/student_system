@@ -555,112 +555,313 @@ async function renderCounselorDashboard() {
   }
 }
 
-
 // ════════════════════════════════════════════════════════
-//  导师工作台
+//  导师工作台（仪表台风格）
 // ════════════════════════════════════════════════════════
 async function renderMentorWorkbench() {
   const mc = document.getElementById('main-content');
   mc.innerHTML = `<div class="page-loading"><div class="spinner-border text-primary"></div></div>`;
+
   try {
-    const students = await GET('/api/students');
+    const d = await GET('/api/dashboard/mentor-overview');
+
+    // 任务按日期分组
+    const today = new Date().toISOString().substring(0, 10);
+    const groupByDate = (list) => {
+      const map = {};
+      (list || []).forEach(t => {
+        const k = t.due_date ? t.due_date.substring(0, 10) : '无期限';
+        if (!map[k]) map[k] = [];
+        map[k].push(t);
+      });
+      return map;
+    };
+    const weekByDate = groupByDate(d.weekTaskList);
+
+    const dateLabel = (dt) => {
+      if (!dt || dt === '无期限') return '无期限';
+      if (dt === today) return '今天';
+      const diff = Math.round((new Date(dt) - new Date(today)) / 86400000);
+      if (diff === 1) return '明天';
+      if (diff === 2) return '后天';
+      return dt;
+    };
+
+    const commAgo = (dateStr) => {
+      if (!dateStr) return '<span class="text-danger fw-semibold">从未沟通</span>';
+      const days = Math.round((Date.now() - new Date(dateStr).getTime()) / 86400000);
+      if (days <= 3) return `<span class="text-success">${days}天前</span>`;
+      if (days <= 7) return `<span class="text-muted">${days}天前</span>`;
+      if (days <= 14) return `<span class="text-warning fw-semibold">${days}天前</span>`;
+      return `<span class="text-danger fw-semibold">${days}天前</span>`;
+    };
+
+    const essayStatusMap = { draft:'草稿', review:'待审阅', revision:'修改中', final:'终稿', submitted:'已提交' };
+    const essayStatusColor = { draft:'secondary', review:'warning', revision:'info', final:'success', submitted:'primary' };
+    const commTypeMap = { meeting:'面谈', call:'电话', email:'邮件', wechat:'微信', other:'其他' };
+
     mc.innerHTML = `
     <div class="page-header">
       <h4><i class="bi bi-person-check-fill me-2"></i>导师工作台</h4>
+      <div class="page-header-actions">
+        <small class="text-muted">${new Date().toLocaleString('zh-CN', {year:'numeric',month:'long',day:'numeric',weekday:'long'})}</small>
+      </div>
     </div>
-    ${students.length === 0 ? '<div class="empty-state-block"><i class="bi bi-person-check"></i><p>暂无分配的学生</p></div>' : `
-    <div class="md-layout" style="height:calc(100vh - 140px)">
-      <div class="md-list">
-        <div class="md-list-header">
-          <input class="form-control form-control-sm" id="mentor-search" placeholder="搜索学生..." oninput="window._mentorFilter(this.value)">
-        </div>
-        <div class="md-list-body" id="mentor-student-list">
-          ${students.map(s => `
-          <div class="md-item" onclick="selectMentorStudent('${s.id}',this)" data-sid="${s.id}">
-            <div class="d-flex justify-content-between align-items-center">
-              <span class="md-item-name">${escapeHtml(s.name)}</span>
-              ${s.overdue_count > 0 ? `<span class="badge badge-soft-danger" style="font-size:10px">${s.overdue_count}逾期</span>` : '<span class="badge badge-soft-success" style="font-size:10px">正常</span>'}
-            </div>
-            <div class="md-item-sub">${escapeHtml(s.grade_level)} · ${escapeHtml(s.exam_board||'—')}${s.targets ? ` · ${escapeHtml(s.targets.substring(0,20))}` : ''}</div>
-          </div>`).join('')}
-        </div>
-      </div>
-      <div class="md-detail" id="mentor-detail">
-        <div class="md-empty-detail">
-          <i class="bi bi-person-check" style="font-size:2.5rem;opacity:.3"></i>
-          <p class="text-muted mt-2">选择左侧学生查看学业计划</p>
-        </div>
-      </div>
-    </div>`}`;
 
-    window._mentorFilter = (search) => {
-      const items = document.querySelectorAll('#mentor-student-list .md-item');
-      items.forEach(el => {
-        const name = el.querySelector('.md-item-name')?.textContent || '';
-        el.style.display = !search || name.includes(search) ? '' : 'none';
-      });
-    };
-  } catch(e) {
+    <!-- KPI 卡片 -->
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-md-2">
+        <div class="stat-card accent-primary" onclick="navigate('students')" style="cursor:pointer">
+          <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
+          <div class="stat-value">${d.myStudents}</div>
+          <div class="stat-label">我的学生</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="stat-card ${d.todayTasks>0?'accent-warning':'accent-success'}">
+          <div class="stat-icon"><i class="bi bi-calendar-day-fill"></i></div>
+          <div class="stat-value">${d.todayTasks}</div>
+          <div class="stat-label">今日待办</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="stat-card ${d.overdueTasks>0?'accent-danger':'accent-success'}">
+          <div class="stat-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+          <div class="stat-value" style="${d.overdueTasks>0?'color:var(--danger)':''}">${d.overdueTasks}</div>
+          <div class="stat-label">逾期任务</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="stat-card ${d.pendingEssays>0?'accent-info':'accent-success'}">
+          <div class="stat-icon"><i class="bi bi-journal-text"></i></div>
+          <div class="stat-value">${d.pendingEssays}</div>
+          <div class="stat-label">待批文书</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="stat-card ${d.pendingFeedback>0?'accent-warning':'accent-success'}">
+          <div class="stat-icon"><i class="bi bi-chat-dots-fill"></i></div>
+          <div class="stat-value">${d.pendingFeedback}</div>
+          <div class="stat-label">待回复反馈</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="stat-card ${d.noCommStudents>0?'accent-danger':'accent-success'}">
+          <div class="stat-icon"><i class="bi bi-telephone-x-fill"></i></div>
+          <div class="stat-value" style="${d.noCommStudents>0?'color:var(--danger)':''}">${d.noCommStudents}</div>
+          <div class="stat-label">7天未沟通</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 中部：任务时间线 + 学生速览 -->
+    <div class="row g-3 mb-4">
+      <!-- 左：任务时间线 -->
+      <div class="col-lg-5">
+        <div class="card h-100">
+          <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-list-check me-1 text-primary"></i>任务时间线</span>
+            <span class="badge badge-soft-primary">${(d.overdueTaskList?.length||0)+(d.todayTaskList?.length||0)+(d.weekTaskList?.length||0)} 项</span>
+          </div>
+          <div class="card-body p-0" style="max-height:520px;overflow-y:auto">
+            ${d.overdueTaskList?.length === 0 && d.todayTaskList?.length === 0 && d.weekTaskList?.length === 0
+              ? '<div class="empty-state-block" style="padding:2rem"><i class="bi bi-calendar-check" style="color:var(--success)"></i><p>暂无待办任务</p></div>'
+              : `
+              ${d.overdueTaskList?.length > 0 ? `
+                <div class="px-3 py-2 bg-danger bg-opacity-10 border-bottom">
+                  <small class="fw-bold text-danger"><i class="bi bi-exclamation-circle-fill me-1"></i>已逾期</small>
+                </div>
+                ${d.overdueTaskList.map(t => _mentorTaskRow(t, 'danger')).join('')}
+              ` : ''}
+              ${d.todayTaskList?.length > 0 ? `
+                <div class="px-3 py-2 bg-warning bg-opacity-10 border-bottom">
+                  <small class="fw-bold text-warning"><i class="bi bi-star-fill me-1"></i>今天</small>
+                </div>
+                ${d.todayTaskList.map(t => _mentorTaskRow(t, 'warning')).join('')}
+              ` : ''}
+              ${Object.entries(weekByDate).map(([date, tasks]) => `
+                <div class="px-3 py-2 bg-light border-bottom">
+                  <small class="fw-bold text-muted"><i class="bi bi-calendar3 me-1"></i>${escapeHtml(dateLabel(date))}</small>
+                </div>
+                ${tasks.map(t => _mentorTaskRow(t, '')).join('')}
+              `).join('')}
+            `}
+          </div>
+        </div>
+      </div>
+
+      <!-- 右：学生状态速览 -->
+      <div class="col-lg-7">
+        <div class="card h-100">
+          <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-people me-1 text-info"></i>学生状态速览</span>
+            <a href="#" onclick="event.preventDefault();navigate('students')" class="small text-primary text-decoration-none">全部学生 →</a>
+          </div>
+          <div class="card-body p-0" style="max-height:520px;overflow-y:auto">
+            ${(d.studentCards || []).length === 0
+              ? '<div class="empty-state-block" style="padding:2rem"><i class="bi bi-people"></i><p>暂无分配的学生</p></div>'
+              : `<div class="p-3"><div class="row g-2">${(d.studentCards||[]).map(s => {
+                const essayPct = s.essay_total > 0 ? Math.round(s.essay_done / s.essay_total * 100) : -1;
+                const essayBarClass = essayPct >= 80 ? 'bg-success' : essayPct >= 50 ? 'bg-info' : 'bg-warning';
+                const hasIssue = s.overdue_count > 0 || s.pending_fb > 0 || !s.last_comm_date || new Date(s.last_comm_date) < new Date(Date.now() - 7*86400000);
+                return `<div class="col-md-6 col-xl-4">
+                  <div class="card border ${hasIssue ? 'border-warning' : ''}" style="cursor:pointer" onclick="navigate('student-detail',{studentId:'${s.id}'})">
+                    <div class="card-body py-2 px-3">
+                      <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="fw-bold small">${escapeHtml(s.name)}</span>
+                        <div class="d-flex gap-1">
+                          <span class="badge badge-soft-secondary" style="font-size:10px">${escapeHtml(s.grade_level)}</span>
+                          ${s.overdue_count > 0 ? `<span class="badge badge-soft-danger" style="font-size:10px">${s.overdue_count}逾期</span>` : ''}
+                          ${s.today_count > 0 ? `<span class="badge badge-soft-warning" style="font-size:10px">${s.today_count}今日</span>` : ''}
+                        </div>
+                      </div>
+                      ${s.subjects_summary ? `<div class="mb-1" style="font-size:11px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(s.subjects_summary)}">${escapeHtml(s.subjects_summary.replace(/｜/g,' · '))}</div>` : '<div class="mb-1" style="font-size:11px;color:#94a3b8">暂无选科</div>'}
+                      ${essayPct >= 0 ? `<div class="d-flex align-items-center gap-2 mb-1">
+                        <span style="font-size:11px;color:#64748b;white-space:nowrap">文书</span>
+                        <div class="progress flex-grow-1" style="height:5px;border-radius:99px"><div class="progress-bar ${essayBarClass}" style="width:${essayPct}%;border-radius:99px"></div></div>
+                        <span style="font-size:11px;font-weight:600">${s.essay_done}/${s.essay_total}</span>
+                      </div>` : ''}
+                      <div class="d-flex justify-content-between" style="font-size:11px">
+                        <span>沟通: ${commAgo(s.last_comm_date)}</span>
+                        ${s.pending_fb > 0 ? `<span class="text-warning fw-semibold">${s.pending_fb}条反馈</span>` : ''}
+                      </div>
+                    </div>
+                  </div>
+                </div>`;
+              }).join('')}</div></div>`}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 下部：文书跟踪 + 沟通记录 -->
+    <div class="row g-3 mb-4">
+      <!-- 左：文书跟踪 -->
+      <div class="col-lg-7">
+        <div class="card">
+          <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-journal-text me-1 text-warning"></i>文书跟踪</span>
+            <span class="badge badge-soft-warning">${d.essayTracker?.length||0} 篇</span>
+          </div>
+          <div class="card-body p-0" style="max-height:380px;overflow-y:auto">
+            ${(d.essayTracker || []).length === 0
+              ? '<div class="d-flex align-items-center justify-content-center py-4 gap-2 text-muted"><i class="bi bi-journal-check text-success"></i> 暂无文书记录</div>'
+              : `<div class="table-responsive"><table class="table table-sm table-hover mb-0">
+                <thead class="table-light"><tr><th>学生</th><th>文书标题</th><th>状态</th><th>最后更新</th><th></th></tr></thead>
+                <tbody>
+                  ${d.essayTracker.map(e => `<tr${e.status==='review'?' class="table-warning"':''}>
+                    <td class="small fw-semibold">${escapeHtml(e.student_name)}</td>
+                    <td class="small text-truncate" style="max-width:200px">${escapeHtml(e.title||'未命名')}</td>
+                    <td><span class="badge bg-${essayStatusColor[e.status]||'secondary'}" style="font-size:10px">${essayStatusMap[e.status]||e.status}</span></td>
+                    <td class="small text-muted">${fmtDate(e.updated_at)}</td>
+                    <td><button class="action-icon-btn" title="查看" onclick="navigate('student-detail',{studentId:'${e.student_id}'})"><i class="bi bi-chevron-right"></i></button></td>
+                  </tr>`).join('')}
+                </tbody>
+              </table></div>`}
+          </div>
+        </div>
+      </div>
+
+      <!-- 右：最近沟通 + 快捷添加 -->
+      <div class="col-lg-5">
+        <div class="card">
+          <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-chat-left-text me-1 text-success"></i>沟通记录</span>
+            <button class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:12px" onclick="toggleMentorCommForm()"><i class="bi bi-plus me-1"></i>快速记录</button>
+          </div>
+          <!-- 快速添加沟通表单 -->
+          <div class="card-body border-bottom py-2 hidden" id="mentorQuickCommForm">
+            <div class="row g-2">
+              <div class="col-6">
+                <select class="form-select form-select-sm" id="mqc_student">
+                  <option value="">选择学生</option>
+                  ${(d.studentCards||[]).map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}
+                </select>
+              </div>
+              <div class="col-6">
+                <select class="form-select form-select-sm" id="mqc_type">
+                  <option value="meeting">面谈</option><option value="call">电话</option>
+                  <option value="wechat">微信</option><option value="email">邮件</option><option value="other">其他</option>
+                </select>
+              </div>
+              <div class="col-12">
+                <textarea class="form-control form-control-sm" id="mqc_summary" rows="2" placeholder="简要记录沟通内容..."></textarea>
+              </div>
+              <div class="col-12 text-end">
+                <button class="btn btn-success btn-sm" onclick="submitMentorQuickComm()">保存</button>
+              </div>
+            </div>
+          </div>
+          <div class="card-body p-0" style="max-height:300px;overflow-y:auto">
+            ${(d.recentComms || []).length === 0
+              ? '<div class="d-flex align-items-center justify-content-center py-4 gap-2 text-muted"><i class="bi bi-chat-left"></i> 暂无沟通记录</div>'
+              : d.recentComms.map(c => `<div class="px-3 py-2 border-bottom">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="small fw-semibold">${escapeHtml(c.student_name)}</span>
+                  <div class="d-flex gap-1 align-items-center">
+                    <span class="badge bg-light text-dark border" style="font-size:10px">${commTypeMap[c.type]||c.type||'—'}</span>
+                    <small class="text-muted">${fmtDate(c.created_at)}</small>
+                  </div>
+                </div>
+                <div class="small text-muted mt-1" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c.summary||'(无摘要)')}</div>
+              </div>`).join('')}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  } catch (e) {
     mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
   }
 }
 
-async function selectMentorStudent(id, el) {
-  document.querySelectorAll('#mentor-student-list .md-item').forEach(i => i.classList.remove('active'));
-  if (el) el.classList.add('active');
-  const panel = document.getElementById('mentor-detail');
-  panel.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
-  try {
-    const [detail, tasks] = await Promise.all([
-      GET(`/api/students/${id}`),
-      GET(`/api/students/${id}/tasks`),
-    ]);
-    const s = detail.student;
-    const pending = tasks.filter(t => t.status !== 'done');
-    const overdue = pending.filter(t => isOverdue(t.due_date, t.status));
-    panel.innerHTML = `
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-          <h5 class="mb-0 fw-bold">${escapeHtml(s.name)} <span class="badge badge-soft-secondary ms-1">${escapeHtml(s.grade_level)}</span></h5>
-          <small class="text-muted">${escapeHtml(s.exam_board||'—')}${s.targets ? ` · 目标: ${escapeHtml((s.targets||'').substring(0,40))}` : ''}</small>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="navigate('student-detail',{studentId:'${id}'})"><i class="bi bi-box-arrow-up-right me-1"></i>完整档案</button>
-      </div>
-      <div class="row g-2 mb-3">
-        <div class="col-4"><div class="stat-card accent-primary" style="padding:.75rem 1rem .75rem 1.25rem"><div class="stat-value" style="font-size:1.5rem">${pending.length}</div><div class="stat-label">待办</div></div></div>
-        <div class="col-4"><div class="stat-card ${overdue.length>0?'accent-danger':'accent-success'}" style="padding:.75rem 1rem .75rem 1.25rem"><div class="stat-value" style="font-size:1.5rem;${overdue.length>0?'color:var(--danger)':''}">${overdue.length}</div><div class="stat-label">逾期</div></div></div>
-        <div class="col-4"><div class="stat-card accent-info" style="padding:.75rem 1rem .75rem 1.25rem"><div class="stat-value" style="font-size:1.5rem">${detail.applications.length}</div><div class="stat-label">申请</div></div></div>
-      </div>
-      <!-- 选科 -->
-      <div class="card mb-3"><div class="card-header fw-semibold small py-2"><i class="bi bi-book me-1 text-info"></i>选修科目</div><div class="card-body py-2">${detail.subjects.length === 0
-        ? '<div class="text-muted small">暂无选科记录</div>'
-        : `<div class="d-flex flex-wrap gap-1">${detail.subjects.map(sub=>`<span class="badge bg-light text-dark border">${escapeHtml(sub.code||sub.subject_name||'—')}${sub.predicted_grade?` <span class="text-info">${escapeHtml(sub.predicted_grade)}</span>`:''}</span>`).join('')}</div>`}</div></div>
-      <!-- 待办任务 -->
-      <div class="card mb-3">
-        <div class="card-header fw-semibold small py-2 d-flex justify-content-between align-items-center">
-          <span><i class="bi bi-list-check me-1 text-warning"></i>待办任务</span>
-          <button class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size:11px" onclick="openTaskModal('${id}')"><i class="bi bi-plus"></i></button>
-        </div>
-        <div class="card-body p-0" style="max-height:300px;overflow-y:auto">
-          ${pending.length === 0 ? '<div class="text-center text-muted small py-3"><i class="bi bi-check-circle text-success me-1"></i>所有任务已完成</div>' :
-          pending.slice(0,10).map(t => {
-            const od = isOverdue(t.due_date, t.status);
-            return `<div class="border-bottom px-3 py-2 d-flex justify-content-between align-items-center">
-              <div style="min-width:0"><div class="small ${od?'text-danger fw-bold':''} text-truncate">${escapeHtml(t.title)}</div><small class="text-muted">${fmtDate(t.due_date)||'无期限'}</small></div>
-              ${od ? '<span class="badge badge-soft-danger" style="font-size:10px">逾期</span>' : `<span class="badge badge-soft-secondary" style="font-size:10px">${escapeHtml(t.status)}</span>`}
-            </div>`;
-          }).join('')}
-        </div>
-      </div>
-      <!-- 目标院校 -->
-      <div class="card"><div class="card-header fw-semibold small py-2"><i class="bi bi-mortarboard me-1 text-primary"></i>目标院校</div><div class="card-body p-0">${detail.targets.length === 0
-        ? '<div class="text-muted small px-3 py-2">暂无目标院校</div>'
-        : `<table class="table table-sm mb-0"><tbody>${detail.targets.map(t=>`<tr><td class="small fw-semibold">${escapeHtml(t.uni_name)}</td><td class="small text-muted">${escapeHtml(t.department||'—')}</td><td>${tierBadge(t.tier)}</td></tr>`).join('')}</tbody></table>`}</div></div>
-    `;
-  } catch(e) {
-    panel.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
-  }
+// 导师任务行渲染
+function _mentorTaskRow(t, urgency) {
+  const bgClass = urgency === 'danger' ? 'bg-danger bg-opacity-10' : '';
+  const statusBtns = `<div class="d-flex gap-1">
+    ${t.status === 'pending' ? `<button class="btn btn-outline-primary py-0 px-1" style="font-size:11px" onclick="event.stopPropagation();mentorUpdateTask('${t.id}','in_progress')" title="开始"><i class="bi bi-play-fill"></i></button>` : ''}
+    <button class="btn btn-outline-success py-0 px-1" style="font-size:11px" onclick="event.stopPropagation();mentorUpdateTask('${t.id}','done')" title="完成"><i class="bi bi-check-lg"></i></button>
+  </div>`;
+  return `<div class="px-3 py-2 border-bottom d-flex justify-content-between align-items-center ${bgClass}" style="cursor:pointer" onclick="navigate('student-detail',{studentId:'${t.student_id}'})">
+    <div style="min-width:0;flex:1">
+      <div class="small fw-semibold text-truncate ${urgency==='danger'?'text-danger':''}">${escapeHtml(t.title)}</div>
+      <small class="text-muted">${escapeHtml(t.student_name)} · ${t.due_date ? t.due_date.substring(0,10) : '无期限'}</small>
+    </div>
+    <div class="d-flex align-items-center gap-2 ms-2">
+      <span class="badge badge-soft-${t.status === 'in_progress' ? 'primary' : 'secondary'}" style="font-size:10px">${t.status === 'in_progress' ? '进行中' : '待开始'}</span>
+      ${statusBtns}
+    </div>
+  </div>`;
 }
+
+// 导师快速操作：更新任务状态
+async function mentorUpdateTask(taskId, status) {
+  try {
+    await api('PUT', '/api/tasks/' + taskId, { status });
+    showToast(status === 'done' ? '任务已完成' : '已标记进行中', 'success');
+    renderMentorWorkbench();
+  } catch (e) { showToast('操作失败: ' + e.message, 'danger'); }
+}
+
+// 切换快速沟通表单
+function toggleMentorCommForm() {
+  const form = document.getElementById('mentorQuickCommForm');
+  if (form) form.classList.toggle('hidden');
+}
+
+// 提交快速沟通
+async function submitMentorQuickComm() {
+  const studentId = document.getElementById('mqc_student')?.value;
+  const type = document.getElementById('mqc_type')?.value;
+  const summary = document.getElementById('mqc_summary')?.value?.trim();
+  if (!studentId) { showToast('请选择学生', 'warning'); return; }
+  if (!summary) { showToast('请输入沟通内容', 'warning'); return; }
+  try {
+    await api('POST', `/api/students/${studentId}/communications`, { type, summary });
+    showToast('沟通记录已保存', 'success');
+    renderMentorWorkbench();
+  } catch (e) { showToast('保存失败: ' + e.message, 'danger'); }
+}
+
 
 // ════════════════════════════════════════════════════════
 //  学生门户

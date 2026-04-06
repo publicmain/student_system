@@ -211,5 +211,154 @@ module.exports = function({ db, requireAuth, requireRole }) {
     });
   });
 
+  // ── 导师专属：我的工作台 ──────────────────────────────
+  router.get('/mentor-overview', requireRole('mentor'), (req, res) => {
+    const staffId = req.session.user.linked_id;
+    if (!staffId) return res.status(400).json({ error: '未关联员工账号' });
+
+    const myStudentIds = db.all(
+      'SELECT student_id FROM mentor_assignments WHERE staff_id=? AND end_date IS NULL', [staffId]
+    ).map(r => r.student_id);
+
+    if (myStudentIds.length === 0) {
+      return res.json({
+        myStudents: 0, todayTasks: 0, overdueTasks: 0,
+        pendingEssays: 0, pendingFeedback: 0, noCommStudents: 0,
+        todayTaskList: [], weekTaskList: [], overdueTaskList: [],
+        studentCards: [], essayTracker: [], recentComms: []
+      });
+    }
+
+    const ph = myStudentIds.map(() => '?').join(',');
+
+    try {
+      // ── KPI ──
+      const myStudents = myStudentIds.length;
+
+      const todayTasks = (db.get(
+        `SELECT COUNT(*) as cnt FROM milestone_tasks
+         WHERE student_id IN (${ph}) AND status NOT IN ('done') AND due_date = date('now')`,
+        myStudentIds
+      ) || {}).cnt || 0;
+
+      const overdueTasks = (db.get(
+        `SELECT COUNT(*) as cnt FROM milestone_tasks
+         WHERE student_id IN (${ph}) AND status NOT IN ('done') AND due_date < date('now')`,
+        myStudentIds
+      ) || {}).cnt || 0;
+
+      const pendingEssays = (db.get(
+        `SELECT COUNT(*) as cnt FROM essays
+         WHERE student_id IN (${ph}) AND status IN ('draft','review')`,
+        myStudentIds
+      ) || {}).cnt || 0;
+
+      const pendingFeedback = (db.get(
+        `SELECT COUNT(*) as cnt FROM feedback
+         WHERE student_id IN (${ph}) AND status='pending'`,
+        myStudentIds
+      ) || {}).cnt || 0;
+
+      // 超过7天未沟通的学生数
+      const noCommStudents = (db.get(
+        `SELECT COUNT(*) as cnt FROM students s
+         WHERE s.id IN (${ph}) AND s.status='active'
+           AND (
+             (SELECT MAX(c.created_at) FROM communication_logs c WHERE c.student_id=s.id) IS NULL
+             OR (SELECT MAX(c.created_at) FROM communication_logs c WHERE c.student_id=s.id) < datetime('now','-7 days')
+           )`,
+        myStudentIds
+      ) || {}).cnt || 0;
+
+      // ── 逾期任务列表 ──
+      const overdueTaskList = db.all(
+        `SELECT mt.id, mt.title, mt.due_date, mt.status, mt.student_id, s.name as student_name
+         FROM milestone_tasks mt
+         JOIN students s ON s.id = mt.student_id
+         WHERE mt.student_id IN (${ph}) AND mt.status NOT IN ('done') AND mt.due_date < date('now')
+         ORDER BY mt.due_date ASC
+         LIMIT 20`,
+        myStudentIds
+      ) || [];
+
+      // ── 今日任务列表 ──
+      const todayTaskList = db.all(
+        `SELECT mt.id, mt.title, mt.due_date, mt.status, mt.student_id, s.name as student_name
+         FROM milestone_tasks mt
+         JOIN students s ON s.id = mt.student_id
+         WHERE mt.student_id IN (${ph}) AND mt.status NOT IN ('done') AND mt.due_date = date('now')
+         ORDER BY mt.due_date ASC`,
+        myStudentIds
+      ) || [];
+
+      // ── 本周任务列表（未来7天，不含今日和逾期） ──
+      const weekTaskList = db.all(
+        `SELECT mt.id, mt.title, mt.due_date, mt.status, mt.student_id, s.name as student_name
+         FROM milestone_tasks mt
+         JOIN students s ON s.id = mt.student_id
+         WHERE mt.student_id IN (${ph}) AND mt.status NOT IN ('done')
+           AND mt.due_date > date('now') AND mt.due_date <= date('now','+7 days')
+         ORDER BY mt.due_date ASC
+         LIMIT 30`,
+        myStudentIds
+      ) || [];
+
+      // ── 学生卡片速览 ──
+      const studentCards = db.all(
+        `SELECT s.id, s.name, s.grade_level, s.exam_board,
+           (SELECT GROUP_CONCAT(sub.subject_name || COALESCE(' '||sub.predicted_grade,''), '｜')
+            FROM student_subjects sub WHERE sub.student_id=s.id) as subjects_summary,
+           (SELECT COUNT(*) FROM essays e WHERE e.student_id=s.id) as essay_total,
+           (SELECT COUNT(*) FROM essays e WHERE e.student_id=s.id AND e.status IN ('final','submitted')) as essay_done,
+           COUNT(CASE WHEN mt.status NOT IN ('done') AND mt.due_date < date('now') THEN 1 END) as overdue_count,
+           (SELECT COUNT(*) FROM milestone_tasks mt2 WHERE mt2.student_id=s.id AND mt2.status NOT IN ('done') AND mt2.due_date = date('now')) as today_count,
+           (SELECT COUNT(*) FROM feedback f WHERE f.student_id=s.id AND f.status='pending') as pending_fb,
+           (SELECT MAX(c.created_at) FROM communication_logs c WHERE c.student_id=s.id) as last_comm_date
+         FROM students s
+         LEFT JOIN milestone_tasks mt ON mt.student_id = s.id
+         WHERE s.id IN (${ph}) AND s.status='active'
+         GROUP BY s.id
+         ORDER BY overdue_count DESC, today_count DESC`,
+        myStudentIds
+      ) || [];
+
+      // ── 文书跟踪 ──
+      const essayTracker = db.all(
+        `SELECT e.id, e.title, e.status, e.updated_at, e.student_id,
+           s.name as student_name, s.grade_level
+         FROM essays e
+         JOIN students s ON s.id = e.student_id
+         WHERE e.student_id IN (${ph})
+         ORDER BY
+           CASE e.status WHEN 'review' THEN 0 WHEN 'draft' THEN 1 WHEN 'final' THEN 2 WHEN 'submitted' THEN 3 ELSE 4 END,
+           e.updated_at DESC
+         LIMIT 30`,
+        myStudentIds
+      ) || [];
+
+      // ── 最近沟通记录 ──
+      const recentComms = db.all(
+        `SELECT cl.id, cl.student_id, cl.type, cl.summary, cl.created_at,
+           s.name as student_name
+         FROM communication_logs cl
+         JOIN students s ON s.id = cl.student_id
+         WHERE cl.student_id IN (${ph})
+         ORDER BY cl.created_at DESC
+         LIMIT 10`,
+        myStudentIds
+      ) || [];
+
+      res.json({
+        myStudents, todayTasks, overdueTasks,
+        pendingEssays, pendingFeedback, noCommStudents,
+        todayTaskList, weekTaskList, overdueTaskList,
+        studentCards, essayTracker, recentComms
+      });
+    } catch (e) {
+      console.error('[dashboard] mentor-overview error:', e.message);
+      res.status(500).json({ error: '加载失败: ' + e.message });
+    }
+  });
+
   return router;
 };

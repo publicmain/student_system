@@ -577,6 +577,13 @@ db.init().then(() => {
     if (migrated) console.log('✅ 学生数据迁移完成');
   } catch(e) { console.error('[migration] 学生迁移失败:', e.message); }
 
+  // 一次性迁移：创建10个详细演示学生
+  try {
+    const runDemoMigration = require('./migration-demo-students');
+    const demoMigrated = runDemoMigration(db, uuidv4);
+    if (demoMigrated) console.log('✅ 演示学生数据创建完成');
+  } catch(e) { console.error('[migration] 演示学生创建失败:', e.message); }
+
   // 仅在非生产环境创建演示账号
   if (!IS_PROD) {
     _ensureAgentDemoAccount();

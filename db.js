@@ -434,6 +434,18 @@ function createSchema() {
   // 学生：出生日期、来源代理
   tryAlter('ALTER TABLE students ADD COLUMN date_of_birth TEXT');
   tryAlter('ALTER TABLE students ADD COLUMN agent_id TEXT');
+  // 学生：结构化字段扩展（信息收集表单映射）
+  tryAlter('ALTER TABLE students ADD COLUMN gender TEXT');
+  tryAlter('ALTER TABLE students ADD COLUMN nationality TEXT');
+  tryAlter('ALTER TABLE students ADD COLUMN id_number TEXT');
+  tryAlter('ALTER TABLE students ADD COLUMN phone TEXT');
+  tryAlter('ALTER TABLE students ADD COLUMN email TEXT');
+  tryAlter('ALTER TABLE students ADD COLUMN wechat TEXT');
+  tryAlter('ALTER TABLE students ADD COLUMN address TEXT');
+  tryAlter('ALTER TABLE students ADD COLUMN current_school TEXT');
+  tryAlter('ALTER TABLE students ADD COLUMN target_countries TEXT');
+  tryAlter('ALTER TABLE students ADD COLUMN target_major TEXT');
+  tryAlter('ALTER TABLE students ADD COLUMN health_notes TEXT');
   // 任务：详细描述
   tryAlter('ALTER TABLE milestone_tasks ADD COLUMN description TEXT');
   // 里程碑任务：截止时间 + 时区

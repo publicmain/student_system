@@ -94,7 +94,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
       } catch(e) { console.error('fx send mail failed:', e.message); }
     }
     res.json({ ok: true, access_token: accessToken, upload_token: uploadToken, view_url: viewUrl, email_sent: emailSent });
-    } catch(e) { console.error('fx send error:', e.message); res.status(500).json({ error: '操作失败，请重试' }); }
+    } catch(e) { console.error('fx send error:', e.message, e.stack); res.status(500).json({ error: '发送失败：' + (e.message || '未知错误') }); }
   });
 
   // 关闭记录

@@ -24,6 +24,7 @@ export function BasicInfoCard({ id, span, onToggle, student }) {
       title="基本信息" icon={User} iconColor="text-brand-600"
     >
       <InfoRow label="姓名" value={student?.name} />
+      {student?.gender && <InfoRow label="性别" value={student.gender} />}
       <InfoRow label="年级" value={student?.grade_level} />
       <InfoRow label="考试局" value={student?.exam_board} />
       <InfoRow label="入学日期" value={student?.enrol_date?.slice(0, 10)} />
@@ -36,6 +37,15 @@ export function BasicInfoCard({ id, span, onToggle, student }) {
           </span>
         }
       />
+      {student?.nationality && <InfoRow label="国籍" value={student.nationality} />}
+      {student?.current_school && <InfoRow label="原就读学校" value={student.current_school} />}
+      {student?.phone && <InfoRow label="电话" value={student.phone} />}
+      {student?.email && <InfoRow label="邮箱" value={student.email} />}
+      {student?.wechat && <InfoRow label="微信" value={student.wechat} />}
+      {student?.address && <InfoRow label="地址" value={student.address} />}
+      {student?.target_countries && <InfoRow label="意向国家" value={student.target_countries} />}
+      {student?.target_major && <InfoRow label="意向专业" value={student.target_major} />}
+      {student?.health_notes && <InfoRow label="健康/特殊需求" value={student.health_notes} />}
       {student?.notes && <InfoRow label="备注" value={student.notes} />}
     </DraggableCard>
   )

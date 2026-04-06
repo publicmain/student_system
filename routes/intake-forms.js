@@ -151,7 +151,7 @@ module.exports = function ({ db, uuidv4, audit, requireAuth, requireRole }) {
     res.json(db.get('SELECT * FROM intake_form_submissions WHERE id=?', [sub.id]));
   });
 
-  // ── 一键导入为学生 ──
+  // ── 一键导入为学生（结构化映射） ──
   apiRouter.post('/intake-form-submissions/:subId/import', requireRole('principal', 'counselor'), (req, res) => {
     const sub = db.get('SELECT * FROM intake_form_submissions WHERE id=?', [req.params.subId]);
     if (!sub) return res.status(404).json({ error: '提交不存在' });
@@ -164,19 +164,49 @@ module.exports = function ({ db, uuidv4, audit, requireAuth, requireRole }) {
 
     const now = new Date().toISOString();
 
-    // 1. 创建学生
+    // ── 解析 JSON 数组字段（兼容旧版纯文本） ──
+    const parseJsonArray = (val) => {
+      if (!val) return [];
+      if (typeof val === 'object' && Array.isArray(val)) return val;
+      try { const arr = JSON.parse(val); return Array.isArray(arr) ? arr : []; } catch(e) { return []; }
+    };
+
+    // ── 1. 创建学生（结构化字段直接映射） ──
     const studentId = uuidv4();
-    db.run(`INSERT INTO students (id, name, grade_level, enrol_date, exam_board, date_of_birth, notes, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
-      [studentId, data.student_name || '未命名',
+    // target_countries: 可能是 JSON 数组字符串，存到 students 表
+    let targetCountries = data.target_countries || null;
+    if (targetCountries) {
+      try {
+        const arr = JSON.parse(targetCountries);
+        if (Array.isArray(arr)) targetCountries = arr.join('、');
+      } catch(e) { /* keep as-is text */ }
+    }
+
+    db.run(`INSERT INTO students (id, name, grade_level, enrol_date, exam_board, date_of_birth,
+              gender, nationality, id_number, phone, email, wechat, address, current_school,
+              target_countries, target_major, health_notes, notes, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
+      [studentId,
+       data.student_name || '未命名',
        data.grade_level || '其他',
        data.enrol_date || null,
        data.exam_board || null,
        data.date_of_birth || null,
-       buildStudentNotes(data),
+       data.gender || null,
+       data.nationality || null,
+       data.id_number || null,
+       data.student_phone || null,
+       data.student_email || null,
+       data.student_wechat || null,
+       data.address || null,
+       data.current_school || null,
+       targetCountries,
+       data.target_major || null,
+       data.health_notes || null,
+       data.extra_notes || null,   // notes 只存补充说明
        now, now]);
 
-    // 2. 创建家长（最多2个）
+    // ── 2. 创建家长（最多2个） ──
     const parentIds = [];
     for (let i = 1; i <= 2; i++) {
       const pName = data[`parent${i}_name`];
@@ -194,41 +224,70 @@ module.exports = function ({ db, uuidv4, audit, requireAuth, requireRole }) {
       parentIds.push(pid);
     }
 
-    // 3. 导入课外活动 → student_activities
-    if (data.hobbies && data.hobbies.trim()) {
-      const items = data.hobbies.split(/[，,、;；\n]+/).map(s => s.trim()).filter(Boolean);
-      items.forEach((item, idx) => {
-        db.run(`INSERT INTO student_activities (id, student_id, category, name, description, sort_order, created_at, updated_at)
-                VALUES (?, ?, '课外活动', ?, '信息收集表单填写', ?, ?, ?)`,
-          [uuidv4(), studentId, item, idx, now, now]);
-      });
-    }
+    // ── 3. 导入科目 → subjects + subject_enrollments + admission_assessments (predicted) ──
+    const subjects = parseJsonArray(data.subjects);
+    let subjectCount = 0;
+    subjects.forEach(subj => {
+      if (!subj.name) return;
+      // 查找或创建 subject
+      let subjectRow = db.get('SELECT id FROM subjects WHERE name=?', [subj.name]);
+      if (!subjectRow) {
+        const sid = uuidv4();
+        db.run('INSERT INTO subjects (id, code, name, category) VALUES (?, ?, ?, ?)',
+          [sid, subj.name.substring(0, 10).toUpperCase().replace(/\s/g, ''), subj.name, 'academic']);
+        subjectRow = { id: sid };
+      }
+      // 创建 enrollment
+      db.run('INSERT INTO subject_enrollments (id, student_id, subject_id, level, exam_board, enrolled_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [uuidv4(), studentId, subjectRow.id, subj.level || null, data.exam_board || null, now]);
+      // 预估成绩 → admission_assessments
+      if (subj.predicted_grade) {
+        db.run(`INSERT INTO admission_assessments (id, student_id, assess_date, assess_type, subject, score, notes, created_at)
+                VALUES (?, ?, ?, 'predicted', ?, ?, '信息收集表单-预估成绩', ?)`,
+          [uuidv4(), studentId, now.split('T')[0], subj.name, subj.predicted_grade, now]);
+      }
+      subjectCount++;
+    });
 
-    // 4. 导入学业信息 → communication_logs（作为初始信息记录）
-    const academicParts = [];
-    if (data.target_countries) academicParts.push(`意向留学国家/地区: ${data.target_countries}`);
-    if (data.target_major) academicParts.push(`意向专业方向: ${data.target_major}`);
-    if (data.enrol_date) academicParts.push(`预计入学时间: ${data.enrol_date}`);
-    if (data.current_subjects) academicParts.push(`目前在读科目:\n${data.current_subjects}`);
-    if (data.test_scores) academicParts.push(`标化考试成绩:\n${data.test_scores}`);
-    if (data.extra_notes) academicParts.push(`补充说明: ${data.extra_notes}`);
+    // ── 4. 导入标化成绩 → admission_assessments ──
+    const maxScoreMap = { IELTS: 9, TOEFL: 120, SAT: 1600, ACT: 36, AP: 5, Duolingo: 160, PTE: 90 };
+    const testScores = parseJsonArray(data.test_scores);
+    let testCount = 0;
+    testScores.forEach(ts => {
+      if (!ts.type || !ts.score) return;
+      // sub_scores → JSON if provided
+      let subScoresJson = null;
+      if (ts.sub_scores) {
+        // Parse "L8.0 R7.5 W6.5 S7.0" into JSON
+        const parts = ts.sub_scores.match(/[A-Za-z]+[\s]*[\d.]+/g);
+        if (parts && parts.length > 1) {
+          const obj = {};
+          parts.forEach(p => {
+            const m = p.match(/([A-Za-z]+)[\s]*([\d.]+)/);
+            if (m) obj[m[1].toUpperCase()] = parseFloat(m[2]);
+          });
+          subScoresJson = JSON.stringify(obj);
+        } else {
+          subScoresJson = ts.sub_scores;
+        }
+      }
+      db.run(`INSERT INTO admission_assessments (id, student_id, assess_date, assess_type, score, max_score, sub_scores, notes, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, '信息收集表单自动导入', ?)`,
+        [uuidv4(), studentId,
+         ts.test_date || now.split('T')[0],
+         ts.type,
+         parseFloat(ts.score) || 0,
+         maxScoreMap[ts.type] || null,
+         subScoresJson,
+         now]);
+      testCount++;
+    });
 
-    if (academicParts.length > 0) {
-      db.run(`INSERT INTO communication_logs (id, student_id, staff_id, channel, summary, comm_date, created_at)
-              VALUES (?, ?, ?, '信息收集表单', ?, ?, ?)`,
-        [uuidv4(), studentId, req.session.user.id,
-         '【学业与留学意向】\n' + academicParts.join('\n'),
-         now, now]);
-    }
-
-    // 5. 导入入学评估（标化成绩，如果有的话）
-    if (data.test_scores && data.test_scores.trim()) {
-      // 尝试解析常见格式: "雅思 6.5" "IELTS 7.0" "托福 100"
+    // 兼容旧版纯文本 test_scores（如果不是 JSON 数组）
+    if (testCount === 0 && data.test_scores && typeof data.test_scores === 'string' && !data.test_scores.startsWith('[')) {
       const scorePatterns = [
-        { pattern: /雅思\s*[:：]?\s*([\d.]+)/i, type: 'IELTS', max: 9 },
-        { pattern: /IELTS\s*[:：]?\s*([\d.]+)/i, type: 'IELTS', max: 9 },
-        { pattern: /托福\s*[:：]?\s*(\d+)/i, type: 'TOEFL', max: 120 },
-        { pattern: /TOEFL\s*[:：]?\s*(\d+)/i, type: 'TOEFL', max: 120 },
+        { pattern: /(?:雅思|IELTS)\s*[:：]?\s*([\d.]+)/i, type: 'IELTS', max: 9 },
+        { pattern: /(?:托福|TOEFL)\s*[:：]?\s*(\d+)/i, type: 'TOEFL', max: 120 },
         { pattern: /SAT\s*[:：]?\s*(\d+)/i, type: 'SAT', max: 1600 },
         { pattern: /ACT\s*[:：]?\s*(\d+)/i, type: 'ACT', max: 36 },
       ];
@@ -236,27 +295,71 @@ module.exports = function ({ db, uuidv4, audit, requireAuth, requireRole }) {
         const m = data.test_scores.match(pattern);
         if (m) {
           db.run(`INSERT INTO admission_assessments (id, student_id, assess_date, assess_type, score, max_score, notes, created_at)
-                  VALUES (?, ?, ?, ?, ?, ?, '信息收集表单自动导入', ?)`,
+                  VALUES (?, ?, ?, ?, ?, ?, '信息收集表单自动导入(文本解析)', ?)`,
             [uuidv4(), studentId, now.split('T')[0], type, parseFloat(m[1]), max, now]);
+          testCount++;
         }
       });
     }
 
-    // 6. 标记提交为已导入
+    // ── 5. 导入活动 → student_activities ──
+    const activities = parseJsonArray(data.activities);
+    let activityCount = 0;
+    activities.forEach((act, idx) => {
+      if (!act.name) return;
+      db.run(`INSERT INTO student_activities (id, student_id, category, name, role, description, sort_order, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, '信息收集表单', ?, ?, ?)`,
+        [uuidv4(), studentId, act.category || '其他', act.name, act.role || null, idx, now, now]);
+      activityCount++;
+    });
+
+    // 兼容旧版纯文本 hobbies
+    if (activityCount === 0 && data.hobbies && typeof data.hobbies === 'string') {
+      const items = data.hobbies.split(/[，,、;；\n]+/).map(s => s.trim()).filter(Boolean);
+      items.forEach((item, idx) => {
+        db.run(`INSERT INTO student_activities (id, student_id, category, name, description, sort_order, created_at, updated_at)
+                VALUES (?, ?, '课外活动', ?, '信息收集表单填写', ?, ?, ?)`,
+          [uuidv4(), studentId, item, idx, now, now]);
+        activityCount++;
+      });
+    }
+
+    // ── 6. 导入获奖 → student_honors ──
+    const honors = parseJsonArray(data.honors);
+    let honorCount = 0;
+    honors.forEach(h => {
+      if (!h.name) return;
+      db.run(`INSERT INTO student_honors (id, student_id, name, level, award_date, description, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, '信息收集表单', ?, ?)`,
+        [uuidv4(), studentId, h.name, h.level || null, h.award_date || null, now, now]);
+      honorCount++;
+    });
+
+    // ── 7. 标记提交为已导入 ──
     db.run('UPDATE intake_form_submissions SET status=?, imported_student_id=?, reviewed_at=?, reviewed_by=? WHERE id=?',
       ['imported', studentId, now, req.session.user.id, sub.id]);
 
     audit(req, 'IMPORT_FORM_SUBMISSION', 'students', studentId, {
       submission_id: sub.id,
       student_name: data.student_name,
-      parent_count: parentIds.length
+      parent_count: parentIds.length,
+      subject_count: subjectCount,
+      test_count: testCount,
+      activity_count: activityCount,
+      honor_count: honorCount
     });
 
     res.json({
       student_id: studentId,
       student_name: data.student_name,
       parent_ids: parentIds,
-      message: '导入成功'
+      imported: {
+        subjects: subjectCount,
+        test_scores: testCount,
+        activities: activityCount,
+        honors: honorCount,
+      },
+      message: `导入成功：${subjectCount}个科目、${testCount}条成绩、${activityCount}个活动、${honorCount}个奖项`
     });
   });
 
@@ -425,6 +528,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .section-title{font-size:16px;font-weight:700;color:#667eea;margin:24px 0 12px;padding-bottom:8px;border-bottom:2px solid #f1f5f9}
 .section-title:first-child{margin-top:0}
 .hidden{display:none}
+.checkbox-group{display:flex;flex-wrap:wrap;gap:8px 16px}
+.cb-label{display:flex;align-items:center;gap:6px;font-size:14px;color:#334155;cursor:pointer;padding:6px 12px;border-radius:8px;border:1.5px solid #e2e8f0;transition:all .2s}
+.cb-label:has(input:checked){background:#f0f4ff;border-color:#667eea;color:#4338ca}
+.cb-label input[type="checkbox"]{accent-color:#667eea;width:16px;height:16px}
+.dynamic-row{display:grid;gap:8px;padding:12px;margin-bottom:8px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fafbfc;position:relative}
+.dynamic-row:hover{border-color:#cbd5e1}
+.dynamic-row .row-del{position:absolute;top:8px;right:8px;width:24px;height:24px;border:none;background:#fee2e2;color:#dc2626;border-radius:6px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s}
+.dynamic-row:hover .row-del{opacity:1}
+.dynamic-row input,.dynamic-row select{padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;background:#fff}
+.dynamic-row input:focus,.dynamic-row select:focus{outline:none;border-color:#667eea}
+.subject-row{grid-template-columns:1fr 120px 80px}
+.test-row{grid-template-columns:120px 80px 1fr 120px}
+.activity-row{grid-template-columns:110px 1fr 100px}
+.honor-row{grid-template-columns:1fr 100px 120px}
+@media(max-width:560px){.subject-row,.test-row,.activity-row,.honor-row{grid-template-columns:1fr}}
+.btn-add{display:block;width:100%;padding:10px;border:2px dashed #cbd5e1;border-radius:10px;background:transparent;color:#667eea;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;margin-top:8px;margin-bottom:16px}
+.btn-add:hover{border-color:#667eea;background:#f0f4ff}
 </style>
 </head>
 <body>
@@ -620,41 +740,70 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
     <div class="card step-card hidden" data-step="4">
       <h2>学业与留学意向</h2>
       <p class="subtitle">帮助我们更好地了解学生的学业背景和规划</p>
+
       <div class="field">
-        <label>意向留学国家/地区</label>
-        <input type="text" name="target_countries" placeholder="如：英国、美国、新加坡（可多选）">
+        <label>意向留学国家/地区（可多选）</label>
+        <div class="checkbox-group" id="countryGroup">
+          <label class="cb-label"><input type="checkbox" name="country_uk" value="英国"> 🇬🇧 英国</label>
+          <label class="cb-label"><input type="checkbox" name="country_us" value="美国"> 🇺🇸 美国</label>
+          <label class="cb-label"><input type="checkbox" name="country_hk" value="中国香港"> 🇭🇰 中国香港</label>
+          <label class="cb-label"><input type="checkbox" name="country_sg" value="新加坡"> 🇸🇬 新加坡</label>
+          <label class="cb-label"><input type="checkbox" name="country_au" value="澳大利亚"> 🇦🇺 澳大利亚</label>
+          <label class="cb-label"><input type="checkbox" name="country_ca" value="加拿大"> 🇨🇦 加拿大</label>
+          <label class="cb-label"><input type="checkbox" name="country_eu" value="欧洲"> 🇪🇺 欧洲</label>
+          <label class="cb-label"><input type="checkbox" name="country_other_cb" value="其他"> 其他</label>
+        </div>
+        <input type="text" id="countryOtherInput" class="hidden" placeholder="请填写其他国家/地区" style="margin-top:8px">
       </div>
+
       <div class="field">
         <label>意向专业方向</label>
         <input type="text" name="target_major" placeholder="如：计算机科学、商科、工程等">
       </div>
       <div class="field">
         <label>预计入学时间</label>
-        <input type="text" name="enrol_date" placeholder="如：2025年9月">
+        <select name="enrol_date">
+          <option value="">请选择</option>
+          <option value="2025年9月">2025年9月</option>
+          <option value="2026年1月">2026年1月</option>
+          <option value="2026年9月">2026年9月</option>
+          <option value="2027年9月">2027年9月</option>
+          <option value="待定">待定</option>
+        </select>
       </div>
-      <div class="field">
-        <label>目前在读科目</label>
-        <textarea name="current_subjects" placeholder="列出目前正在学习的科目及预估成绩，如：数学 A*, 物理 A, 化学 A" rows="3"></textarea>
-      </div>
-      <div class="field">
-        <label>标化考试成绩</label>
-        <textarea name="test_scores" placeholder="如有，请填写：雅思/托福/SAT/ACT 等成绩" rows="2"></textarea>
-      </div>
+
+      <div class="section-title">目前在读科目</div>
+      <p class="hint" style="margin-bottom:12px">请逐行添加正在学习的科目，选择级别并填写预估成绩</p>
+      <div id="subjectRows"></div>
+      <button type="button" class="btn-add" onclick="addSubjectRow()">+ 添加科目</button>
+
+      <div class="section-title">标化考试成绩</div>
+      <p class="hint" style="margin-bottom:12px">如已考过或有模考成绩，请逐项添加</p>
+      <div id="testScoreRows"></div>
+      <button type="button" class="btn-add" onclick="addTestScoreRow()">+ 添加成绩</button>
+
       <div class="btn-row">
         <button type="button" class="btn btn-prev" onclick="prevStep()">上一步</button>
         <button type="button" class="btn btn-next" onclick="nextStep()">下一步</button>
       </div>
     </div>
 
-    <!-- Step 5: 补充信息 -->
+    <!-- Step 5: 活动经历与补充信息 -->
     <div class="card step-card hidden" data-step="5">
-      <h2>补充信息</h2>
-      <p class="subtitle">其他需要告知学校的信息</p>
-      <div class="field">
-        <label>兴趣爱好与课外活动</label>
-        <textarea name="hobbies" placeholder="社团、竞赛、志愿者、体育、艺术等经历" rows="3"></textarea>
-      </div>
-      <div class="field">
+      <h2>活动经历与补充信息</h2>
+      <p class="subtitle">课外活动、获奖经历及其他需要告知学校的信息</p>
+
+      <div class="section-title">课外活动</div>
+      <p class="hint" style="margin-bottom:12px">社团、竞赛、志愿者、体育、艺术等经历</p>
+      <div id="activityRows"></div>
+      <button type="button" class="btn-add" onclick="addActivityRow()">+ 添加活动</button>
+
+      <div class="section-title">获奖经历</div>
+      <p class="hint" style="margin-bottom:12px">竞赛奖项、荣誉称号等</p>
+      <div id="honorRows"></div>
+      <button type="button" class="btn-add" onclick="addHonorRow()">+ 添加奖项</button>
+
+      <div class="field" style="margin-top:24px">
         <label>健康状况 / 特殊需求</label>
         <textarea name="health_notes" placeholder="如有过敏、慢性病、学习障碍等需要学校关注的情况，请说明" rows="3"></textarea>
       </div>
@@ -682,6 +831,7 @@ let currentStep = 1;
 const totalSteps = 5;
 const TOKEN = '${form.token}';
 
+// ── Step navigation ──
 function updateStepUI() {
   document.querySelectorAll('.step-card').forEach(c => {
     c.classList.toggle('hidden', parseInt(c.dataset.step) !== currentStep);
@@ -696,7 +846,6 @@ function updateStepUI() {
 }
 
 function nextStep() {
-  // 验证当前步骤的必填项
   const card = document.querySelector('.step-card[data-step="' + currentStep + '"]');
   const requiredFields = card.querySelectorAll('[required]');
   let valid = true;
@@ -715,15 +864,160 @@ function prevStep() {
   if (currentStep > 1) { currentStep--; updateStepUI(); }
 }
 
+// ── "Other country" toggle ──
+document.querySelector('input[name="country_other_cb"]').addEventListener('change', function() {
+  document.getElementById('countryOtherInput').classList.toggle('hidden', !this.checked);
+});
+
+// ── Dynamic row helpers ──
+function removeRow(btn) { btn.closest('.dynamic-row').remove(); }
+
+const COMMON_SUBJECTS = ['Mathematics','Further Mathematics','Physics','Chemistry','Biology','Economics','Business','Accounting','English Literature','English Language','Computer Science','Psychology','History','Geography','Art & Design','Chinese','Music','Drama','Sociology','Politics','Philosophy','Design & Technology','Media Studies'];
+function subjectOptions() {
+  return '<option value="">选择科目</option>' + COMMON_SUBJECTS.map(s => '<option value="' + s + '">' + s + '</option>').join('') + '<option value="__other">其他（自填）</option>';
+}
+
+function addSubjectRow() {
+  const row = document.createElement('div');
+  row.className = 'dynamic-row subject-row';
+  row.innerHTML = '<select onchange="handleSubjectSelect(this)">' + subjectOptions() + '</select>'
+    + '<select><option value="">级别</option><option value="IGCSE">IGCSE</option><option value="AS">AS</option><option value="A2">A2</option><option value="IB HL">IB HL</option><option value="IB SL">IB SL</option><option value="AP">AP</option><option value="普高">普高</option><option value="其他">其他</option></select>'
+    + '<input type="text" placeholder="预估成绩">'
+    + '<button type="button" class="row-del" onclick="removeRow(this)">&times;</button>';
+  document.getElementById('subjectRows').appendChild(row);
+}
+function handleSubjectSelect(sel) {
+  if (sel.value === '__other') {
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.placeholder = '输入科目名称'; inp.className = 'subject-custom';
+    inp.style.cssText = 'grid-column:1/-1;margin-top:4px';
+    sel.closest('.dynamic-row').appendChild(inp);
+    inp.focus();
+  } else {
+    const custom = sel.closest('.dynamic-row').querySelector('.subject-custom');
+    if (custom) custom.remove();
+  }
+}
+
+function addTestScoreRow() {
+  const row = document.createElement('div');
+  row.className = 'dynamic-row test-row';
+  row.innerHTML = '<select><option value="">考试类型</option><option value="IELTS">IELTS 雅思</option><option value="TOEFL">TOEFL 托福</option><option value="SAT">SAT</option><option value="ACT">ACT</option><option value="AP">AP 考试</option><option value="Duolingo">Duolingo</option><option value="PTE">PTE</option><option value="其他">其他</option></select>'
+    + '<input type="text" placeholder="总分">'
+    + '<input type="text" placeholder="小分（如 L8.0 R7.5 W6.5 S7.0）">'
+    + '<input type="date" title="考试日期">'
+    + '<button type="button" class="row-del" onclick="removeRow(this)">&times;</button>';
+  document.getElementById('testScoreRows').appendChild(row);
+}
+
+function addActivityRow() {
+  const row = document.createElement('div');
+  row.className = 'dynamic-row activity-row';
+  row.innerHTML = '<select><option value="">类别</option><option value="学术竞赛">学术竞赛</option><option value="体育">体育</option><option value="艺术">艺术</option><option value="社团">社团</option><option value="志愿服务">志愿服务</option><option value="实习">实习</option><option value="其他">其他</option></select>'
+    + '<input type="text" placeholder="活动名称">'
+    + '<input type="text" placeholder="角色/职务">'
+    + '<button type="button" class="row-del" onclick="removeRow(this)">&times;</button>';
+  document.getElementById('activityRows').appendChild(row);
+}
+
+function addHonorRow() {
+  const row = document.createElement('div');
+  row.className = 'dynamic-row honor-row';
+  row.innerHTML = '<input type="text" placeholder="奖项名称">'
+    + '<select><option value="">级别</option><option value="校级">校级</option><option value="市级">市级</option><option value="省级">省级</option><option value="国家级">国家级</option><option value="国际级">国际级</option></select>'
+    + '<input type="month" title="获奖时间">'
+    + '<button type="button" class="row-del" onclick="removeRow(this)">&times;</button>';
+  document.getElementById('honorRows').appendChild(row);
+}
+
+// ── Add initial empty rows ──
+addSubjectRow();
+addTestScoreRow();
+addActivityRow();
+
+// ── Collect structured data ──
+function collectStructuredData() {
+  const form = document.getElementById('intakeForm');
+  const fd = new FormData(form);
+  const data = {};
+  // Basic fields (Steps 1-3 + simple fields in 4-5)
+  fd.forEach((v, k) => {
+    if (v && !k.startsWith('country_')) data[k] = v;
+  });
+
+  // Target countries (checkboxes → JSON array)
+  const countries = [];
+  document.querySelectorAll('#countryGroup input[type="checkbox"]:checked').forEach(cb => {
+    if (cb.name === 'country_other_cb') {
+      const otherVal = document.getElementById('countryOtherInput').value.trim();
+      if (otherVal) countries.push(otherVal);
+    } else {
+      countries.push(cb.value);
+    }
+  });
+  if (countries.length) data.target_countries = JSON.stringify(countries);
+
+  // Subjects → JSON array
+  const subjects = [];
+  document.querySelectorAll('#subjectRows .dynamic-row').forEach(row => {
+    const selects = row.querySelectorAll('select');
+    const inputs = row.querySelectorAll('input');
+    const custom = row.querySelector('.subject-custom');
+    let name = selects[0]?.value || '';
+    if (name === '__other' && custom) name = custom.value.trim();
+    const level = selects[1]?.value || '';
+    const grade = inputs[0]?.value?.trim() || '';
+    if (name) subjects.push({ name, level, predicted_grade: grade });
+  });
+  if (subjects.length) data.subjects = JSON.stringify(subjects);
+
+  // Test scores → JSON array
+  const testScores = [];
+  document.querySelectorAll('#testScoreRows .dynamic-row').forEach(row => {
+    const sel = row.querySelector('select');
+    const inputs = row.querySelectorAll('input');
+    const type = sel?.value || '';
+    const score = inputs[0]?.value?.trim() || '';
+    const subScores = inputs[1]?.value?.trim() || '';
+    const testDate = inputs[2]?.value || '';
+    if (type && score) testScores.push({ type, score, sub_scores: subScores, test_date: testDate });
+  });
+  if (testScores.length) data.test_scores = JSON.stringify(testScores);
+
+  // Activities → JSON array
+  const activities = [];
+  document.querySelectorAll('#activityRows .dynamic-row').forEach(row => {
+    const sel = row.querySelector('select');
+    const inputs = row.querySelectorAll('input');
+    const category = sel?.value || '';
+    const name = inputs[0]?.value?.trim() || '';
+    const role = inputs[1]?.value?.trim() || '';
+    if (name) activities.push({ category, name, role });
+  });
+  if (activities.length) data.activities = JSON.stringify(activities);
+
+  // Honors → JSON array
+  const honors = [];
+  document.querySelectorAll('#honorRows .dynamic-row').forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const sel = row.querySelector('select');
+    const name = inputs[0]?.value?.trim() || '';
+    const level = sel?.value || '';
+    const awardDate = inputs[1]?.value || '';
+    if (name) honors.push({ name, level, award_date: awardDate });
+  });
+  if (honors.length) data.honors = JSON.stringify(honors);
+
+  return data;
+}
+
+// ── Submit ──
 async function submitForm() {
   const btn = document.getElementById('submitBtn');
   btn.disabled = true;
   btn.textContent = '提交中...';
 
-  const form = document.getElementById('intakeForm');
-  const formData = new FormData(form);
-  const data = {};
-  formData.forEach((v, k) => { if (v) data[k] = v; });
+  const data = collectStructuredData();
 
   try {
     const resp = await fetch('/api/public/form/' + TOKEN, {
@@ -733,7 +1027,7 @@ async function submitForm() {
     });
     const result = await resp.json();
     if (resp.ok) {
-      form.classList.add('hidden');
+      document.getElementById('intakeForm').classList.add('hidden');
       document.getElementById('stepIndicator').classList.add('hidden');
       document.getElementById('successCard').classList.remove('hidden');
     } else {

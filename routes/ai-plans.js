@@ -34,7 +34,9 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiPlann
       res.json({ plan_id: result.plan_id, status: result.status });
     } catch (e) {
       console.error('[ai-plans]', e);
-      res.status(500).json({ error: '服务器错误，请重试' });
+      const msg = e.message || '服务器错误，请重试';
+      const isClientError = /未配置|缺少|不足|未包含|同意/.test(msg);
+      res.status(isClientError ? 400 : 500).json({ error: msg });
     }
   });
 

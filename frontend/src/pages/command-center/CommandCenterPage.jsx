@@ -47,8 +47,8 @@ export default function CommandCenterPage() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden relative">
-      <div className="flex-1 min-w-0 flex flex-col gap-3 sm:gap-4 p-3 sm:p-4 lg:p-6 overflow-y-auto">
+    <div className="flex h-full overflow-hidden relative w-full">
+      <div className="flex-1 min-w-0 flex flex-col gap-3 sm:gap-4 p-3 sm:p-4 lg:p-6 overflow-y-auto overflow-x-hidden">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}

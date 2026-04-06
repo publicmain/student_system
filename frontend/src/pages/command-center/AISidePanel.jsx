@@ -35,7 +35,7 @@ export default function AISidePanel({ ai, riskAlerts, allApps }) {
             className={clsx(
               'shrink-0 border-l border-surface-3 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden flex flex-col',
               'fixed inset-y-0 right-0 z-50 w-[85vw] max-w-[340px]',
-              'lg:relative lg:inset-auto lg:z-auto lg:w-[320px] lg:min-w-[320px]',
+              'lg:relative lg:inset-auto lg:z-auto lg:w-[320px] lg:min-w-[320px] lg:max-w-[320px]',
             )}
           >
             {/* Header */}

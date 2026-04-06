@@ -1,72 +1,70 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Search, Loader2, Sparkles, Calendar, GraduationCap } from 'lucide-react'
-import { Badge } from '../../components/ui/Badge.jsx'
+import { Search, Loader2, Sparkles, ExternalLink } from 'lucide-react'
 
 const examples = [
   '所有冲刺申请的截止日',
   '哪些学生还没提交申请',
-  'UCL 的申请状态',
-  'G5大学的申请',
+  'G5大学的申请进度',
+  '新加坡路线的申请',
 ]
 
 const statusLabels = {
-  pending: '准备中',
-  applied: '已提交',
-  submitted: '已提交',
-  offer: 'Offer',
-  conditional_offer: 'Con. Offer',
-  unconditional_offer: 'Unc. Offer',
-  firm: '已确认',
-  insurance: 'Insurance',
-  enrolled: '已入学',
-  declined: '已拒绝',
-  rejected: '被拒',
-  withdrawn: '已撤回',
+  pending: '准备中', applied: '已提交', submitted: '已提交',
+  offer: 'Offer', conditional_offer: 'Con.Offer', unconditional_offer: 'Unc.Offer',
+  firm: '已确认', insurance: 'Insurance', enrolled: '已入学',
+  declined: '已拒绝', rejected: '被拒', withdrawn: '已撤回',
 }
 
-const statusColors = {
-  pending: 'yellow',
-  applied: 'blue',
-  submitted: 'blue',
-  offer: 'green',
-  conditional_offer: 'green',
-  unconditional_offer: 'green',
-  firm: 'purple',
-  insurance: 'purple',
-  enrolled: 'brand',
-  declined: 'red',
-  rejected: 'red',
-  withdrawn: 'red',
+const statusDots = {
+  pending: 'bg-yellow-400', applied: 'bg-blue-400', submitted: 'bg-blue-400',
+  offer: 'bg-green-400', conditional_offer: 'bg-green-400', unconditional_offer: 'bg-emerald-500',
+  firm: 'bg-purple-500', insurance: 'bg-purple-400', enrolled: 'bg-brand-500',
+  declined: 'bg-red-400', rejected: 'bg-red-500', withdrawn: 'bg-gray-400',
 }
 
-const tierColors = {
-  '冲刺': 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20',
-  '意向': 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20',
-  '保底': 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20',
+const tierStyles = {
+  '冲刺': 'text-red-600 dark:text-red-400',
+  '意向': 'text-blue-600 dark:text-blue-400',
+  '保底': 'text-green-600 dark:text-green-400',
 }
 
-function formatDate(d) {
-  if (!d) return null
-  const date = new Date(d)
-  if (isNaN(date)) return d
-  const m = date.getMonth() + 1
-  const day = date.getDate()
-  return `${m}/${day}`
+/* ── 根据用户查询关键词，判断用户最关心的字段 ── */
+function detectFocus(query) {
+  if (!query) return 'general'
+  const q = query.toLowerCase()
+  if (/截止|deadline|due|日期|时间/.test(q)) return 'deadline'
+  if (/状态|进度|进展|offer|录取|结果/.test(q)) return 'status'
+  if (/梯度|冲刺|意向|保底|tier/.test(q)) return 'tier'
+  if (/路线|route|uk|us|sg|hk|au/.test(q)) return 'route'
+  if (/学生|谁|哪些人/.test(q)) return 'student'
+  return 'general'
 }
 
-function daysUntil(d) {
-  if (!d) return null
+function formatDeadline(d) {
+  if (!d) return { text: '—', cls: 'text-ink-tertiary dark:text-slate-500' }
   const target = new Date(d)
-  if (isNaN(target)) return null
-  const now = new Date()
-  now.setHours(0,0,0,0)
-  target.setHours(0,0,0,0)
-  return Math.round((target - now) / (1000*60*60*24))
+  if (isNaN(target)) return { text: d, cls: '' }
+  const now = new Date(); now.setHours(0,0,0,0); target.setHours(0,0,0,0)
+  const days = Math.round((target - now) / 86400000)
+  const y = target.getFullYear(), m = target.getMonth()+1, day = target.getDate()
+  const dateStr = `${y}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+  if (days < 0) return { text: dateStr, sub: `逾期${Math.abs(days)}天`, cls: 'text-red-600 dark:text-red-400 font-bold' }
+  if (days <= 7) return { text: dateStr, sub: `${days}天后`, cls: 'text-amber-600 dark:text-amber-400 font-semibold' }
+  if (days <= 30) return { text: dateStr, sub: `${days}天后`, cls: 'text-amber-500 dark:text-amber-300' }
+  return { text: dateStr, sub: `${days}天后`, cls: 'text-ink-primary dark:text-slate-200' }
+}
+
+function handleRowClick(app) {
+  // 跳转到学生详情页
+  if (app.student_id) {
+    window.location.hash = `#student-detail?id=${app.student_id}`
+  }
 }
 
 export default function NLQueryInput({ result, loading, onQuery }) {
   const [query, setQuery] = useState('')
+  const focus = detectFocus(query)
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -107,11 +105,12 @@ export default function NLQueryInput({ result, loading, onQuery }) {
         </div>
       )}
 
-      {/* Result */}
+      {/* Error */}
       {result?.error && (
         <p className="text-[11px] text-red-500">{result.error}</p>
       )}
 
+      {/* AI Explanation */}
       {result?.explanation && (
         <div className="p-2 rounded-lg bg-brand-50/50 dark:bg-brand-900/10 border border-brand-200 dark:border-brand-800">
           <p className="text-[11px] text-brand-700 dark:text-brand-300 flex items-start gap-1">
@@ -121,112 +120,144 @@ export default function NLQueryInput({ result, loading, onQuery }) {
         </div>
       )}
 
-      {result?.filters && (
-        <div className="flex flex-wrap gap-1">
-          {result.filters.tier && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-surface-2 dark:bg-slate-700 text-ink-secondary dark:text-slate-300">
-              梯度: {result.filters.tier}
-            </span>
-          )}
-          {result.filters.status && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-surface-2 dark:bg-slate-700 text-ink-secondary dark:text-slate-300">
-              状态: {statusLabels[result.filters.status] || result.filters.status}
-            </span>
-          )}
-          {result.filters.route && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-surface-2 dark:bg-slate-700 text-ink-secondary dark:text-slate-300">
-              路线: {result.filters.route}
-            </span>
-          )}
-          {result.filters.cycle_year && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-surface-2 dark:bg-slate-700 text-ink-secondary dark:text-slate-300">
-              周期: {result.filters.cycle_year}
-            </span>
-          )}
-          {result.filters.uni_names?.length > 0 && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-surface-2 dark:bg-slate-700 text-ink-secondary dark:text-slate-300">
-              院校: {result.filters.uni_names.length}所
-            </span>
-          )}
-        </div>
-      )}
-
+      {/* Results Table */}
       {result?.results && (
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           <p className="text-[10px] text-ink-tertiary dark:text-slate-500">
             找到 {result.results.length} 条结果
+            <span className="ml-1 text-ink-quaternary">（点击查看详情）</span>
           </p>
-          <div className="max-h-[300px] overflow-y-auto space-y-1.5 scrollbar-thin">
-            {result.results.map((app, i) => {
-              const days = daysUntil(app.submit_deadline)
-              const isUrgent = days !== null && days >= 0 && days <= 14
-              const isOverdue = days !== null && days < 0
 
-              return (
+          {/* ── 截止日焦点模式：大字体日期优先 ── */}
+          {focus === 'deadline' && (
+            <div className="overflow-y-auto max-h-[calc(100vh-380px)] scrollbar-thin space-y-0.5">
+              {[...result.results]
+                .sort((a, b) => {
+                  if (!a.submit_deadline) return 1
+                  if (!b.submit_deadline) return -1
+                  return new Date(a.submit_deadline) - new Date(b.submit_deadline)
+                })
+                .map((app, i) => {
+                  const dl = formatDeadline(app.submit_deadline)
+                  return (
+                    <motion.div
+                      key={app.id || i}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.015 }}
+                      onClick={() => handleRowClick(app)}
+                      className="flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer hover:bg-surface-2 dark:hover:bg-slate-700/50 transition-colors group border border-transparent hover:border-surface-3 dark:hover:border-slate-600"
+                    >
+                      {/* 截止日 — 最突出 */}
+                      <div className="w-[85px] flex-shrink-0 text-right">
+                        <div className={`text-[12px] leading-tight ${dl.cls}`}>{dl.text}</div>
+                        {dl.sub && <div className={`text-[10px] leading-tight ${dl.cls}`}>{dl.sub}</div>}
+                      </div>
+                      <div className="w-px h-8 bg-surface-3 dark:bg-slate-600 flex-shrink-0" />
+                      {/* 申请信息 */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1">
+                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusDots[app.status] || 'bg-gray-400'}`} />
+                          <span className="text-[11px] font-medium text-ink-primary dark:text-slate-200 truncate">
+                            {app.uni_name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span className="text-[10px] text-ink-tertiary dark:text-slate-400 truncate">
+                            {app.student_name}
+                          </span>
+                          {app.tier && (
+                            <span className={`text-[9px] ${tierStyles[app.tier] || ''}`}>
+                              {app.tier}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <ExternalLink size={10} className="text-ink-quaternary opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                    </motion.div>
+                  )
+                })}
+            </div>
+          )}
+
+          {/* ── 状态焦点模式：按状态分组 ── */}
+          {focus === 'status' && (
+            <div className="overflow-y-auto max-h-[calc(100vh-380px)] scrollbar-thin space-y-0.5">
+              {result.results.map((app, i) => (
                 <motion.div
                   key={app.id || i}
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.02 }}
-                  className="p-2 rounded-lg border border-surface-2 dark:border-slate-700 hover:border-brand-300 dark:hover:border-brand-600 transition-colors"
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.015 }}
+                  onClick={() => handleRowClick(app)}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-surface-2 dark:hover:bg-slate-700/50 transition-colors group border border-transparent hover:border-surface-3 dark:hover:border-slate-600"
                 >
-                  {/* Row 1: uni name + status */}
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="font-medium text-[11px] text-ink-primary dark:text-slate-200 truncate flex-1">
-                      {app.uni_name}
+                  {/* 状态 — 最突出 */}
+                  <div className="flex items-center gap-1 w-[70px] flex-shrink-0">
+                    <span className={`w-2 h-2 rounded-full ${statusDots[app.status] || 'bg-gray-400'}`} />
+                    <span className="text-[11px] font-semibold text-ink-primary dark:text-slate-200">
+                      {statusLabels[app.status] || app.status}
                     </span>
-                    <Badge color={statusColors[app.status] || 'default'} className="text-[9px] flex-shrink-0">
-                      {statusLabels[app.status] || app.status || '未知'}
-                    </Badge>
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] font-medium text-ink-primary dark:text-slate-200 truncate">
+                      {app.uni_name}
+                    </div>
+                    <div className="text-[10px] text-ink-tertiary dark:text-slate-400 truncate">
+                      {app.student_name} · {app.department || ''}
+                    </div>
+                  </div>
+                  <ExternalLink size={10} className="text-ink-quaternary opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                </motion.div>
+              ))}
+            </div>
+          )}
 
-                  {/* Row 2: department */}
-                  {app.department && (
-                    <p className="text-[10px] text-ink-secondary dark:text-slate-400 truncate mb-1">
-                      {app.department}
-                    </p>
-                  )}
-
-                  {/* Row 3: metadata tags */}
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {/* Student */}
-                    <span className="text-[9px] text-ink-tertiary dark:text-slate-500 flex items-center gap-0.5">
-                      <GraduationCap size={9} />
-                      {app.student_name}
-                    </span>
-
-                    {/* Tier */}
+          {/* ── 通用模式：紧凑表格 ── */}
+          {(focus !== 'deadline' && focus !== 'status') && (
+            <div className="overflow-y-auto max-h-[calc(100vh-380px)] scrollbar-thin">
+              {/* 表头 */}
+              <div className="flex items-center gap-1 px-2 py-1 text-[9px] font-medium text-ink-tertiary dark:text-slate-500 uppercase tracking-wider border-b border-surface-2 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 z-10">
+                <span className="flex-1">院校 / 专业</span>
+                <span className="w-[50px] text-center">梯度</span>
+                <span className="w-[55px] text-right">截止日</span>
+              </div>
+              {result.results.map((app, i) => {
+                const dl = formatDeadline(app.submit_deadline)
+                return (
+                  <motion.div
+                    key={app.id || i}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: i * 0.015 }}
+                    onClick={() => handleRowClick(app)}
+                    className="flex items-center gap-1 px-2 py-1.5 cursor-pointer hover:bg-surface-2 dark:hover:bg-slate-700/50 transition-colors group border-b border-surface-1 dark:border-slate-700/50"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1">
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusDots[app.status] || 'bg-gray-400'}`} />
+                        <span className="text-[11px] font-medium text-ink-primary dark:text-slate-200 truncate">
+                          {app.uni_name}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-ink-tertiary dark:text-slate-400 truncate pl-3">
+                        {app.student_name}{app.department ? ` · ${app.department}` : ''}
+                      </div>
+                    </div>
                     {app.tier && (
-                      <span className={`text-[9px] px-1 py-px rounded ${tierColors[app.tier] || 'text-ink-tertiary bg-surface-2'}`}>
+                      <span className={`text-[10px] w-[50px] text-center font-medium flex-shrink-0 ${tierStyles[app.tier] || 'text-ink-tertiary'}`}>
                         {app.tier}
                       </span>
                     )}
-
-                    {/* Route */}
-                    {app.route && (
-                      <span className="text-[9px] px-1 py-px rounded bg-surface-2 dark:bg-slate-700 text-ink-tertiary dark:text-slate-400">
-                        {app.route}
-                      </span>
-                    )}
-
-                    {/* Deadline */}
-                    {app.submit_deadline && (
-                      <span className={`text-[9px] flex items-center gap-0.5 ml-auto ${
-                        isOverdue ? 'text-red-500 font-medium' :
-                        isUrgent ? 'text-amber-600 dark:text-amber-400 font-medium' :
-                        'text-ink-tertiary dark:text-slate-500'
-                      }`}>
-                        <Calendar size={9} />
-                        {formatDate(app.submit_deadline)}
-                        {isOverdue && ` (逾期${Math.abs(days)}天)`}
-                        {isUrgent && ` (${days}天后)`}
-                      </span>
-                    )}
-                  </div>
-                </motion.div>
-              )
-            })}
-          </div>
+                    <div className={`w-[55px] text-right flex-shrink-0 text-[10px] leading-tight ${dl.cls}`}>
+                      {dl.text !== '—' ? dl.text.slice(5) : '—'}
+                      {dl.sub && <div className="text-[9px]">{dl.sub}</div>}
+                    </div>
+                  </motion.div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>

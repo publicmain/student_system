@@ -6,7 +6,6 @@
 // ════════════════════════════════════════════════════════
 const PAGES = {
   dashboard:            (p) => renderDashboard(p),
-  counselor:            (p) => renderCounselorWorkbench(p),
   mentor:               (p) => renderMentorWorkbench(p),
   'student-portal':     (p) => renderStudentPortal(p),
   'parent-portal':      (p) => renderParentPortal(p),
@@ -43,7 +42,6 @@ const PAGES = {
 
 const PAGE_ROLES = {
   'dashboard':          ['principal', 'counselor'],
-  'counselor':          ['principal', 'counselor'],
   'mentor':             ['principal', 'mentor'],
   'students':           ['principal', 'counselor', 'mentor', 'intake_staff'],
   'student-detail':     ['principal', 'counselor', 'mentor', 'student', 'parent'],
@@ -144,39 +142,19 @@ async function renderDashboard() {
     </div>
 
     ${ccStats ? `
-    <!-- 申请指挥中心概览 -->
+    <!-- 申请指挥中心快捷入口 -->
     <div class="row g-3 mb-4">
       <div class="col-12">
         <div class="card">
-          <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-rocket-takeoff-fill me-1 text-primary"></i> 申请指挥中心</span>
-            <a href="#" onclick="event.preventDefault();navigate('command-center')" class="small text-primary text-decoration-none">进入指挥中心 →</a>
-          </div>
-          <div class="card-body">
-            <div class="row g-3">
-              <div class="col-6 col-md-3 text-center">
-                <div class="fs-3 fw-bold text-primary">${ccStats.total || 0}</div>
-                <div class="small text-muted">总申请</div>
-              </div>
-              <div class="col-6 col-md-3 text-center">
-                <div class="fs-3 fw-bold text-info">${ccStats.submitted || 0}</div>
-                <div class="small text-muted">已提交</div>
-              </div>
-              <div class="col-6 col-md-3 text-center">
-                <div class="fs-3 fw-bold text-success">${ccStats.offers || 0}</div>
-                <div class="small text-muted">已获Offer</div>
-              </div>
-              <div class="col-6 col-md-3 text-center">
-                <div class="fs-3 fw-bold ${ccStats.atRisk > 0 ? 'text-danger' : 'text-muted'}">${ccStats.atRisk || 0}</div>
-                <div class="small text-muted">风险申请</div>
-              </div>
+          <div class="card-body py-3 d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+              <i class="bi bi-rocket-takeoff-fill text-primary fs-5"></i>
+              <span class="fw-semibold">申请指挥中心</span>
+              <span class="badge badge-soft-primary ms-1">${ccStats.total || 0} 个申请</span>
+              ${(ccStats.offers || 0) > 0 ? `<span class="badge badge-soft-success">${ccStats.offers} 个Offer</span>` : ''}
+              ${(ccStats.atRisk || 0) > 0 ? `<span class="badge badge-soft-danger">${ccStats.atRisk} 个风险</span>` : ''}
             </div>
-            ${ccStats.byStatus && ccStats.byStatus.length > 0 ? `
-            <div class="mt-3 pt-3 border-top">
-              <div class="d-flex flex-wrap gap-2">
-                ${ccStats.byStatus.map(s => `<span class="badge bg-light text-dark border">${escapeHtml(s.status || '未知')}: ${s.cnt}</span>`).join('')}
-              </div>
-            </div>` : ''}
+            <a href="#" onclick="event.preventDefault();navigate('command-center')" class="btn btn-sm btn-outline-primary">进入指挥中心 <i class="bi bi-chevron-right"></i></a>
           </div>
         </div>
       </div>
@@ -275,205 +253,6 @@ async function renderDashboard() {
   }
 }
 
-// ════════════════════════════════════════════════════════
-//  规划师工作台
-// ════════════════════════════════════════════════════════
-async function renderCounselorWorkbench() {
-  const mc = document.getElementById('main-content');
-  mc.innerHTML = `<div class="page-loading"><div class="spinner-border text-primary"></div></div>`;
-  try {
-    const [students, feedback] = await Promise.all([
-      GET('/api/students'),
-      GET('/api/feedback'),
-    ]);
-
-    mc.innerHTML = `
-    <div class="page-header">
-      <h4><i class="bi bi-person-lines-fill me-2"></i>规划师工作台</h4>
-      <button class="btn btn-primary btn-sm" onclick="openStudentModal()">
-        <i class="bi bi-plus-lg me-1"></i>新增学生
-      </button>
-    </div>
-
-    <div class="md-layout" style="height:calc(100vh - 140px)">
-      <!-- 左侧学生列表 -->
-      <div class="md-list">
-        <div class="md-list-header">
-          <input class="form-control form-control-sm" id="student-search" placeholder="搜索姓名...">
-          <select class="form-select form-select-sm mt-2" id="grade-filter">
-            <option value="">全部年级</option>
-            <option value="G9">G9</option><option value="G10">G10</option>
-            <option value="G11">G11</option><option value="G12">G12</option><option value="G13">G13</option>
-            <option value="Year 9">Year 9</option><option value="Year 10">Year 10</option>
-            <option value="Year 11">Year 11</option><option value="Year 12">Year 12</option><option value="Year 13">Year 13</option>
-            <option value="其他">其他</option>
-          </select>
-        </div>
-        <div class="md-list-body" id="counselor-student-list">
-          ${renderCounselorStudentItems(students)}
-        </div>
-      </div>
-
-      <!-- 右侧详情面板 -->
-      <div class="md-detail" id="counselor-detail">
-        <div class="md-empty-detail">
-          <i class="bi bi-person-vcard" style="font-size:2.5rem;opacity:.3"></i>
-          <p class="text-muted mt-2">选择左侧学生查看详情</p>
-          <div class="row g-3 w-100 mt-3" style="max-width:700px">
-            <div class="col-md-6 col-12">
-              <div class="card h-100">
-                <div class="card-header fw-semibold small py-2 d-flex justify-content-between align-items-center">
-                  <span><i class="bi bi-chat-dots me-1 text-warning"></i>待处理反馈 <span class="badge badge-soft-warning ms-1">${feedback.length}</span></span>
-                  ${feedback.length > 0 ? '<a href="#" onclick="event.preventDefault();navigate(\'feedback-list\')" class="small text-primary text-decoration-none">全部 <i class="bi bi-chevron-right"></i></a>' : ''}
-                </div>
-                <div class="card-body p-0" style="max-height:320px;overflow-y:auto">
-                  ${feedback.length === 0 ? '<div class="text-center text-muted small py-4"><i class="bi bi-check-circle d-block mb-1" style="font-size:1.5rem;opacity:.4"></i>暂无待处理反馈</div>' :
-                  feedback.slice(0,6).map(f => '<div class="workbench-item border-bottom px-3 py-2" onclick="navigate(\'feedback-list\')"><div class="d-flex justify-content-between align-items-start"><span class="small fw-semibold">'+escapeHtml(f.student_name)+'</span><small class="text-muted" style="font-size:10px;white-space:nowrap">'+escapeHtml(f.created_at ? f.created_at.substring(0,10) : '')+'</small></div><p class="small text-muted mb-0 text-truncate" style="font-size:12px">'+escapeHtml(f.content.substring(0,60))+'</p></div>').join('')}
-                </div>
-              </div>
-            </div>
-            <div class="col-md-6 col-12">
-              <div class="card h-100">
-                <div class="card-header fw-semibold small py-2 d-flex justify-content-between align-items-center">
-                  <span><i class="bi bi-clock-history me-1 text-danger"></i>近期截止</span>
-                  <span class="badge badge-soft-danger ms-1" id="upcoming-count"></span>
-                </div>
-                <div class="card-body p-0" id="upcoming-tasks" style="max-height:320px;overflow-y:auto">
-                  <div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>`;
-
-    loadUpcomingTasks();
-    // 搜索过滤
-    document.getElementById('student-search').oninput = (e) => filterCounselorStudents(students, e.target.value, document.getElementById('grade-filter').value);
-    document.getElementById('grade-filter').onchange = (e) => filterCounselorStudents(students, document.getElementById('student-search').value, e.target.value);
-
-  } catch(e) {
-    mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
-  }
-}
-
-function renderCounselorStudentItems(students) {
-  if (!students || students.length === 0) return '<div class="md-empty-detail" style="padding:2rem"><i class="bi bi-person-vcard" style="font-size:1.5rem;opacity:.3"></i><p class="text-muted small mt-1">暂无学生</p></div>';
-  return students.map(s => `
-    <div class="md-item" onclick="selectCounselorStudent('${s.id}',this)" data-sid="${s.id}">
-      <div class="d-flex justify-content-between align-items-center">
-        <span class="md-item-name">${escapeHtml(s.name)}</span>
-        ${s.overdue_count > 0 ? `<span class="badge badge-soft-danger" style="font-size:10px">${s.overdue_count}逾期</span>` : ''}
-      </div>
-      <div class="md-item-sub">${escapeHtml(s.grade_level)} · ${escapeHtml(s.exam_board||'—')}</div>
-    </div>`).join('');
-}
-
-async function selectCounselorStudent(id, el) {
-  document.querySelectorAll('#counselor-student-list .md-item').forEach(i => i.classList.remove('active'));
-  if (el) el.classList.add('active');
-  const panel = document.getElementById('counselor-detail');
-  panel.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
-  try {
-    const [detail, tasks] = await Promise.all([
-      GET(`/api/students/${id}`),
-      GET(`/api/students/${id}/tasks`),
-    ]);
-    const s = detail.student;
-    const canEdit = hasRole('principal','counselor');
-    const pending = tasks.filter(t => t.status !== 'done');
-    const overdue = pending.filter(t => isOverdue(t.due_date, t.status));
-    panel.innerHTML = `
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-          <h5 class="mb-0 fw-bold">${escapeHtml(s.name)} <span class="badge badge-soft-secondary ms-1">${escapeHtml(s.grade_level)}</span></h5>
-          <small class="text-muted">${escapeHtml(s.exam_board||'—')} · 入学 ${fmtDate(s.enrol_date)}</small>
-        </div>
-        <div class="d-flex gap-2">
-          ${canEdit ? `<button class="btn btn-outline-muted btn-sm" onclick="openStudentModal('${id}')"><i class="bi bi-pencil me-1"></i>编辑</button>` : ''}
-          <button class="btn btn-primary btn-sm" onclick="navigate('student-detail',{studentId:'${id}'})"><i class="bi bi-box-arrow-up-right me-1"></i>完整档案</button>
-        </div>
-      </div>
-      <!-- KPI -->
-      <div class="row g-2 mb-3">
-        <div class="col-4"><div class="stat-card accent-primary" style="padding:.75rem 1rem .75rem 1.25rem"><div class="stat-value" style="font-size:1.5rem">${pending.length}</div><div class="stat-label">待办任务</div></div></div>
-        <div class="col-4"><div class="stat-card ${overdue.length>0?'accent-danger':'accent-success'}" style="padding:.75rem 1rem .75rem 1.25rem"><div class="stat-value" style="font-size:1.5rem;${overdue.length>0?'color:var(--danger)':''}">${overdue.length}</div><div class="stat-label">逾期任务</div></div></div>
-        <div class="col-4"><div class="stat-card accent-info" style="padding:.75rem 1rem .75rem 1.25rem"><div class="stat-value" style="font-size:1.5rem">${detail.applications.length}</div><div class="stat-label">申请院校</div></div></div>
-      </div>
-      <!-- 目标院校 -->
-      ${detail.targets.length > 0 ? `<div class="card mb-3"><div class="card-header fw-semibold small py-2"><i class="bi bi-mortarboard me-1 text-primary"></i>目标院校</div><div class="card-body p-0"><table class="table table-sm mb-0"><tbody>${detail.targets.map(t=>`<tr><td class="small fw-semibold">${escapeHtml(t.uni_name)}</td><td class="small text-muted">${escapeHtml(t.department||'—')}</td><td>${tierBadge(t.tier)}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
-      <!-- 待办任务 -->
-      <div class="card mb-3">
-        <div class="card-header fw-semibold small py-2 d-flex justify-content-between align-items-center">
-          <span><i class="bi bi-list-check me-1 text-warning"></i>待办任务</span>
-          ${canEdit || hasRole('mentor') ? `<button class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size:11px" onclick="openTaskModal('${id}')"><i class="bi bi-plus"></i></button>` : ''}
-        </div>
-        <div class="card-body p-0" style="max-height:300px;overflow-y:auto">
-          ${pending.length === 0 ? '<div class="text-center text-muted small py-3"><i class="bi bi-check-circle text-success me-1"></i>所有任务已完成</div>' :
-          pending.slice(0,10).map(t => {
-            const od = isOverdue(t.due_date, t.status);
-            return `<div class="border-bottom px-3 py-2 d-flex justify-content-between align-items-center">
-              <div style="min-width:0"><div class="small ${od?'text-danger fw-bold':''} text-truncate">${escapeHtml(t.title)}</div><small class="text-muted">${fmtDate(t.due_date)||'无期限'}</small></div>
-              ${od ? '<span class="badge badge-soft-danger" style="font-size:10px">逾期</span>' : `<span class="badge badge-soft-secondary" style="font-size:10px">${escapeHtml(t.status)}</span>`}
-            </div>`;
-          }).join('')}
-        </div>
-      </div>
-      <!-- 导师信息 -->
-      ${detail.mentors.length > 0 ? `<div class="card"><div class="card-header fw-semibold small py-2"><i class="bi bi-person-check me-1 text-success"></i>导师</div><div class="card-body p-0">${detail.mentors.map(m=>`<div class="px-3 py-2 border-bottom d-flex align-items-center gap-2"><div class="avatar-sm">${escapeHtml(m.staff_name.charAt(0))}</div><div><div class="small fw-semibold">${escapeHtml(m.staff_name)}</div><div class="text-muted" style="font-size:11px">${escapeHtml(m.role)}</div></div></div>`).join('')}</div></div>` : ''}
-    `;
-  } catch(e) {
-    panel.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
-  }
-}
-
-async function loadUpcomingTasks() {
-  try {
-    const navGen = State._navGeneration;
-    const students = await GET('/api/students');
-    if (isNavStale(navGen)) return;
-    const el = document.getElementById('upcoming-tasks');
-    if (!el) return;
-    const taskArrays = await Promise.all(
-      students.map(s => GET(`/api/students/${s.id}/tasks`)
-        .then(t => t.filter(x => x.status !== 'done').map(x => ({...x, student_name: s.name})))
-        .catch(() => [])
-      )
-    );
-    if (isNavStale(navGen)) return;
-    const tasks = taskArrays.flat();
-    tasks.sort((a,b) => new Date(a.due_date) - new Date(b.due_date));
-    const upcoming = tasks.slice(0,8);
-    const countEl = document.getElementById('upcoming-count');
-    if (countEl) countEl.textContent = tasks.length > 0 ? tasks.length : '';
-    if (upcoming.length === 0) {
-      el.innerHTML = '<div class="text-center text-muted small py-4"><i class="bi bi-check-circle d-block mb-1" style="font-size:1.5rem;opacity:.4"></i>暂无近期任务</div>';
-    } else {
-      el.innerHTML = upcoming.map(t => {
-        const overdue = isOverdue(t.due_date, t.status);
-        const sid = t.student_id || '';
-        return '<div class="workbench-item border-bottom px-3 py-2" onclick="selectCounselorStudent(\''+sid+'\',null)">'
-          +'<div class="d-flex justify-content-between align-items-start">'
-          +'<span class="small fw-semibold text-truncate '+(overdue?'text-danger':'')+'">'+escapeHtml(t.title.substring(0,30))+'</span>'
-          +'<small class="'+(overdue?'text-danger fw-bold':'text-muted')+'" style="font-size:10px;white-space:nowrap">'+fmtDate(t.due_date)+'</small>'
-          +'</div>'
-          +'<small class="text-muted" style="font-size:11px">'+escapeHtml(t.student_name)+'</small>'
-          +'</div>';
-      }).join('');
-    }
-  } catch(e) {}
-}
-
-function filterCounselorStudents(students, search, grade) {
-  const filtered = students.filter(s => {
-    const matchSearch = !search || s.name.includes(search);
-    const matchGrade = !grade || s.grade_level === grade;
-    return matchSearch && matchGrade;
-  });
-  const el = document.getElementById('counselor-student-list');
-  if (el) el.innerHTML = renderCounselorStudentItems(filtered);
-}
 
 // ════════════════════════════════════════════════════════
 //  导师工作台
@@ -3498,7 +3277,7 @@ function initApp() {
   // ── 恢复 URL hash 中的页面状态，否则跳默认页 ──
   const defaultPages = {
     principal: 'dashboard',
-    counselor: 'counselor',
+    counselor: 'dashboard',
     mentor: 'mentor',
     student: 'student-portal',
     parent: 'parent-portal',

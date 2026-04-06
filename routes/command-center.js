@@ -504,7 +504,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
       res.json(result);
     } catch(e) {
       console.error('[AI Command] Risk analysis error:', e.message);
-      res.status(500).json({ error: 'AI 分析失败，请稍后重试' });
+      const msg = e.message?.includes('OPENAI_API_KEY') ? e.message : 'AI 分析失败，请稍后重试';
+      res.status(500).json({ error: msg });
     }
   });
 
@@ -517,7 +518,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
       res.json(result);
     } catch(e) {
       console.error('[AI Command] Next action error:', e.message);
-      res.status(500).json({ error: 'AI 分析失败，请稍后重试' });
+      const msg = e.message?.includes('OPENAI_API_KEY') ? e.message : 'AI 分析失败，请稍后重试';
+      res.status(500).json({ error: msg });
     }
   });
 
@@ -558,7 +560,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
       res.json({ filters: parsed.filters, explanation: parsed.explanation, results });
     } catch(e) {
       console.error('[AI Command] NLQ error:', e.message);
-      res.status(500).json({ error: 'AI 查询失败，请稍后重试' });
+      const msg = e.message?.includes('OPENAI_API_KEY') ? e.message : 'AI 查询失败，请稍后重试';
+      res.status(500).json({ error: msg });
     }
   });
 
@@ -573,7 +576,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
       res.json(result);
     } catch(e) {
       console.error('[AI Command] List score error:', e.message);
-      res.status(500).json({ error: 'AI 评分失败，请稍后重试' });
+      const msg = e.message?.includes('OPENAI_API_KEY') ? e.message : 'AI 评分失败，请稍后重试';
+      res.status(500).json({ error: msg });
     }
   });
 

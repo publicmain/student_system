@@ -7,6 +7,15 @@ const { OpenAI } = require('openai');
 
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 
+function _getClient() {
+  if (!process.env.OPENAI_API_KEY) {
+    const err = new Error('未配置 OPENAI_API_KEY，AI 功能不可用。请在环境变量中设置 API 密钥。');
+    err.isConfigError = true;
+    throw err;
+  }
+  return new OpenAI();
+}
+
 // ═══════════════════════════════════════════════════════
 //  1. 风险分析
 // ═══════════════════════════════════════════════════════
@@ -79,7 +88,7 @@ exports.analyzeRisks = async function(db, user) {
     };
   });
 
-  const client = new OpenAI();
+  const client = _getClient();
   const resp = await client.chat.completions.create({
     model: MODEL,
     messages: [
@@ -157,7 +166,7 @@ exports.suggestNextActions = async function(db, user) {
     return { student_id: ref, student_ref: `[学生${i}]`, grade_level: s.grade_level, applications: apps, pending_tasks: pendingTasks };
   });
 
-  const client = new OpenAI();
+  const client = _getClient();
   const resp = await client.chat.completions.create({
     model: MODEL,
     messages: [
@@ -207,7 +216,7 @@ const NLQ_SCHEMA = {
 };
 
 exports.parseNLQuery = async function(query) {
-  const client = new OpenAI();
+  const client = _getClient();
   const resp = await client.chat.completions.create({
     model: MODEL,
     messages: [
@@ -272,7 +281,7 @@ exports.evaluateListScore = async function(db, studentId) {
   const apps = db.all('SELECT uni_name, department, tier, route, status, submit_deadline FROM applications WHERE student_id=? AND status NOT IN (\'declined\') ORDER BY tier', [studentId]);
   if (!apps.length) throw new Error('该学生暂无申请记录');
 
-  const client = new OpenAI();
+  const client = _getClient();
   const resp = await client.chat.completions.create({
     model: MODEL,
     messages: [

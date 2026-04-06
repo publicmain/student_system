@@ -44,7 +44,7 @@ const PAGES = {
 
 const PAGE_ROLES = {
   'dashboard':          ['principal', 'counselor'],
-  'mentor':             ['principal', 'mentor'],
+  'mentor':             ['mentor'],
   'students':           ['principal', 'counselor', 'mentor', 'intake_staff'],
   'student-detail':     ['principal', 'counselor', 'mentor', 'student', 'parent'],
   'staff':              ['principal', 'counselor'],

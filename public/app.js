@@ -77,9 +77,17 @@ function canAccessPage(page) {
 }
 
 // ════════════════════════════════════════════════════════
-//  仪表盘 (校长)
+//  仪表盘路由（根据角色分流）
 // ════════════════════════════════════════════════════════
 async function renderDashboard() {
+  if (State.user?.role === 'counselor') return renderCounselorDashboard();
+  return renderPrincipalDashboard();
+}
+
+// ════════════════════════════════════════════════════════
+//  校长仪表盘（全局视角）
+// ════════════════════════════════════════════════════════
+async function renderPrincipalDashboard() {
   const mc = document.getElementById('main-content');
   mc.innerHTML = `<div class="page-loading"><div class="spinner-border text-primary"></div></div>`;
 
@@ -94,7 +102,6 @@ async function renderDashboard() {
     const tierMap = {};
     (stats.tierStats || []).forEach(t => tierMap[t.tier] = t.cnt);
 
-    // ── 计算需要关注的师资（>70%负载）
     const warnStaff = workload.filter(w => {
       const pct = w.capacity_students > 0 ? Math.round(w.current_students/w.capacity_students*100) : 0;
       return pct >= 70;
@@ -211,7 +218,7 @@ async function renderDashboard() {
       </div>
     </div>
 
-    <!-- 师资负载（仅显示需关注的） -->
+    <!-- 师资负载 -->
     <div class="card">
       <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
         <span><i class="bi bi-person-fill-gear me-1 text-muted"></i> 师资负载</span>
@@ -241,6 +248,188 @@ async function renderDashboard() {
                       </div>
                       <small class="text-${cls} fw-semibold">${pct}%</small>
                     </td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>`}
+      </div>
+    </div>`;
+  } catch (e) {
+    mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  规划师今日概览（我的工作视角）
+// ════════════════════════════════════════════════════════
+async function renderCounselorDashboard() {
+  const mc = document.getElementById('main-content');
+  mc.innerHTML = `<div class="page-loading"><div class="spinner-border text-primary"></div></div>`;
+
+  try {
+    const [overview, ccStats] = await Promise.all([
+      GET('/api/dashboard/my-overview'),
+      GET('/api/command-center/stats').catch(() => null),
+    ]);
+
+    // 按日期分组任务
+    const tasksByDate = {};
+    (overview.upcomingTasks || []).forEach(t => {
+      const d = t.due_date ? t.due_date.substring(0, 10) : '无期限';
+      if (!tasksByDate[d]) tasksByDate[d] = [];
+      tasksByDate[d].push(t);
+    });
+
+    const today = new Date().toISOString().substring(0, 10);
+
+    mc.innerHTML = `
+    <div class="page-header">
+      <h4><i class="bi bi-calendar-check me-2"></i>今日工作概览</h4>
+      <div class="page-header-actions">
+        <small class="text-muted me-2">${new Date().toLocaleString('zh-CN', {year:'numeric',month:'long',day:'numeric',weekday:'long'})}</small>
+      </div>
+    </div>
+
+    <!-- KPI 指标条：我的数据 -->
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-md-3">
+        <div class="stat-card accent-primary" onclick="navigate('students')" style="cursor:pointer">
+          <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
+          <div class="stat-value">${overview.myStudents}</div>
+          <div class="stat-label">我的学生</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card ${overview.myUpcomingTasks>0?'accent-warning':'accent-success'}">
+          <div class="stat-icon"><i class="bi bi-clock-fill"></i></div>
+          <div class="stat-value">${overview.myUpcomingTasks}</div>
+          <div class="stat-label">本周截止任务</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card ${overview.myOverdue>0?'accent-danger':'accent-success'}">
+          <div class="stat-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+          <div class="stat-value" style="${overview.myOverdue>0?'color:var(--danger)':''}">${overview.myOverdue}</div>
+          <div class="stat-label">我的逾期任务</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card ${overview.pendingFeedback>0?'accent-warning':'accent-info'}">
+          <div class="stat-icon"><i class="bi bi-chat-dots-fill"></i></div>
+          <div class="stat-value">${overview.pendingFeedback}</div>
+          <div class="stat-label">待回复反馈</div>
+        </div>
+      </div>
+    </div>
+
+    ${ccStats ? `
+    <!-- 申请指挥中心快捷入口 -->
+    <div class="row g-3 mb-4">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-body py-3 d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+              <i class="bi bi-rocket-takeoff-fill text-primary fs-5"></i>
+              <span class="fw-semibold">申请指挥中心</span>
+              <span class="badge badge-soft-primary ms-1">${ccStats.total || 0} 个申请</span>
+              ${(ccStats.offers || 0) > 0 ? `<span class="badge badge-soft-success">${ccStats.offers} 个Offer</span>` : ''}
+              ${(ccStats.atRisk || 0) > 0 ? `<span class="badge badge-soft-danger">${ccStats.atRisk} 个风险</span>` : ''}
+            </div>
+            <a href="#" onclick="event.preventDefault();navigate('command-center')" class="btn btn-sm btn-outline-primary">进入指挥中心 <i class="bi bi-chevron-right"></i></a>
+          </div>
+        </div>
+      </div>
+    </div>` : ''}
+
+    <!-- 本周待办 + 需要关注 -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-list-check me-1 text-primary"></i> 本周待办</span>
+            <span class="badge badge-soft-primary">${overview.upcomingTasks?.length || 0} 项</span>
+          </div>
+          <div class="card-body p-0" style="max-height:400px;overflow-y:auto">
+            ${Object.keys(tasksByDate).length === 0
+              ? '<div class="empty-state-block" style="padding:2rem"><i class="bi bi-calendar-check" style="color:var(--success)"></i><p>本周暂无待办任务</p></div>'
+              : Object.entries(tasksByDate).map(([date, tasks]) => {
+                const isToday = date === today;
+                const dateLabel = isToday ? '今天' : date;
+                return `<div class="px-3 py-2 ${isToday ? 'bg-warning bg-opacity-10' : 'bg-light'} border-bottom">
+                  <small class="fw-bold ${isToday ? 'text-warning' : 'text-muted'}">${isToday ? '<i class="bi bi-star-fill me-1"></i>' : '<i class="bi bi-calendar3 me-1"></i>'}${escapeHtml(dateLabel)}</small>
+                </div>
+                ${tasks.map(t => `<div class="px-3 py-2 border-bottom d-flex justify-content-between align-items-center" style="cursor:pointer" onclick="navigate('student-detail',{studentId:'${t.student_id}'})">
+                  <div style="min-width:0">
+                    <div class="small fw-semibold text-truncate">${escapeHtml(t.title)}</div>
+                    <small class="text-muted">${escapeHtml(t.student_name)}</small>
+                  </div>
+                  <span class="badge badge-soft-${t.status === 'in_progress' ? 'primary' : 'secondary'}" style="font-size:10px;white-space:nowrap">${escapeHtml(t.status === 'in_progress' ? '进行中' : '待开始')}</span>
+                </div>`).join('')}`;
+              }).join('')}
+          </div>
+        </div>
+      </div>
+
+      <!-- 需要关注（多维度） -->
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-exclamation-triangle me-1 text-warning"></i> 需要关注</span>
+            <a href="#" onclick="event.preventDefault();navigate('students')" class="small text-primary text-decoration-none">全部学生 →</a>
+          </div>
+          <div class="card-body p-0" style="max-height:400px;overflow-y:auto">
+            ${(overview.attentionStudents || []).length === 0
+              ? '<div class="empty-state-block" style="padding:2rem"><i class="bi bi-check-circle" style="color:var(--success)"></i><p>所有学生状态良好</p></div>'
+              : `<ul class="attention-list">
+                ${overview.attentionStudents.map(r => {
+                  const tags = [];
+                  if (r.overdue_count > 0) tags.push(`<span class="badge badge-soft-danger">${r.overdue_count} 项逾期</span>`);
+                  if (r.pending_feedback > 0) tags.push(`<span class="badge badge-soft-warning">${r.pending_feedback} 条反馈</span>`);
+                  if (!r.last_comm_date || new Date(r.last_comm_date) < new Date(Date.now() - 14*86400000))
+                    tags.push('<span class="badge badge-soft-secondary">超2周未沟通</span>');
+                  return `<li>
+                    <div>
+                      <div class="att-name">${escapeHtml(r.name)} <span class="badge badge-soft-secondary ms-1">${escapeHtml(r.grade_level)}</span></div>
+                      <div class="att-desc d-flex flex-wrap gap-1">${tags.join('')}</div>
+                    </div>
+                    <div class="att-action">
+                      <button class="action-icon-btn" title="查看" onclick="navigate('student-detail',{studentId:'${r.id}'})"><i class="bi bi-chevron-right"></i></button>
+                    </div>
+                  </li>`;
+                }).join('')}
+              </ul>`}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 材料收集进度 -->
+    <div class="card">
+      <div class="card-header fw-semibold">
+        <i class="bi bi-folder-check me-1 text-info"></i> 材料收集进度
+      </div>
+      <div class="card-body p-0">
+        ${(overview.materialProgress || []).length === 0
+          ? `<div class="d-flex align-items-center justify-content-center py-3 gap-2 text-muted" style="font-size:.85rem">
+              <i class="bi bi-check-circle text-success"></i> 暂无需要跟进的材料
+            </div>`
+          : `<div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light"><tr><th>学生</th><th>进度</th><th>完成情况</th><th></th></tr></thead>
+              <tbody>
+                ${overview.materialProgress.map(m => {
+                  const pct = m.total > 0 ? Math.round(m.completed / m.total * 100) : 0;
+                  const barClass = pct >= 80 ? 'progress-bar-gradient-green' : pct >= 50 ? 'progress-bar-gradient-blue' : 'progress-bar-gradient-red';
+                  return `<tr>
+                    <td class="fw-semibold">${escapeHtml(m.name)}</td>
+                    <td style="min-width:120px">
+                      <div class="progress" style="height:6px;border-radius:999px">
+                        <div class="progress-bar ${barClass}" style="width:${pct}%;border-radius:999px"></div>
+                      </div>
+                    </td>
+                    <td><small class="fw-semibold ${pct < 50 ? 'text-danger' : ''}">${m.completed}/${m.total} 项</small></td>
+                    <td><button class="action-icon-btn" onclick="navigate('student-detail',{studentId:'${m.id}'})"><i class="bi bi-chevron-right"></i></button></td>
                   </tr>`;
                 }).join('')}
               </tbody>
@@ -952,29 +1141,33 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
               ${pending.length > 6 ? `<div style="padding:.4rem .75rem"><a href="#" onclick="event.preventDefault();document.querySelector('a[href=\\'#tab-timeline\\']').click()" class="small text-primary">查看全部 ${pending.length} 项任务 →</a></div>` : ''}
             </div>
 
-            <!-- Applications -->
-            ${applications.length > 0 ? `
+            <!-- Target Universities (always visible) -->
             <div class="stu-main-section">
-              <div class="stu-section-title">申请进度</div>
-              ${applications.map(a => `<div class="stu-app-row">
-                <div class="stu-app-uni">${escapeHtml(a.uni_name||'—')}</div>
-                <div class="stu-app-dept">${escapeHtml(a.department||'—')}</div>
-                ${statusBadge(a.status)}
-              </div>`).join('')}
-            </div>` : ''}
-
-            <!-- Target Universities (in main when has data) -->
-            ${targets.length > 0 ? `
-            <div class="stu-main-section">
-              <div class="stu-section-title">目标院校 <span class="badge badge-soft-secondary ms-1" style="font-size:.6rem;text-transform:none;letter-spacing:0">${targets.length}</span></div>
-              ${targets.map(t => `<div class="stu-app-row">
+              <div class="stu-section-title">
+                目标院校 ${targets.length > 0 ? `<span class="badge badge-soft-secondary ms-1" style="font-size:.6rem;text-transform:none;letter-spacing:0">${targets.length}</span>` : ''}
+                ${canEdit ? `<button class="btn btn-outline-primary btn-sm py-0 px-2 ms-2" style="font-size:.75rem" onclick="openTargetModal('${id}')"><i class="bi bi-plus me-1"></i>添加院校</button>` : ''}
+              </div>
+              ${targets.length === 0
+                ? `<div style="color:var(--text-tertiary);font-size:.82rem;padding:.5rem 0"><i class="bi bi-mortarboard me-1"></i>暂未设置目标院校${canEdit ? '，点击上方按钮添加' : ''}</div>`
+                : targets.map(t => `<div class="stu-app-row">
                 <div class="stu-app-uni">${escapeHtml(t.uni_name)}</div>
                 <div class="stu-app-dept">${escapeHtml(t.department||'—')}</div>
                 ${tierBadge(t.tier)}
                 ${canEdit ? `<button class="stu-sb-btn" style="color:#dc2626" onclick="deleteTarget('${t.id}','${id}')"><i class="bi bi-trash"></i></button>` : ''}
               </div>`).join('')}
-              ${canEdit ? `<div style="padding:.4rem .75rem"><button class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size:.75rem" onclick="openTargetModal('${id}')"><i class="bi bi-plus me-1"></i>添加院校</button></div>` : ''}
-            </div>` : ''}
+            </div>
+
+            <!-- Applications (always visible) -->
+            <div class="stu-main-section">
+              <div class="stu-section-title">申请进度 ${applications.length > 0 ? `<span class="badge badge-soft-secondary ms-1" style="font-size:.6rem;text-transform:none;letter-spacing:0">${applications.length}</span>` : ''}</div>
+              ${applications.length === 0
+                ? `<div style="color:var(--text-tertiary);font-size:.82rem;padding:.5rem 0"><i class="bi bi-send me-1"></i>暂无申请记录</div>`
+                : applications.map(a => `<div class="stu-app-row">
+                <div class="stu-app-uni">${escapeHtml(a.uni_name||'—')}</div>
+                <div class="stu-app-dept">${escapeHtml(a.department||'—')}</div>
+                ${statusBadge(a.status)}
+              </div>`).join('')}
+            </div>
 
             <!-- Competitiveness -->
             <div class="stu-main-section">
@@ -1017,14 +1210,15 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
                   </div>`).join('')}
             </div>
 
-            <!-- Assessments -->
-            ${assessments.length > 0 ? `
+            <!-- Assessments (always visible) -->
             <div class="stu-sb-module">
               <div class="stu-sb-title">
                 <span><i class="bi bi-graph-up"></i>入学评估</span>
                 ${canEdit ? `<button class="stu-sb-btn" onclick="openAssessmentModal('${id}')"><i class="bi bi-plus-lg"></i></button>` : ''}
               </div>
-              ${assessments.map(a => `<div class="stu-sb-assess">
+              ${assessments.length === 0
+                ? `<div style="font-size:.78rem;color:var(--text-tertiary)">暂无评估数据${canEdit ? '，点击 + 添加' : ''}</div>`
+                : assessments.map(a => `<div class="stu-sb-assess">
                 <div>
                   <div style="font-size:.8rem;font-weight:600">${escapeHtml(a.assess_type)}</div>
                   <div style="font-size:.7rem;color:var(--text-tertiary)">${escapeHtml(a.subject||'')} · ${fmtDate(a.assess_date)}</div>
@@ -1034,23 +1228,24 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
                   ${a.percentile ? `<div style="font-size:.68rem;color:var(--text-tertiary)">${a.percentile}%ile</div>` : ''}
                 </div>
               </div>`).join('')}
-            </div>` : ''}
+            </div>
 
-            <!-- Subjects -->
-            ${subjects.length > 0 ? `
+            <!-- Subjects (always visible) -->
             <div class="stu-sb-module">
               <div class="stu-sb-title">
                 <span><i class="bi bi-book"></i>选科</span>
                 ${canEdit ? `<button class="stu-sb-btn" onclick="openSubjectModal('${id}')"><i class="bi bi-plus-lg"></i></button>` : ''}
               </div>
-              <div style="display:flex;flex-wrap:wrap;gap:.35rem">
+              ${subjects.length === 0
+                ? `<div style="font-size:.78rem;color:var(--text-tertiary)">暂无选科记录${canEdit ? '，点击 + 添加' : ''}</div>`
+                : `<div style="display:flex;flex-wrap:wrap;gap:.35rem">
                 ${subjects.map(s => `<span class="ov-subject-tag" style="font-size:.72rem;padding:.2rem .5rem">
                   <strong>${escapeHtml(s.code)}</strong>
                   ${s.level ? `<span style="color:var(--text-secondary)">${escapeHtml(s.level)}</span>` : ''}
                   ${canEdit ? `<button class="tag-remove" onclick="removeSubject('${s.id}','${id}')"><i class="bi bi-x"></i></button>` : ''}
                 </span>`).join('')}
-              </div>
-            </div>` : ''}
+              </div>`}
+            </div>
 
             <!-- Profile Tags -->
             <div class="stu-sb-module">
@@ -1067,19 +1262,20 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
               <div id="awards-card"><div class="text-center text-muted py-1 small"><div class="spinner-border spinner-border-sm"></div></div></div>
             </div>
 
-            <!-- Parents -->
-            ${parents.length > 0 ? `
+            <!-- Parents (always visible) -->
             <div class="stu-sb-module">
               <div class="stu-sb-title">
                 <span><i class="bi bi-people"></i>家长</span>
                 ${canEdit ? `<button class="stu-sb-btn" onclick="openParentModal('${id}')"><i class="bi bi-plus-lg"></i></button>` : ''}
               </div>
-              ${parents.map(p => `<div style="font-size:.78rem;padding:.3rem 0;${parents.indexOf(p)>0?'border-top:1px solid color-mix(in srgb, var(--border) 50%, transparent)':''}">
+              ${parents.length === 0
+                ? `<div style="font-size:.78rem;color:var(--text-tertiary)">暂无家长信息${canEdit ? '，点击 + 添加' : ''}</div>`
+                : parents.map(p => `<div style="font-size:.78rem;padding:.3rem 0;${parents.indexOf(p)>0?'border-top:1px solid color-mix(in srgb, var(--border) 50%, transparent)':''}">
                 <div style="font-weight:600">${escapeHtml(p.name)} <span style="font-weight:400;color:var(--text-tertiary);font-size:.72rem">${escapeHtml(p.relation||'')}</span></div>
                 ${p.phone ? `<div style="color:var(--text-secondary);font-size:.72rem"><i class="bi bi-telephone me-1"></i>${escapeHtml(p.phone)}</div>` : ''}
                 ${p.email ? `<div style="color:var(--text-secondary);font-size:.72rem"><i class="bi bi-envelope me-1"></i>${escapeHtml(p.email)}</div>` : ''}
               </div>`).join('')}
-            </div>` : ''}
+            </div>
 
             <!-- Pending Items — consolidated empty states -->
             ${emptyItems.length > 0 ? `

@@ -9075,7 +9075,7 @@ async function loadIntakeFormsList() {
       const isExpired = f.expires_at && new Date(f.expires_at) < new Date();
       const displayStatus = isExpired ? 'expired' : f.status;
       return `<div class="col-12">
-        <div class="card shadow-sm">
+        <div class="card shadow-sm" style="overflow:visible">
           <div class="card-body">
             <div class="d-flex align-items-start justify-content-between">
               <div class="flex-grow-1">

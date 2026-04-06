@@ -74,7 +74,7 @@ const PAGE_ROLES = {
 
 function canAccessPage(page) {
   const allowed = PAGE_ROLES[page];
-  if (!allowed) return false;
+  if (!allowed) return true; // 未注册页面不拦截
   return allowed.includes(State.user?.role);
 }
 

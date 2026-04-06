@@ -338,7 +338,7 @@ module.exports = function({ db, requireAuth, requireRole }) {
 
       // ── 最近沟通记录 ──
       const recentComms = db.all(
-        `SELECT cl.id, cl.student_id, cl.type, cl.summary, cl.created_at,
+        `SELECT cl.id, cl.student_id, cl.channel as type, cl.summary, cl.created_at,
            s.name as student_name
          FROM communication_logs cl
          JOIN students s ON s.id = cl.student_id

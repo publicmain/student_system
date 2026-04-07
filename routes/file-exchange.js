@@ -137,7 +137,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
   });
 
   // 催办
-  apiRouter.post('/file-exchange/:id/remind', requireRole('principal','intake_staff'), async (req, res) => {
+  apiRouter.post('/file-exchange/:id/remind', requireRole('principal','intake_staff'), async (req, res, next) => {
+    try {
     const rec = db.get('SELECT * FROM file_exchange_records WHERE id=? AND is_deleted=0', [req.params.id]);
     if (!rec) return res.status(404).json({ error: '记录不存在' });
     if (!rec.access_token) return res.status(400).json({ error: '请先发送文件给学生' });
@@ -168,6 +169,9 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
       emailSent = true;
     } catch(e) { console.error('fx remind mail failed:', e.message); }
     res.json({ ok: true, email_sent: emailSent });
+    } catch (e) {
+      next(e);
+    }
   });
 
   // 管理员下载文件

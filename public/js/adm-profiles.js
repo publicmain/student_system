@@ -1211,7 +1211,7 @@ async function _admFinalSubmit() {
       submit_mode: 'manual',
     });
     showSuccess('提交成功！文件生成中，请稍后在案例页面查看。');
-    navigate('adm-profiles');
+    navigate('intake-cases');
   } catch(e) {
     showError('提交失败: ' + e.message);
   } finally {

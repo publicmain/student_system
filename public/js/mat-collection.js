@@ -93,7 +93,7 @@ async function renderMatRequests() {
               <td style="min-width:120px">${matProgress(r.item_approved || 0, r.item_total || 0)}</td>
               <td>
                 <button class="btn btn-xs btn-sm btn-outline-primary py-0 px-2 me-1"
-                  onclick="navigate('mat-request-detail',{requestId:'${r.id}'})">详情</button>
+                  onclick="navigate('intake-cases',{requestId:'${r.id}'})">详情</button>
                 ${!['COMPLETED','CANCELLED'].includes(r.status) ? `
                   <button class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2"
                     onclick="matManualRemind('${r.id}')">催件</button>` : ''}
@@ -310,7 +310,7 @@ async function matManualRemind(requestId) {
 // ── 材料收集请求详情 ──────────────────────────────────
 async function renderMatRequestDetail({ requestId } = {}) {
   const id = requestId || State.currentMatRequestId;
-  if (!id) { navigate('mat-requests'); return; }
+  if (!id) { navigate('intake-cases'); return; }
   State.currentMatRequestId = id;
 
   const main = document.getElementById('main-content');
@@ -325,7 +325,7 @@ async function renderMatRequestDetail({ requestId } = {}) {
   main.innerHTML = `
     <div class="page-header mb-4">
       <div>
-        <button class="btn btn-sm btn-outline-secondary me-2" onclick="navigate('mat-requests')">
+        <button class="btn btn-sm btn-outline-secondary me-2" onclick="navigate('intake-cases')">
           <i class="bi bi-arrow-left"></i>
         </button>
         <span class="fw-bold fs-5">${escapeHtml(r.title)}</span>
@@ -661,7 +661,7 @@ async function matCancelRequest(id) {
   try {
     await DEL(`/api/mat-requests/${id}`);
     showSuccess('已取消');
-    navigate('mat-requests');
+    navigate('intake-cases');
   } catch(e) { showError('操作失败: ' + e.message); }
 }
 

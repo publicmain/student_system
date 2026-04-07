@@ -2,6 +2,27 @@
 function showPage(page, params) { navigate(page, params || {}); }
 
 // ══════════════════════════════════════════════════════
+//  入学管理中心（Tab 结构）
+// ══════════════════════════════════════════════════════
+async function renderIntakeCenter(params = {}) {
+  const activeTab = params.tab || 'cases';
+  const mc = document.getElementById('main-content');
+  mc.innerHTML = `
+    <div class="page-header">
+      <h4><i class="bi bi-mortarboard me-2"></i>入学管理</h4>
+    </div>
+    <ul class="nav nav-tabs mb-3" id="intake-tabs">
+      <li class="nav-item"><a class="nav-link${activeTab==='cases'?' active':''}" href="#" onclick="event.preventDefault();renderIntakeCenter({tab:'cases'})"><i class="bi bi-folder2-open me-1"></i>入学案例</a></li>
+      <li class="nav-item"><a class="nav-link${activeTab==='forms'?' active':''}" href="#" onclick="event.preventDefault();renderIntakeCenter({tab:'forms'})"><i class="bi bi-file-earmark-text me-1"></i>信息收集表</a></li>
+    </ul>
+    <div id="intake-tab-content"><div class="text-center py-5"><div class="spinner-border text-primary"></div></div></div>
+  `;
+  const tabContainer = document.getElementById('intake-tab-content');
+  if (activeTab === 'cases') await renderIntakeCases(params, tabContainer);
+  else if (activeTab === 'forms') await renderIntakeFormsPage({}, tabContainer);
+}
+
+// ══════════════════════════════════════════════════════
 //  INTAKE DASHBOARD
 // ══════════════════════════════════════════════════════
 async function renderIntakeDashboard() {
@@ -257,13 +278,13 @@ async function renderIntakeDashboard() {
 // ══════════════════════════════════════════════════════
 //  INTAKE CASES LIST
 // ══════════════════════════════════════════════════════
-async function renderIntakeCases(params = {}) {
+async function renderIntakeCases(params = {}, targetEl = null) {
   // 清理可能残留的 Bootstrap modal 遮罩，防止页面卡死
   document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
   document.body.classList.remove('modal-open');
   document.body.style.removeProperty('overflow');
   document.body.style.removeProperty('padding-right');
-  const main = document.getElementById('main-content');
+  const main = targetEl || document.getElementById('main-content');
   main.innerHTML = `<div class="p-3"><div class="skeleton" style="height:36px;width:220px;border-radius:6px;margin-bottom:1rem"></div><table class="table"><tbody>${skeletonTableRows(7,6)}</tbody></table></div>`;
   let cases;
   try {

@@ -364,18 +364,36 @@ app.use('/api', require('./routes/settings')(deps));
 // Notifications / Escalation / Audit
 app.use('/api', require('./routes/notifications')(deps));
 
-// Analytics + ICS Calendar + Admission Eval Engine
+// Analytics + ICS Calendar (overview & calendar only)
 app.use('/api', require('./routes/analytics')(deps));
+
+// University Programs (院校专业库)
+app.use('/api', require('./routes/uni-programs')(deps));
+
+// Evaluations (录取评估引擎 + 基准评估 + AI 增强)
+app.use('/api', require('./routes/evaluations')(deps));
 
 // AI Plans
 app.use('/api', require('./routes/ai-plans')(deps));
 
-// Intake Cases
-// Agent portal needs _matSendInviteEmail — mount agent-portal first to get it
-const agentPortalRouter = require('./routes/agent-portal')(deps);
-const _matSendInviteEmail = agentPortalRouter._matSendInviteEmail;
+// Material Requests (中介材料收集系统) — mount first to get shared helpers
+const matRequestsRouter = require('./routes/mat-requests')(deps);
+const _matSendInviteEmail = matRequestsRouter._matSendInviteEmail;
+app.use('/api', matRequestsRouter);
 
+// Intake Cases
 app.use('/api', require('./routes/intake-cases')({ ...deps, _matSendInviteEmail }));
+
+// Agent Portal (session + token-based routes, all under /api)
+const agentPortalRouter = require('./routes/agent-portal')({
+  ...deps,
+  _matSendInviteEmail: matRequestsRouter._matSendInviteEmail,
+  _matCreateMagicLink: matRequestsRouter._matCreateMagicLink,
+  _matValidateToken: matRequestsRouter._matValidateToken,
+  _matAudit: matRequestsRouter._matAudit,
+  _agentRateLimit: matRequestsRouter._agentRateLimit,
+});
+app.use('/api', agentPortalRouter);
 
 // Command Center (申请指挥中心)
 app.use('/api', require('./routes/command-center')(deps));
@@ -398,9 +416,6 @@ app.use('/', fileExchange.publicRouter);
 const orientation = require('./routes/orientation')(deps);
 app.use('/api', orientation.apiRouter);
 app.use('/', orientation.publicRouter);
-
-// Agent Portal (session + token-based routes, all under /api)
-app.use('/api', agentPortalRouter);
 
 // ADM Profiles
 app.use('/api', require('./routes/adm-profiles')(deps));
@@ -508,6 +523,16 @@ app.post('/api/intake-cases/:id/convert', requireRole('principal','intake_staff'
   }
   audit(req, 'CONVERT', 'intake_cases', req.params.id, { student_id: studentId, student_name: ic.student_name });
   res.json({ ok: true, student_id: studentId, student_name: ic.student_name });
+});
+
+// 全局错误处理
+app.use((err, req, res, next) => {
+  console.error(`[${req.method} ${req.path}]`, err.message);
+  const status = err.status || 500;
+  res.status(status).json({
+    error: status === 500 ? '服务器内部错误' : err.message,
+    code: err.code || 'UNKNOWN_ERROR'
+  });
 });
 
 // ═══════════════════════════════════════════════════════

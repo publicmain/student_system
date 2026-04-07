@@ -12,87 +12,104 @@ const METHOD_LABELS = { bank_transfer:'银行转账', cash:'现金', cheque:'支
 function fmtMoney(v, currency) { return `${currency||'SGD'} ${Number(v||0).toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2})}`; }
 
 // ═══════════════════════════════════════════════════════
-//  Page 1: 财务总览
+//  入口：财务中心（Tab 结构）
 // ═══════════════════════════════════════════════════════
 
-async function renderFinanceDashboard() {
-  const el = document.getElementById('main-content');
-  el.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
+async function renderFinanceCenter(params = {}) {
+  const activeTab = params.tab || 'dashboard';
+  const mc = document.getElementById('main-content');
+  mc.innerHTML = `
+    <div class="page-header">
+      <h4><i class="bi bi-currency-dollar me-2"></i>财务中心</h4>
+    </div>
+    <ul class="nav nav-tabs mb-3" id="finance-tabs">
+      <li class="nav-item"><a class="nav-link${activeTab==='dashboard'?' active':''}" href="#" onclick="event.preventDefault();renderFinanceCenter({tab:'dashboard'})"><i class="bi bi-speedometer2 me-1"></i>财务总览</a></li>
+      <li class="nav-item"><a class="nav-link${activeTab==='tuition'?' active':''}" href="#" onclick="event.preventDefault();renderFinanceCenter({tab:'tuition'})"><i class="bi bi-mortarboard me-1"></i>学费管理</a></li>
+      <li class="nav-item"><a class="nav-link${activeTab==='reports'?' active':''}" href="#" onclick="event.preventDefault();renderFinanceCenter({tab:'reports'})"><i class="bi bi-file-earmark-bar-graph me-1"></i>财务报表</a></li>
+    </ul>
+    <div id="finance-tab-content"><div class="text-center py-5"><div class="spinner-border text-primary"></div></div></div>
+  `;
+  const tabContainer = document.getElementById('finance-tab-content');
+  if (activeTab === 'dashboard') await renderFinanceDashboardTab(tabContainer);
+  else if (activeTab === 'tuition') await renderTuitionTab(tabContainer);
+  else if (activeTab === 'reports') await renderFinanceReportsTab(tabContainer);
+}
+
+// ═══════════════════════════════════════════════════════
+//  Tab 1: 财务总览
+// ═══════════════════════════════════════════════════════
+
+async function renderFinanceDashboardTab(container) {
   try {
     const data = await GET('/api/finance/dashboard');
     const t = data.tuition;
     const c = data.commission;
-    el.innerHTML = `
-      <div class="container-fluid p-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-          <h4 class="mb-0">财务总览</h4>
-          <div>
-            <button class="btn btn-sm btn-outline-primary me-2" onclick="generateReminders()"><i class="bi bi-bell"></i> 生成提醒</button>
-            <button class="btn btn-sm btn-primary" onclick="showCreatePlanModal()"><i class="bi bi-plus"></i> 新建学费计划</button>
-          </div>
-        </div>
+    container.innerHTML = `
+      <div class="d-flex justify-content-end mb-3">
+        <button class="btn btn-sm btn-outline-primary me-2" onclick="generateReminders()"><i class="bi bi-bell"></i> 生成提醒</button>
+        <button class="btn btn-sm btn-primary" onclick="showCreatePlanModal()"><i class="bi bi-plus"></i> 新建学费计划</button>
+      </div>
 
-        <h6 class="text-muted mb-2">学费收支</h6>
-        <div class="row g-3 mb-4">
-          <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body text-center">
-            <div class="text-muted small">总应收</div><div class="fs-5 fw-bold text-primary">${fmtMoney(t.total)}</div>
-          </div></div></div>
-          <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body text-center">
-            <div class="text-muted small">已收</div><div class="fs-5 fw-bold text-success">${fmtMoney(t.paid)}</div>
-          </div></div></div>
-          <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body text-center">
-            <div class="text-muted small">未收</div><div class="fs-5 fw-bold text-warning">${fmtMoney(t.unpaid)}</div>
-          </div></div></div>
-          <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body text-center">
-            <div class="text-muted small">逾期笔数</div><div class="fs-5 fw-bold text-danger">${t.overdue_count}</div>
-          </div></div></div>
-        </div>
+      <h6 class="text-muted mb-2">学费收支</h6>
+      <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body text-center">
+          <div class="text-muted small">总应收</div><div class="fs-5 fw-bold text-primary">${fmtMoney(t.total)}</div>
+        </div></div></div>
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body text-center">
+          <div class="text-muted small">已收</div><div class="fs-5 fw-bold text-success">${fmtMoney(t.paid)}</div>
+        </div></div></div>
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body text-center">
+          <div class="text-muted small">未收</div><div class="fs-5 fw-bold text-warning">${fmtMoney(t.unpaid)}</div>
+        </div></div></div>
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body text-center">
+          <div class="text-muted small">逾期笔数</div><div class="fs-5 fw-bold text-danger">${t.overdue_count}</div>
+        </div></div></div>
+      </div>
 
-        <h6 class="text-muted mb-2">佣金支出</h6>
-        <div class="row g-3 mb-4">
-          <div class="col-md-4"><div class="card border-0 shadow-sm"><div class="card-body text-center">
-            <div class="text-muted small">总应付</div><div class="fs-5 fw-bold text-primary">${fmtMoney(c.total)}</div>
-          </div></div></div>
-          <div class="col-md-4"><div class="card border-0 shadow-sm"><div class="card-body text-center">
-            <div class="text-muted small">已付</div><div class="fs-5 fw-bold text-success">${fmtMoney(c.paid)}</div>
-          </div></div></div>
-          <div class="col-md-4"><div class="card border-0 shadow-sm"><div class="card-body text-center">
-            <div class="text-muted small">待付</div><div class="fs-5 fw-bold text-warning">${fmtMoney(c.pending)}</div>
-          </div></div></div>
-        </div>
+      <h6 class="text-muted mb-2">佣金支出</h6>
+      <div class="row g-3 mb-4">
+        <div class="col-md-4"><div class="card border-0 shadow-sm"><div class="card-body text-center">
+          <div class="text-muted small">总应付</div><div class="fs-5 fw-bold text-primary">${fmtMoney(c.total)}</div>
+        </div></div></div>
+        <div class="col-md-4"><div class="card border-0 shadow-sm"><div class="card-body text-center">
+          <div class="text-muted small">已付</div><div class="fs-5 fw-bold text-success">${fmtMoney(c.paid)}</div>
+        </div></div></div>
+        <div class="col-md-4"><div class="card border-0 shadow-sm"><div class="card-body text-center">
+          <div class="text-muted small">待付</div><div class="fs-5 fw-bold text-warning">${fmtMoney(c.pending)}</div>
+        </div></div></div>
+      </div>
 
-        <div class="row g-3">
-          <div class="col-lg-6">
-            <div class="card border-0 shadow-sm">
-              <div class="card-header bg-white"><h6 class="mb-0">即将到期（30天内）</h6></div>
-              <div class="card-body p-0">
-                ${data.upcoming.length ? `<table class="table table-sm table-hover mb-0">
-                  <thead><tr><th>学生</th><th>计划</th><th>金额</th><th>到期日</th></tr></thead>
-                  <tbody>${data.upcoming.map(u => `<tr>
-                    <td>${u.student_name||'-'}</td><td>${u.plan_name||'-'}</td>
-                    <td>${fmtMoney(u.amount_due)}</td><td>${u.due_date}</td>
-                  </tr>`).join('')}</tbody>
-                </table>` : '<div class="text-center text-muted py-3">暂无</div>'}
-              </div>
+      <div class="row g-3">
+        <div class="col-lg-6">
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white"><h6 class="mb-0">即将到期（30天内）</h6></div>
+            <div class="card-body p-0">
+              ${data.upcoming.length ? `<table class="table table-sm table-hover mb-0">
+                <thead><tr><th>学生</th><th>计划</th><th>金额</th><th>到期日</th></tr></thead>
+                <tbody>${data.upcoming.map(u => `<tr>
+                  <td>${u.student_name||'-'}</td><td>${u.plan_name||'-'}</td>
+                  <td>${fmtMoney(u.amount_due)}</td><td>${u.due_date}</td>
+                </tr>`).join('')}</tbody>
+              </table>` : '<div class="text-center text-muted py-3">暂无</div>'}
             </div>
           </div>
-          <div class="col-lg-6">
-            <div class="card border-0 shadow-sm">
-              <div class="card-header bg-white"><h6 class="mb-0 text-danger">逾期列表</h6></div>
-              <div class="card-body p-0">
-                ${data.overdue.length ? `<table class="table table-sm table-hover mb-0">
-                  <thead><tr><th>学生</th><th>计划</th><th>金额</th><th>逾期天数</th></tr></thead>
-                  <tbody>${data.overdue.map(o => `<tr class="table-danger">
-                    <td>${o.student_name||'-'}</td><td>${o.plan_name||'-'}</td>
-                    <td>${fmtMoney(o.amount_due)}</td><td>${o.overdue_days} 天</td>
-                  </tr>`).join('')}</tbody>
-                </table>` : '<div class="text-center text-muted py-3">暂无逾期</div>'}
-              </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white"><h6 class="mb-0 text-danger">逾期列表</h6></div>
+            <div class="card-body p-0">
+              ${data.overdue.length ? `<table class="table table-sm table-hover mb-0">
+                <thead><tr><th>学生</th><th>计划</th><th>金额</th><th>逾期天数</th></tr></thead>
+                <tbody>${data.overdue.map(o => `<tr class="table-danger">
+                  <td>${o.student_name||'-'}</td><td>${o.plan_name||'-'}</td>
+                  <td>${fmtMoney(o.amount_due)}</td><td>${o.overdue_days} 天</td>
+                </tr>`).join('')}</tbody>
+              </table>` : '<div class="text-center text-muted py-3">暂无逾期</div>'}
             </div>
           </div>
         </div>
       </div>`;
-  } catch(e) { el.innerHTML = `<div class="alert alert-danger m-4">${e.message}</div>`; }
+  } catch(e) { container.innerHTML = `<div class="alert alert-danger">${e.message}</div>`; }
 }
 
 async function generateReminders() {
@@ -103,21 +120,15 @@ async function generateReminders() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  Page 2: 学费管理
+//  Tab 2: 学费管理
 // ═══════════════════════════════════════════════════════
 
-async function renderTuitionPlans() {
-  const el = document.getElementById('main-content');
-  el.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
+async function renderTuitionTab(container) {
   try {
     const plans = await GET('/api/tuition-plans');
-    el.innerHTML = `
-      <div class="container-fluid p-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h4 class="mb-0">学费管理</h4>
-          ${hasRole('principal','finance') ? '<button class="btn btn-sm btn-primary" onclick="showCreatePlanModal()"><i class="bi bi-plus"></i> 新建计划</button>' : ''}
-        </div>
-        <div class="d-flex gap-2 mb-3">
+    container.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex gap-2">
           <select id="tp-status-filter" class="form-select form-select-sm" style="width:auto" onchange="filterTuitionPlans()">
             <option value="">全部状态</option>
             <option value="active">进行中</option><option value="completed">已完成</option>
@@ -125,22 +136,23 @@ async function renderTuitionPlans() {
           </select>
           <input id="tp-search" class="form-control form-control-sm" style="width:200px" placeholder="搜索学生名..." oninput="filterTuitionPlans()">
         </div>
-        <div class="card border-0 shadow-sm">
-          <div class="card-body p-0">
-            <table class="table table-sm table-hover mb-0">
-              <thead class="table-light"><tr>
-                <th>学生</th><th>计划名称</th><th>频率</th><th>总额</th><th>已缴</th><th>未缴</th><th>状态</th><th>下期到期</th>
-              </tr></thead>
-              <tbody id="tp-tbody">
-                ${plans.map(p => tuitionPlanRow(p)).join('')}
-              </tbody>
-            </table>
-            ${plans.length === 0 ? '<div class="text-center text-muted py-4">暂无学费计划</div>' : ''}
-          </div>
+        ${hasRole('principal','finance') ? '<button class="btn btn-sm btn-primary" onclick="showCreatePlanModal()"><i class="bi bi-plus"></i> 新建计划</button>' : ''}
+      </div>
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+          <table class="table table-sm table-hover mb-0">
+            <thead class="table-light"><tr>
+              <th>学生</th><th>计划名称</th><th>频率</th><th>总额</th><th>已缴</th><th>未缴</th><th>状态</th><th>下期到期</th>
+            </tr></thead>
+            <tbody id="tp-tbody">
+              ${plans.map(p => tuitionPlanRow(p)).join('')}
+            </tbody>
+          </table>
+          ${plans.length === 0 ? '<div class="text-center text-muted py-4">暂无学费计划</div>' : ''}
         </div>
       </div>`;
     window._tuitionPlans = plans;
-  } catch(e) { el.innerHTML = `<div class="alert alert-danger m-4">${e.message}</div>`; }
+  } catch(e) { container.innerHTML = `<div class="alert alert-danger">${e.message}</div>`; }
 }
 
 function tuitionPlanRow(p) {
@@ -171,7 +183,7 @@ function filterTuitionPlans() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  Page 3: 计划详情
+//  计划详情（独立页面，非 tab）
 // ═══════════════════════════════════════════════════════
 
 async function renderTuitionPlanDetail(params) {
@@ -189,7 +201,7 @@ async function renderTuitionPlanDetail(params) {
 
     el.innerHTML = `
       <div class="container-fluid p-4">
-        <button class="btn btn-sm btn-outline-secondary mb-3" onclick="navigate('tuition-plans')"><i class="bi bi-arrow-left"></i> 返回列表</button>
+        <button class="btn btn-sm btn-outline-secondary mb-3" onclick="navigate('finance',{tab:'tuition'})"><i class="bi bi-arrow-left"></i> 返回列表</button>
         <div class="d-flex justify-content-between align-items-start mb-3">
           <div>
             <h4 class="mb-1">${plan.student_name||'-'} — ${plan.plan_name}</h4>
@@ -345,31 +357,26 @@ async function showCreatePlanModal() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  Page 4: 财务报表
+//  Tab 3: 财务报表
 // ═══════════════════════════════════════════════════════
 
-async function renderFinanceReports() {
-  const el = document.getElementById('main-content');
-  el.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
+async function renderFinanceReportsTab(container) {
   try {
     const [tuition, commissions, cashflow] = await Promise.all([
       GET('/api/finance/report/tuition'),
       GET('/api/finance/report/commissions'),
       GET('/api/finance/report/cashflow'),
     ]);
-    el.innerHTML = `
-      <div class="container-fluid p-4">
-        <h4 class="mb-3">财务报表</h4>
-        <ul class="nav nav-tabs mb-3" id="report-tabs">
-          <li class="nav-item"><a class="nav-link active" href="#" onclick="showReportTab('tuition',event)">学费报表</a></li>
-          <li class="nav-item"><a class="nav-link" href="#" onclick="showReportTab('commission',event)">佣金报表</a></li>
-          <li class="nav-item"><a class="nav-link" href="#" onclick="showReportTab('cashflow',event)">现金流</a></li>
-        </ul>
-        <div id="report-content"></div>
-      </div>`;
+    container.innerHTML = `
+      <ul class="nav nav-pills mb-3" id="report-tabs">
+        <li class="nav-item"><a class="nav-link active" href="#" onclick="showReportTab('tuition',event)">学费报表</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="showReportTab('commission',event)">佣金报表</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="showReportTab('cashflow',event)">现金流</a></li>
+      </ul>
+      <div id="report-content"></div>`;
     window._reportData = { tuition, commissions, cashflow };
     showReportTab('tuition');
-  } catch(e) { el.innerHTML = `<div class="alert alert-danger m-4">${e.message}</div>`; }
+  } catch(e) { container.innerHTML = `<div class="alert alert-danger">${e.message}</div>`; }
 }
 
 function showReportTab(tab, evt) {

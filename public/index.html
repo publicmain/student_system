@@ -111,22 +111,19 @@
           <i class="bi bi-chat-dots"></i><span>反馈管理</span>
         </a>
 
-        <div class="nav-section-title mt-3" data-section-roles="principal,counselor">升学规划</div>
+        <div class="nav-section-title mt-3" data-section-roles="principal,counselor,mentor">升学规划</div>
 
-        <a href="#" class="nav-item" data-page="command-center" data-roles="principal,counselor">
+        <a href="#" class="nav-item" data-page="command-center" data-roles="principal,counselor,mentor">
           <i class="bi bi-rocket-takeoff-fill"></i><span>申请指挥中心</span>
         </a>
         <a href="#" class="nav-item" data-page="admission-programs" data-roles="principal,counselor">
           <i class="bi bi-mortarboard-fill"></i><span>录取评估库</span>
         </a>
 
-        <div class="nav-section-title mt-3" data-section-roles="principal,intake_staff,student_admin">入学管理</div>
+        <div class="nav-section-title mt-3" data-section-roles="principal,intake_staff,student_admin,counselor">入学管理</div>
 
-        <a href="#" class="nav-item" data-page="intake-cases" data-roles="principal,intake_staff,student_admin">
-          <i class="bi bi-person-lines-fill"></i><span>入学案例</span>
-        </a>
-        <a href="#" class="nav-item" data-page="intake-forms" data-roles="principal,counselor,intake_staff">
-          <i class="bi bi-file-earmark-text"></i><span>信息收集表</span>
+        <a href="#" class="nav-item" data-page="intake" data-roles="principal,intake_staff,student_admin,counselor">
+          <i class="bi bi-person-lines-fill"></i><span>入学管理</span>
         </a>
         <a href="#" class="nav-item" data-page="mat-companies" data-roles="principal,intake_staff">
           <i class="bi bi-building"></i><span>中介/代理</span>
@@ -134,19 +131,13 @@
 
         <div class="nav-section-title mt-3" data-section-roles="principal,finance">财务管理</div>
 
-        <a href="#" class="nav-item" data-page="finance-dashboard" data-roles="principal,finance">
-          <i class="bi bi-bar-chart-fill"></i><span>财务总览</span>
-        </a>
-        <a href="#" class="nav-item" data-page="tuition-plans" data-roles="principal,finance,intake_staff">
-          <i class="bi bi-cash-stack"></i><span>学费管理</span>
-        </a>
-        <a href="#" class="nav-item" data-page="finance-reports" data-roles="principal,finance">
-          <i class="bi bi-file-earmark-bar-graph"></i><span>财务报表</span>
+        <a href="#" class="nav-item" data-page="finance" data-roles="principal,finance,intake_staff">
+          <i class="bi bi-currency-dollar"></i><span>财务中心</span>
         </a>
 
-        <div class="nav-section-title mt-3" data-section-roles="principal">系统</div>
+        <div class="nav-section-title mt-3" data-section-roles="principal,counselor">系统</div>
 
-        <a href="#" class="nav-item" data-page="analytics" data-roles="principal">
+        <a href="#" class="nav-item" data-page="analytics" data-roles="principal,counselor">
           <i class="bi bi-bar-chart-line-fill"></i><span>数据分析</span>
         </a>
         <a href="#" class="nav-item" data-page="accounts" data-roles="principal">
@@ -1759,6 +1750,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
-<script>var v=Date.now();['js/core.js','app.js','js/intake.js','js/mat-collection.js','js/adm-profiles.js','js/activities.js','js/essays.js','js/finance.js'].forEach(function(s){document.write('<script src="'+s+'?v='+v+'"><\/script>')})</script>
+<script>var v=Date.now();['js/core.js','app.js','js/settings.js','js/intake.js','js/mat-collection.js','js/adm-profiles.js','js/activities.js','js/essays.js','js/finance.js'].forEach(function(s){document.write('<script src="'+s+'?v='+v+'"><\/script>')})</script>
 </body>
 </html>

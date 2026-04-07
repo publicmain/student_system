@@ -338,6 +338,8 @@ function confirmAction(msg, callback, opts = {}) {
 }
 
 // 通用表单弹窗 — 用于需要用户填写信息的操作
+// WARNING: bodyHtml is set via innerHTML. Callers MUST escape any user-generated
+// content with escapeHtml() before embedding it in bodyHtml to prevent XSS.
 function showModal(title, bodyHtml, onOk, okLabel = '确定', size = '') {
   document.getElementById('generic-form-title').textContent = title;
   document.getElementById('generic-form-body').innerHTML = bodyHtml;
@@ -593,6 +595,49 @@ function _doNavigate(page, params = {}) {
 
   const fn = PAGES[page];
   if (fn) fn(params);
+}
+
+// ── 通用页面渲染包装器 ─────────────────────────────────
+async function renderPage(fetchFn, renderFn, options = {}) {
+  const mc = document.getElementById('main-content');
+  mc.innerHTML = `<div class="page-loading"><div class="spinner-border text-primary"></div>${
+    options.loadingText ? `<p class="mt-2 text-muted small">${options.loadingText}</p>` : ''
+  }</div>`;
+  try {
+    const data = await fetchFn();
+    mc.innerHTML = renderFn(data);
+    if (options.afterRender) options.afterRender(data);
+  } catch (e) {
+    mc.innerHTML = `<div class="alert alert-danger m-4">
+      <i class="bi bi-exclamation-triangle me-2"></i>
+      ${escapeHtml(options.errorPrefix || '加载失败')}: ${escapeHtml(e.message)}
+    </div>`;
+  }
+}
+
+// ── 通用表格生成器 ──────────────────────────────────────
+function renderTable(config) {
+  const { columns, data, emptyText = '暂无数据', hover = true, striped = false, onRowClick } = config;
+  if (!data || data.length === 0) {
+    return `<div class="empty-state-block" style="padding:2rem">
+      <i class="bi bi-inbox" style="font-size:2rem;opacity:.3"></i>
+      <p class="text-muted mt-2">${escapeHtml(emptyText)}</p>
+    </div>`;
+  }
+  const tableClass = `table table-sm${hover ? ' table-hover' : ''}${striped ? ' table-striped' : ''} mb-0`;
+  const thead = columns.map(col =>
+    `<th${col.width ? ` style="width:${col.width}"` : ''}${col.align ? ` class="text-${col.align}"` : ''}>${escapeHtml(col.label)}</th>`
+  ).join('');
+  const tbody = data.map(item => {
+    const cells = columns.map(col => {
+      const value = col.render ? col.render(item) : escapeHtml(String(item[col.key] ?? ''));
+      const align = col.align ? ` class="text-${col.align}"` : '';
+      return `<td${align}>${value}</td>`;
+    }).join('');
+    const rowAttr = onRowClick ? ` onclick="${onRowClick(item)}" style="cursor:pointer"` : '';
+    return `<tr${rowAttr}>${cells}</tr>`;
+  }).join('');
+  return `<div class="table-responsive"><table class="${tableClass}"><thead class="table-light"><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>`;
 }
 
 // 激活指定 Tab（渲染完成后调用）

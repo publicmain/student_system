@@ -176,7 +176,7 @@ async function renderPrincipalDashboard() {
                 <div class="avatar-sm" style="background:var(--success);color:#fff">${escapeHtml((o.student_name||'?').charAt(0))}</div>
                 <div>
                   <div class="small fw-bold">${escapeHtml(o.student_name)}</div>
-                  <div style="font-size:.65rem" class="text-muted">${escapeHtml(o.grade_level||'')}</div>
+                  <div style="font-size:.65rem" class="text-muted">${escapeHtml(o.exam_board||'')}</div>
                 </div>
               </div>
               <div class="small fw-semibold mb-1"><i class="bi bi-building me-1 text-primary"></i>${escapeHtml(o.uni_name)}</div>
@@ -271,7 +271,7 @@ async function renderPrincipalDashboard() {
                   }
                   return `<li>
                     <div>
-                      <div class="att-name">${escapeHtml(r.name)} <span class="badge badge-soft-secondary ms-1">${escapeHtml(r.grade_level||'')}</span></div>
+                      <div class="att-name">${escapeHtml(r.name)} <span class="badge badge-soft-info ms-1">${escapeHtml(r.exam_board||'')}</span></div>
                       <div class="att-desc d-flex flex-wrap gap-1">${tags.join('')}</div>
                     </div>
                     <div class="att-action">
@@ -285,12 +285,12 @@ async function renderPrincipalDashboard() {
       </div>
     </div>
 
-    <!-- ═══ 年级分布 + 师资负载 ═══ -->
+    <!-- ═══ 考试体系分布 + 师资负载 ═══ -->
     <div class="row g-3 mb-4">
-      <!-- 年级分布 -->
+      <!-- 考试体系分布 -->
       <div class="col-md-3">
         <div class="card h-100">
-          <div class="card-header fw-semibold py-2"><i class="bi bi-diagram-3 me-1 text-info"></i>年级分布</div>
+          <div class="card-header fw-semibold py-2"><i class="bi bi-diagram-3 me-1 text-info"></i>考试体系</div>
           <div class="card-body">
             ${(stats.gradeDistribution || []).length === 0
               ? '<div class="text-center text-muted small py-2">暂无数据</div>'
@@ -299,7 +299,7 @@ async function renderPrincipalDashboard() {
                   return (stats.gradeDistribution||[]).map(g => {
                     const pct = Math.round(g.cnt / maxG * 100);
                     return `<div class="mb-2">
-                      <div class="d-flex justify-content-between mb-1"><span class="small fw-semibold">${escapeHtml(g.grade_level)}</span><span class="small fw-bold">${g.cnt}</span></div>
+                      <div class="d-flex justify-content-between mb-1"><span class="small fw-semibold">${escapeHtml(g.exam_board)}</span><span class="small fw-bold">${g.cnt}</span></div>
                       <div class="progress" style="height:6px;border-radius:999px"><div class="progress-bar progress-bar-gradient-blue" style="width:${pct}%;border-radius:999px"></div></div>
                     </div>`;
                   }).join('');
@@ -355,7 +355,7 @@ async function renderPrincipalDashboard() {
               const barGrad = pct >= 80 ? 'progress-bar-gradient-green' : pct >= 40 ? 'progress-bar-gradient-blue' : 'progress-bar-gradient-red';
               return `<tr style="cursor:pointer" onclick="navigate('student-detail',{studentId:'${ep.id}'})">
                 <td class="fw-semibold small">${escapeHtml(ep.name)}</td>
-                <td class="small text-muted">${escapeHtml(ep.grade_level||'')}</td>
+                <td class="small text-muted">${escapeHtml(ep.exam_board||'')}</td>
                 <td class="small">${ep.completed}/${ep.total}</td>
                 <td style="width:120px"><div class="progress" style="height:6px;border-radius:999px"><div class="progress-bar ${barGrad}" style="width:${pct}%;border-radius:999px"></div></div></td>
                 <td class="small text-${cls} fw-semibold" style="width:45px">${pct}%</td>
@@ -501,7 +501,7 @@ async function renderCounselorDashboard() {
                     tags.push('<span class="badge badge-soft-secondary">超2周未沟通</span>');
                   return `<li>
                     <div>
-                      <div class="att-name">${escapeHtml(r.name)} <span class="badge badge-soft-secondary ms-1">${escapeHtml(r.grade_level)}</span></div>
+                      <div class="att-name">${escapeHtml(r.name)} <span class="badge badge-soft-info ms-1">${escapeHtml(r.exam_board||'')}</span></div>
                       <div class="att-desc d-flex flex-wrap gap-1">${tags.join('')}</div>
                     </div>
                     <div class="att-action">
@@ -708,7 +708,7 @@ async function renderMentorWorkbench() {
                       <div class="d-flex justify-content-between align-items-center mb-1">
                         <span class="fw-bold small">${escapeHtml(s.name)}</span>
                         <div class="d-flex gap-1">
-                          <span class="badge badge-soft-secondary" style="font-size:10px">${escapeHtml(s.grade_level)}</span>
+                          <span class="badge badge-soft-info" style="font-size:10px">${escapeHtml(s.exam_board||'')}</span>
                           ${s.overdue_count > 0 ? `<span class="badge badge-soft-danger" style="font-size:10px">${s.overdue_count}逾期</span>` : ''}
                           ${s.today_count > 0 ? `<span class="badge badge-soft-warning" style="font-size:10px">${s.today_count}今日</span>` : ''}
                         </div>
@@ -941,7 +941,6 @@ async function renderParentPortal(params = {}) {
           ${students.length > 1 ? `<select class="form-select form-select-sm" style="width:auto" onchange="renderParentPortal({studentId:this.value})">
             ${students.map(x => `<option value="${x.id}" ${x.id===s.id?'selected':''}>${escapeHtml(x.name)}</option>`).join('')}
           </select>` : `<span class="text-muted">— ${escapeHtml(stu.name)} 的学业档案</span>`}
-          <span class="badge badge-soft-secondary">${escapeHtml(stu.grade_level)}</span>
           <span class="badge badge-soft-info">${escapeHtml(stu.exam_board||'—')}</span>
         </div>
         <div class="stu-hero-actions">
@@ -1062,8 +1061,7 @@ async function renderParentPortal(params = {}) {
           <div class="card-body">
             <div class="row g-3">
               <div class="col-6 col-md-3"><div class="text-muted small">姓名</div><div class="fw-semibold">${escapeHtml(stu.name)}</div></div>
-              <div class="col-6 col-md-3"><div class="text-muted small">年级</div><div class="fw-semibold">${escapeHtml(stu.grade_level||'—')}</div></div>
-              <div class="col-6 col-md-3"><div class="text-muted small">考试局</div><div class="fw-semibold">${escapeHtml(stu.exam_board||'—')}</div></div>
+              <div class="col-6 col-md-3"><div class="text-muted small">考试体系</div><div class="fw-semibold">${escapeHtml(stu.exam_board||'—')}</div></div>
               <div class="col-6 col-md-3"><div class="text-muted small">入学日期</div><div class="fw-semibold">${fmtDate(stu.enrol_date)}</div></div>
               ${stu.date_of_birth ? `<div class="col-6 col-md-3"><div class="text-muted small">出生日期</div><div class="fw-semibold">${fmtDate(stu.date_of_birth)}</div></div>` : ''}
             </div>
@@ -1466,14 +1464,6 @@ async function renderStudentList() {
       <div class="md-list">
         <div class="md-list-header">
           <input class="form-control form-control-sm" id="studentListSearch" placeholder="搜索姓名..." oninput="window._stuListFilter()">
-          <select class="form-select form-select-sm mt-2" id="studentListGrade" onchange="window._stuListFilter()">
-            <option value="">全部年级</option>
-            <option value="G9">G9</option><option value="G10">G10</option>
-            <option value="G11">G11</option><option value="G12">G12</option><option value="G13">G13</option>
-            <option value="Year 9">Year 9</option><option value="Year 10">Year 10</option>
-            <option value="Year 11">Year 11</option><option value="Year 12">Year 12</option><option value="Year 13">Year 13</option>
-            <option value="其他">其他</option>
-          </select>
           <div class="text-muted mt-1" style="font-size:11px" id="stuListCount">${students.length} 名学生</div>
         </div>
         <div class="md-list-body" id="studentListBody">
@@ -1493,10 +1483,8 @@ async function renderStudentList() {
     window._allStudents = students;
     window._stuListFilter = () => {
       const search = (document.getElementById('studentListSearch')?.value||'').toLowerCase();
-      const grade = document.getElementById('studentListGrade')?.value || '';
       const filtered = students.filter(s =>
-        (!search || s.name.toLowerCase().includes(search)) &&
-        (!grade || s.grade_level === grade)
+        (!search || s.name.toLowerCase().includes(search))
       );
       const body = document.getElementById('studentListBody');
       if (body) body.innerHTML = _renderStudentListItems(filtered, isIntakeStaff);
@@ -1516,7 +1504,7 @@ function _renderStudentListItems(students, isIntakeStaff) {
         <span class="md-item-name">${escapeHtml(s.name)}</span>
         ${s.overdue_count > 0 ? `<span class="badge badge-soft-danger" style="font-size:10px">${s.overdue_count}逾期</span>` : ''}
       </div>
-      <div class="md-item-sub">${escapeHtml(s.grade_level)} · ${escapeHtml(s.exam_board||'—')}${s.mentors ? ` · ${escapeHtml(s.mentors.substring(0,15))}` : ''}</div>
+      <div class="md-item-sub">${escapeHtml(s.exam_board||'—')}${s.mentors ? ` · ${escapeHtml(s.mentors.substring(0,15))}` : ''}</div>
     </div>`).join('');
 }
 
@@ -1539,7 +1527,6 @@ async function _selectStudent(id, el) {
         <div>
           <h5 class="mb-1 fw-bold">${escapeHtml(s.name)}</h5>
           <div class="d-flex gap-1 flex-wrap">
-            <span class="badge badge-soft-secondary">${escapeHtml(s.grade_level)}</span>
             <span class="badge badge-soft-info">${escapeHtml(s.exam_board||'—')}</span>
             ${s.enrol_date ? `<span class="badge bg-light text-dark border">入学 ${fmtDate(s.enrol_date)}</span>` : ''}
           </div>
@@ -1660,7 +1647,6 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
         <div class="stu-hero-identity">
           <button class="btn btn-outline-secondary btn-sm" style="padding:4px 8px" onclick="navigate(State.previousPage||(hasRole('student')?'student-portal':hasRole('parent')?'parent-portal':'students'))"><i class="bi bi-arrow-left"></i></button>
           <h4>${escapeHtml(student.name)}</h4>
-          <span class="badge badge-soft-secondary">${escapeHtml(student.grade_level)}</span>
           <span class="badge badge-soft-info">${escapeHtml(student.exam_board||'—')}</span>
           ${isUnder14(student.date_of_birth) ? `<span class="badge badge-soft-warning" title="未满14周岁"><i class="bi bi-shield-exclamation me-1"></i>未满14岁</span>` : ''}
         </div>
@@ -1793,8 +1779,7 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
             <div class="stu-sb-module">
               <div class="stu-sb-title"><span><i class="bi bi-person"></i>基本档案</span></div>
               <table class="stu-sb-table">
-                <tr><th>年级</th><td>${escapeHtml(student.grade_level)}</td></tr>
-                <tr><th>考试局</th><td>${escapeHtml(student.exam_board||'—')}</td></tr>
+                <tr><th>考试体系</th><td>${escapeHtml(student.exam_board||'—')}</td></tr>
                 <tr><th>入学</th><td>${fmtDate(student.enrol_date)||'—'}</td></tr>
                 ${student.date_of_birth ? `<tr><th>出生</th><td>${fmtDate(student.date_of_birth)}${isUnder14(student.date_of_birth) ? ' <span class="badge badge-soft-warning" style="font-size:.6rem">未满14岁</span>' : ''}</td></tr>` : ''}
                 ${student.notes ? `<tr><th>备注</th><td style="font-size:.78rem;color:var(--text-secondary)">${escapeHtml(student.notes)}</td></tr>` : ''}
@@ -2396,7 +2381,7 @@ async function renderTaskDetail({ taskId } = {}) {
           </div>
           <div class="card-body">
             <div class="fw-semibold">${escapeHtml(student.name)}</div>
-            <div class="small text-muted">${escapeHtml(student.grade_level)} · ${escapeHtml(student.exam_board||'—')}</div>
+            <div class="small text-muted">${escapeHtml(student.exam_board||'—')}</div>
             ${!hasRole('intake_staff') ? `
             <button class="btn btn-outline-primary btn-sm w-100 mt-2" onclick="navigate('student-detail',{studentId:'${student.id}',activeTab:'tab-timeline'})">
               <i class="bi bi-list-task me-1"></i>查看学生任务列表
@@ -2988,7 +2973,6 @@ async function openStudentModal(id = null) {
       const s = d.student;
       document.getElementById('s-id').value = s.id;
       document.getElementById('s-name').value = s.name;
-      document.getElementById('s-grade').value = s.grade_level;
       document.getElementById('s-board').value = s.exam_board || '';
       document.getElementById('s-enrol').value = s.enrol_date || '';
       document.getElementById('s-dob').value = s.date_of_birth || '';
@@ -3542,12 +3526,10 @@ async function saveStudent() {
   if (!acquireSubmit('saveStudent')) return;
   const id = document.getElementById('s-id').value;
   const name = document.getElementById('s-name').value.trim();
-  const grade_level = document.getElementById('s-grade').value;
   if (!name) { releaseSubmit('saveStudent'); showError('请填写学生姓名'); return; }
-  if (!id && !grade_level) { releaseSubmit('saveStudent'); showError('请选择年级'); return; }
   const body = {
     name,
-    grade_level,
+    grade_level: '',
     exam_board: document.getElementById('s-board').value,
     enrol_date: document.getElementById('s-enrol').value,
     date_of_birth: document.getElementById('s-dob').value || null,
@@ -4501,7 +4483,7 @@ async function openApplyTemplateModal(templateId) {
   try {
     const students = await GET('/api/students');
     const sel = document.getElementById('apply-tpl-student');
-    sel.innerHTML = students.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)} (${escapeHtml(s.grade_level)})</option>`).join('');
+    sel.innerHTML = students.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)} (${escapeHtml(s.exam_board||'—')})</option>`).join('');
   } catch(e) {}
   bootstrap.Modal.getOrCreateInstance(document.getElementById('apply-template-modal')).show();
 }
@@ -6874,13 +6856,13 @@ async function renderAgentPortal() {
         <div class="tab-pane fade show active" id="ap-students">
           <div class="table-responsive">
             <table class="table table-hover">
-              <thead><tr><th>学生姓名</th><th>年级</th><th>项目</th><th>入学年份</th><th>入学进度</th><th>登记时间</th></tr></thead>
+              <thead><tr><th>学生姓名</th><th>考试体系</th><th>项目</th><th>入学年份</th><th>入学进度</th><th>登记时间</th></tr></thead>
               <tbody>
                 ${students.length === 0 ? '<tr><td colspan="6" class="text-center text-muted">暂无学生</td></tr>' :
                   students.map(s => `
                     <tr>
                       <td class="fw-semibold">${escapeHtml(s.name)}</td>
-                      <td>${escapeHtml(s.grade_level || '-')}</td>
+                      <td>${escapeHtml(s.exam_board || '-')}</td>
                       <td>${escapeHtml(s.program_name || '-')}</td>
                       <td>${s.intake_year || '-'}</td>
                       <td><span class="badge bg-${statusLabelColors[s.case_status]||'secondary'}">${statusLabels[s.case_status] || s.case_status || '-'}</span></td>
@@ -7083,12 +7065,11 @@ async function toggleAgentStudents(agentId, btn) {
       <div class="fw-semibold small text-primary mb-2"><i class="bi bi-person-lines-fill me-1"></i>关联学生（${students.length} 人）</div>
       <table class="table table-sm table-bordered mb-0 bg-white">
         <thead class="table-light">
-          <tr><th>学生姓名</th><th>年级</th><th>考试局</th><th>课程/项目</th><th>入学年份</th><th>案例状态</th><th>注册时间</th><th>操作</th></tr>
+          <tr><th>学生姓名</th><th>考试体系</th><th>课程/项目</th><th>入学年份</th><th>案例状态</th><th>注册时间</th><th>操作</th></tr>
         </thead>
         <tbody>
           ${students.map(s => `<tr>
             <td class="fw-semibold">${escapeHtml(s.name)}</td>
-            <td class="small">${escapeHtml(s.grade_level||'—')}</td>
             <td class="small">${escapeHtml(s.exam_board||'—')}</td>
             <td class="small">${escapeHtml(s.program_name||'—')}</td>
             <td class="small text-center">${s.intake_year||'—'}</td>
@@ -7155,7 +7136,6 @@ async function loadIntakeFormsList() {
                 <div class="d-flex align-items-center gap-2 mb-1">
                   <h5 class="mb-0">${escapeHtml(f.title)}</h5>
                   <span class="badge bg-${statusColor[displayStatus]||'secondary'}">${statusMap[displayStatus]||displayStatus}</span>
-                  ${f.grade_level ? `<span class="badge bg-info">${escapeHtml(f.grade_level)}</span>` : ''}
                 </div>
                 ${f.description ? `<p class="text-muted small mb-2">${escapeHtml(f.description)}</p>` : ''}
                 <div class="d-flex align-items-center gap-3 text-muted small">
@@ -7214,14 +7194,6 @@ function showCreateFormModal() {
         </div>
         <div class="row">
           <div class="col-md-6 mb-3">
-            <label class="form-label fw-semibold">默认年级</label>
-            <select class="form-select" id="formGrade">
-              <option value="">不限</option>
-              <option value="G9">G9</option><option value="G10">G10</option>
-              <option value="G11">G11</option><option value="G12">G12</option>
-            </select>
-          </div>
-          <div class="col-md-6 mb-3">
             <label class="form-label fw-semibold">最大提交数</label>
             <input type="number" class="form-control" id="formMaxSub" min="0" value="0" placeholder="0=不限">
           </div>
@@ -7252,7 +7224,7 @@ async function doCreateForm() {
     const result = await api('POST', '/api/intake-forms', {
       title,
       description: document.getElementById('formDesc').value.trim(),
-      grade_level: document.getElementById('formGrade').value,
+      grade_level: '',
       max_submissions: parseInt(document.getElementById('formMaxSub').value) || 0,
       expires_at: document.getElementById('formExpires').value || null
     });
@@ -7292,16 +7264,6 @@ async function editFormModal(formId) {
           </div>
           <div class="row">
             <div class="col-md-6 mb-3">
-              <label class="form-label fw-semibold">默认年级</label>
-              <select class="form-select" id="editFormGrade">
-                <option value="">不限</option>
-                <option value="G9" ${form.grade_level==='G9'?'selected':''}>G9</option>
-                <option value="G10" ${form.grade_level==='G10'?'selected':''}>G10</option>
-                <option value="G11" ${form.grade_level==='G11'?'selected':''}>G11</option>
-                <option value="G12" ${form.grade_level==='G12'?'selected':''}>G12</option>
-              </select>
-            </div>
-            <div class="col-md-6 mb-3">
               <label class="form-label fw-semibold">最大提交数</label>
               <input type="number" class="form-control" id="editFormMaxSub" min="0" value="${form.max_submissions||0}">
             </div>
@@ -7329,7 +7291,7 @@ async function doEditForm(formId) {
     await api('PUT', '/api/intake-forms/' + formId, {
       title: document.getElementById('editFormTitle').value.trim(),
       description: document.getElementById('editFormDesc').value.trim(),
-      grade_level: document.getElementById('editFormGrade').value,
+      grade_level: '',
       max_submissions: parseInt(document.getElementById('editFormMaxSub').value) || 0,
       expires_at: document.getElementById('editFormExpires').value || null
     });
@@ -7390,12 +7352,11 @@ async function viewFormSubmissions(formId, formTitle) {
     container.innerHTML = `<div class="card shadow-sm"><div class="table-responsive">
       <table class="table table-hover mb-0">
         <thead class="table-light">
-          <tr><th>学生姓名</th><th>年级</th><th>家长</th><th>家长电话</th><th>提交时间</th><th>状态</th><th>操作</th></tr>
+          <tr><th>学生姓名</th><th>家长</th><th>家长电话</th><th>提交时间</th><th>状态</th><th>操作</th></tr>
         </thead>
         <tbody>
           ${subs.map(s => `<tr>
             <td class="fw-semibold">${escapeHtml(s.student_name||'—')}</td>
-            <td>${escapeHtml(s.grade_level||'—')}</td>
             <td>${escapeHtml(s.parent_name||'—')}</td>
             <td class="small">${escapeHtml(s.parent_phone||'—')}</td>
             <td class="small text-muted">${fmtDate(s.submitted_at)}</td>

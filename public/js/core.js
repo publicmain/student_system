@@ -80,7 +80,7 @@ function getSubjectLevels() {
     const l = JSON.parse(State.settings.subject_levels || '[]');
     if (Array.isArray(l) && l.length > 0) return l;
   } catch(e) {}
-  return ['A2', 'AS', 'Full A-Level', '其他'];
+  return ['A2', 'AS', 'Full A-Level', 'O-Level', 'IGCSE', '其他'];
 }
 
 function getExamBoards() {
@@ -88,7 +88,7 @@ function getExamBoards() {
     const b = JSON.parse(State.settings.exam_boards || '[]');
     if (Array.isArray(b) && b.length > 0) return b;
   } catch(e) {}
-  return ['Edexcel', 'CIE', 'OCR', 'AQA', '其他'];
+  return ['GCE A-Level', 'GCE O-Level', 'CIE A-Level', 'Edexcel A-Level', 'CIE IGCSE'];
 }
 
 function getSubjectList() {

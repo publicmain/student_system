@@ -18,8 +18,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, bcrypt,
     const enriched = users.map(u => {
       const info = { ...u };
       if (u.role === 'student' && u.linked_id) {
-        const s = db.get('SELECT name, grade_level FROM students WHERE id=?', [u.linked_id]);
-        if (s) { info.linked_name = s.name; info.linked_detail = s.grade_level; }
+        const s = db.get('SELECT name, exam_board FROM students WHERE id=?', [u.linked_id]);
+        if (s) { info.linked_name = s.name; info.linked_detail = s.exam_board || ''; }
       } else if (u.role === 'parent' && u.linked_id) {
         const p = db.get('SELECT name, relation FROM parent_guardians WHERE id=?', [u.linked_id]);
         if (p) { info.linked_name = p.name; info.linked_detail = p.relation; }

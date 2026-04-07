@@ -72,7 +72,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
           FROM students s
           LEFT JOIN agents a ON a.id=s.agent_id
           WHERE ${where.join(' AND ')}
-          ORDER BY s.grade_level DESC, s.name
+          ORDER BY s.name
           LIMIT ? OFFSET ?
         `, paginatedParams)
       : db.all(`
@@ -83,7 +83,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
             (SELECT GROUP_CONCAT(tul.tier||':'||tul.uni_name, ' | ') FROM target_uni_lists tul WHERE tul.student_id=s.id LIMIT 3) as targets
           FROM students s
           WHERE ${where.join(' AND ')}
-          ORDER BY s.grade_level DESC, s.name
+          ORDER BY s.name
           LIMIT ? OFFSET ?
         `, paginatedParams);
 
@@ -97,13 +97,12 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
 
   router.post('/students', requireRole('principal','counselor'), (req, res) => {
     const { name, grade_level, enrol_date, exam_board, notes, date_of_birth, agent_id } = req.body;
-    if (!name || !grade_level) return res.status(400).json({ error: '姓名和年级必填' });
+    if (!name) return res.status(400).json({ error: '姓名必填' });
     if (typeof name !== 'string' || name.trim().length === 0 || name.length > _getStudentNameMaxLength()) return res.status(400).json({ error: '学生姓名格式不合法' });
-    if (!_getValidGradeLevels().includes(grade_level)) return res.status(400).json({ error: `年级必须是以下之一: ${_getValidGradeLevels().join(', ')}` });
     const id = uuidv4();
     const now = new Date().toISOString();
     db.run(`INSERT INTO students (id,name,grade_level,enrol_date,exam_board,status,notes,created_at,updated_at,date_of_birth,agent_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [id, name.trim(), grade_level, enrol_date||null, exam_board||null, 'active', notes||'', now, now, date_of_birth||null, agent_id||null]);
+      [id, name.trim(), grade_level||'', enrol_date||null, exam_board||null, 'active', notes||'', now, now, date_of_birth||null, agent_id||null]);
     audit(req, 'CREATE', 'students', id, { name });
     res.json({ id });
   });
@@ -188,9 +187,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     if (!name || typeof name !== 'string' || name.trim().length === 0 || name.length > _maxLen) {
       return res.status(400).json({ error: `学生姓名不能为空且不超过${_maxLen}字符` });
     }
-    if (grade_level && !_getValidGradeLevels().includes(grade_level)) {
-      return res.status(400).json({ error: `年级必须是以下之一: ${_getValidGradeLevels().join(', ')}` });
-    }
+    // grade_level is no longer required — accept any value
     const VALID_STATUS = _getValidStudentStatuses();
     if (status && !VALID_STATUS.includes(status)) {
       return res.status(400).json({ error: `状态必须是以下之一: ${VALID_STATUS.join(', ')}` });

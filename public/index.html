@@ -208,23 +208,16 @@
             <label class="form-label">姓名 *</label>
             <input class="form-control" id="s-name" required>
           </div>
-          <div class="col-md-3">
-            <label class="form-label">年级 *</label>
-            <select class="form-select" id="s-grade">
-              <option value="G9">G9</option><option value="G10">G10</option>
-              <option value="G11">G11</option><option value="G12" selected>G12</option>
-            </select>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">考试局</label>
+          <input type="hidden" id="s-grade" value="">
+          <div class="col-md-6">
+            <label class="form-label">考试体系</label>
             <select class="form-select" id="s-board">
               <option value="">未指定</option>
-              <option value="CIE">CIE / Cambridge</option>
-              <option value="Edexcel">Edexcel</option>
-              <option value="OCR">OCR</option>
-              <option value="AQA">AQA</option>
-              <option value="IB">IB</option>
-              <option value="其他">其他</option>
+              <option value="GCE A-Level">GCE A-Level</option>
+              <option value="GCE O-Level">GCE O-Level</option>
+              <option value="CIE A-Level">CIE A-Level</option>
+              <option value="Edexcel A-Level">Edexcel A-Level</option>
+              <option value="CIE IGCSE">CIE IGCSE</option>
             </select>
           </div>
           <div class="col-md-4">

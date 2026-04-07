@@ -188,7 +188,7 @@ module.exports = function ({ db, uuidv4, audit, requireAuth, requireRole }) {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
       [studentId,
        data.student_name || '未命名',
-       data.grade_level || '其他',
+       data.grade_level || '',
        data.enrol_date || null,
        data.exam_board || null,
        data.date_of_birth || null,
@@ -596,30 +596,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
         </div>
       </div>
       <div class="field-row">
+        <input type="hidden" name="grade_level" value="">
         <div class="field">
-          <label>当前年级 <span class="req">*</span></label>
-          <select name="grade_level" required>
+          <label>考试体系 <span class="req">*</span></label>
+          <select name="exam_board" required>
             <option value="">请选择</option>
-            ${form.grade_level ? `<option value="${esc(form.grade_level)}" selected>${esc(form.grade_level)}</option>` : ''}
-            <option value="G9">G9 (初三)</option>
-            <option value="G10">G10 (高一)</option>
-            <option value="G11">G11 (高二)</option>
-            <option value="G12">G12 (高三)</option>
-            <option value="G13">G13</option>
-            <option value="其他">其他</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>考试体系</label>
-          <select name="exam_board">
-            <option value="">请选择</option>
-            <option value="A-Level (Edexcel)">A-Level (Edexcel)</option>
-            <option value="A-Level (CIE)">A-Level (CIE)</option>
-            <option value="A-Level (AQA)">A-Level (AQA)</option>
-            <option value="IB">IB</option>
-            <option value="AP">AP</option>
-            <option value="普高">普高</option>
-            <option value="其他">其他</option>
+            <option value="GCE A-Level">GCE A-Level</option>
+            <option value="GCE O-Level">GCE O-Level</option>
+            <option value="CIE A-Level">CIE A-Level</option>
+            <option value="Edexcel A-Level">Edexcel A-Level</option>
+            <option value="CIE IGCSE">CIE IGCSE</option>
           </select>
         </div>
       </div>

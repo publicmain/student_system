@@ -105,9 +105,9 @@ function createSchema() {
   db.run(`CREATE TABLE IF NOT EXISTS students (
     id              TEXT PRIMARY KEY,
     name            TEXT NOT NULL,
-    grade_level     TEXT NOT NULL,
+    grade_level     TEXT DEFAULT '',
     enrol_date      TEXT,
-    exam_board      TEXT,   -- Edexcel/CIE/A-Level
+    exam_board      TEXT,   -- GCE A-Level/GCE O-Level/CIE A-Level/Edexcel A-Level/CIE IGCSE
     status          TEXT DEFAULT 'active',
     notes           TEXT,
     created_at      TEXT DEFAULT (datetime('now')),
@@ -1852,8 +1852,8 @@ function seedData() {
     ['app_tiers', JSON.stringify(['冲刺', '意向', '保底', '通用'])],
     ['school_name', '升学规划中心'],
     ['academic_year', '2025-2026'],
-    ['subject_levels', JSON.stringify(['A2', 'AS', 'Full A-Level', 'IB HL', 'IB SL', 'AP', 'IGCSE', '其他'])],
-    ['exam_boards', JSON.stringify(['Edexcel', 'CIE', 'OCR', 'AQA', 'WJEC', 'IB', 'College Board', '其他'])],
+    ['subject_levels', JSON.stringify(['A2', 'AS', 'Full A-Level', 'O-Level', 'IGCSE', '其他'])],
+    ['exam_boards', JSON.stringify(['GCE A-Level', 'GCE O-Level', 'CIE A-Level', 'Edexcel A-Level', 'CIE IGCSE'])],
     ['ps_min_chars_per_q', '350'],
     ['subject_list', JSON.stringify([
       { code: 'MATH', name: '数学 Mathematics' },
@@ -2069,11 +2069,11 @@ function seedData() {
 
     const sA = uid(), sB = uid(), sC = uid(), sD = uid(), sE = uid();
     const students5 = [
-      [sA, '陈美琳', 'G12', '2024-09-01', 'CIE',     'active', '目标英国医学方向，生物化学基础扎实', dnow, dnow],
-      [sB, '刘浩然', 'G12', '2024-09-01', 'CIE',     'active', '目标美国顶尖CS项目，数学成绩突出',   dnow, dnow],
-      [sC, '王雅欣', 'G11', '2024-09-01', 'CIE',     'active', '目标英国经济/社科，规划阶段',        dnow, dnow],
-      [sD, '赵天宇', 'G12', '2024-09-01', 'Edexcel', 'active', '英国商科金融方向，已收到多个Offer',  dnow, dnow],
-      [sE, '林佳怡', 'G12', '2024-09-01', 'CIE',     'active', '新加坡高校申请，商科/经济方向',      dnow, dnow],
+      [sA, '陈美琳', '', '2024-09-01', 'CIE A-Level',     'active', '目标英国医学方向，生物化学基础扎实', dnow, dnow],
+      [sB, '刘浩然', '', '2024-09-01', 'CIE A-Level',     'active', '目标美国顶尖CS项目，数学成绩突出',   dnow, dnow],
+      [sC, '王雅欣', '', '2024-09-01', 'CIE IGCSE',       'active', '目标英国经济/社科，规划阶段',        dnow, dnow],
+      [sD, '赵天宇', '', '2024-09-01', 'Edexcel A-Level', 'active', '英国商科金融方向，已收到多个Offer',  dnow, dnow],
+      [sE, '林佳怡', '', '2024-09-01', 'GCE A-Level',     'active', '新加坡高校申请，商科/经济方向',      dnow, dnow],
     ];
     for (const s of students5) db.run(
       `INSERT INTO students (id,name,grade_level,enrol_date,exam_board,status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)`, s);
@@ -2105,11 +2105,11 @@ function seedData() {
     const enroll5 = (sid, subId, level, board) => {
       if (subId) db.run(`INSERT INTO subject_enrollments VALUES (?,?,?,?,?,?)`, [uid(),sid,subId,level,board,dnow]);
     };
-    enroll5(sA,mathId5,'A2','CIE'); enroll5(sA,bioId5,'A2','CIE'); enroll5(sA,chemId5,'A2','CIE');
-    enroll5(sB,mathId5,'A2','CIE'); enroll5(sB,csId5,'A2','CIE'); enroll5(sB,physId5,'A2','CIE');
-    enroll5(sC,mathId5,'AS','CIE'); enroll5(sC,econId5,'AS','CIE'); enroll5(sC,histId5,'AS','CIE');
-    enroll5(sD,mathId5,'A2','Edexcel'); enroll5(sD,econId5,'A2','Edexcel');
-    enroll5(sE,mathId5,'A2','CIE'); enroll5(sE,econId5,'A2','CIE'); enroll5(sE,bioId5,'A2','CIE');
+    enroll5(sA,mathId5,'A2','CIE A-Level'); enroll5(sA,bioId5,'A2','CIE A-Level'); enroll5(sA,chemId5,'A2','CIE A-Level');
+    enroll5(sB,mathId5,'A2','CIE A-Level'); enroll5(sB,csId5,'A2','CIE A-Level'); enroll5(sB,physId5,'A2','CIE A-Level');
+    enroll5(sC,mathId5,'IGCSE','CIE IGCSE'); enroll5(sC,econId5,'IGCSE','CIE IGCSE'); enroll5(sC,histId5,'IGCSE','CIE IGCSE');
+    enroll5(sD,mathId5,'A2','Edexcel A-Level'); enroll5(sD,econId5,'A2','Edexcel A-Level');
+    enroll5(sE,mathId5,'A2','GCE A-Level'); enroll5(sE,econId5,'A2','GCE A-Level'); enroll5(sE,bioId5,'A2','GCE A-Level');
 
     if (cid) for (const sid of [sA,sB,sC,sD,sE])
       db.run(`INSERT INTO mentor_assignments VALUES (?,?,?,?,?,?,?,?)`, [uid(),sid,cid,'升学规划师','2024-09-10',null,'',dnow]);
@@ -2688,13 +2688,13 @@ function seedData() {
   const stu3 = uuidv4();
 
   db.run(`INSERT INTO students (id,name,grade_level,enrol_date,exam_board,status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)`, [
-    stu1, '张三', 'G12', '2024-09-01', 'Edexcel', 'active', '', now, now
+    stu1, '张三', '', '2024-09-01', 'Edexcel A-Level', 'active', '', now, now
   ]);
   db.run(`INSERT INTO students (id,name,grade_level,enrol_date,exam_board,status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)`, [
-    stu2, '李四', 'G11', '2024-09-01', 'CIE', 'active', '', now, now
+    stu2, '李四', '', '2024-09-01', 'CIE A-Level', 'active', '', now, now
   ]);
   db.run(`INSERT INTO students (id,name,grade_level,enrol_date,exam_board,status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)`, [
-    stu3, '王五', 'G12', '2023-09-01', 'A-Level', 'active', '', now, now
+    stu3, '王五', '', '2023-09-01', 'GCE A-Level', 'active', '', now, now
   ]);
 
   // 学生用户
@@ -2761,9 +2761,9 @@ function seedData() {
   const physId = getSubjectId('PHYS')?.id;
   const chemId = getSubjectId('CHEM')?.id;
 
-  if (mathId) db.run(`INSERT INTO subject_enrollments VALUES (?,?,?,?,?,?)`, [uuidv4(), stu1, mathId, 'A2', 'Edexcel', now]);
-  if (physId) db.run(`INSERT INTO subject_enrollments VALUES (?,?,?,?,?,?)`, [uuidv4(), stu1, physId, 'A2', 'Edexcel', now]);
-  if (chemId) db.run(`INSERT INTO subject_enrollments VALUES (?,?,?,?,?,?)`, [uuidv4(), stu1, chemId, 'A2', 'Edexcel', now]);
+  if (mathId) db.run(`INSERT INTO subject_enrollments VALUES (?,?,?,?,?,?)`, [uuidv4(), stu1, mathId, 'A2', 'Edexcel A-Level', now]);
+  if (physId) db.run(`INSERT INTO subject_enrollments VALUES (?,?,?,?,?,?)`, [uuidv4(), stu1, physId, 'A2', 'Edexcel A-Level', now]);
+  if (chemId) db.run(`INSERT INTO subject_enrollments VALUES (?,?,?,?,?,?)`, [uuidv4(), stu1, chemId, 'A2', 'Edexcel A-Level', now]);
 
   // 目标院校
   const uni1 = uuidv4(); const uni2 = uuidv4(); const uni3 = uuidv4();

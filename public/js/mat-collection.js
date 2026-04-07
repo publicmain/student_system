@@ -224,7 +224,7 @@ async function _loadStudentsIntoMatSelect() {
     if (!sel) return;
     students.forEach(s => {
       const o = document.createElement('option');
-      o.value = s.id; o.textContent = `${s.name} (${s.grade_level || '—'})`;
+      o.value = s.id; o.textContent = `${s.name} (${s.exam_board || '—'})`;
       sel.appendChild(o);
     });
   } catch(e) { /* ignore */ }

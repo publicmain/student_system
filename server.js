@@ -553,6 +553,17 @@ function _ensureStudentAdminDemoAccount() {
   console.log('✅ 学生管理员账号 xiaoming 已创建（密码: 123456）');
 }
 
+function _ensureFinanceDemoAccount() {
+  const exists = db.get('SELECT id FROM users WHERE username=?', ['finance']);
+  if (exists) return;
+  const staffId = uuidv4();
+  db.run(`INSERT INTO staff (id,name,role,subjects,exam_board_exp,capacity_students,email,created_at,updated_at) VALUES (?,?,?,?,?,?,?,datetime('now'),datetime('now'))`,
+    [staffId, '财务老师', 'finance', '[]', '[]', 0, 'finance@school.edu']);
+  db.run(`INSERT INTO users (id,username,password,role,linked_id,name,created_at) VALUES (?,?,?,?,?,?,datetime('now'))`,
+    [uuidv4(), 'finance', bcrypt.hashSync('123456', 10), 'finance', staffId, '财务老师']);
+  console.log('✅ 财务账号 finance 已创建（密码: 123456）');
+}
+
 // ═══════════════════════════════════════════════════════
 //  启动
 // ═══════════════════════════════════════════════════════
@@ -595,6 +606,7 @@ db.init().then(() => {
     _ensureAgentDemoAccount();
     _ensureIntakeStaffDemoAccount();
     _ensureStudentAdminDemoAccount();
+    _ensureFinanceDemoAccount();
   }
 
   sessionStore.setDb(db);
@@ -609,6 +621,7 @@ db.init().then(() => {
     console.log(`  学生管理员:  xiaoming   → 入学管理（只读+到校跟进）`);
     console.log(`  学生:        student1   → 仅自身数据`);
     console.log(`  家长:        parent1    → 仅子女数据`);
+    console.log(`  财务:        finance    → 财务管理模块`);
     console.log(`  代理:        agent01    → 代理门户（仅自身数据）`);
   });
 }).catch(err => {

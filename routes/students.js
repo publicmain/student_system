@@ -21,7 +21,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   function _getCompetitivenessWeights() { return _getSetting('competitiveness_weights', { academic: 0.3, language: 0.25, activities: 0.2, awards: 0.1, leadership: 0.15 }); }
   function _getLeadershipScorePerItem() { return parseInt(_getSettingRaw('leadership_score_per_item', '25')); }
 
-  router.get('/students', requireAuth, requireRole('principal','counselor','mentor','student','parent','intake_staff'), (req, res) => {
+  router.get('/students', requireAuth, requireRole('principal','counselor','mentor','student','parent','intake_staff','finance'), (req, res) => {
     const { grade, exam_board, search } = req.query;
     let where = ['s.status="active"'];
     let params = [];
@@ -30,14 +30,14 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     if (req.session.user.role === 'student') {
       where.push('s.id=?'); params.push(req.session.user.linked_id);
     }
-    // 导师只看自己负责的学生（活跃分配）
+    // 导师只看自己负责的学生
     if (req.session.user.role === 'mentor') {
-      where.push('s.id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=? AND end_date IS NULL)');
+      where.push('s.id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?)');
       params.push(req.session.user.linked_id);
     }
-    // 规划师只看自己负责的学生（活跃分配）
+    // 规划师只看自己负责的学生
     if (req.session.user.role === 'counselor') {
-      where.push('s.id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=? AND end_date IS NULL)');
+      where.push('s.id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?)');
       params.push(req.session.user.linked_id);
     }
     // 家长只看自己关联的学生

@@ -1662,6 +1662,43 @@ function createSchema() {
     updated_at          TEXT DEFAULT (datetime('now'))
   )`);
 
+  // ── 学费计划 + 分期缴费 ──────────────────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS tuition_fee_plans (
+    id                TEXT PRIMARY KEY,
+    student_id        TEXT NOT NULL,
+    plan_name         TEXT NOT NULL,
+    currency          TEXT DEFAULT 'SGD',
+    total_amount      REAL NOT NULL,
+    frequency         TEXT NOT NULL,
+    installment_amount REAL NOT NULL,
+    num_installments  INTEGER NOT NULL,
+    start_date        TEXT NOT NULL,
+    paid_through      TEXT,
+    next_due_date     TEXT,
+    status            TEXT DEFAULT 'active',
+    notes             TEXT,
+    created_by        TEXT,
+    created_at        TEXT DEFAULT (datetime('now')),
+    updated_at        TEXT DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS tuition_fee_payments (
+    id              TEXT PRIMARY KEY,
+    plan_id         TEXT NOT NULL,
+    period_label    TEXT NOT NULL,
+    due_date        TEXT NOT NULL,
+    amount_due      REAL NOT NULL,
+    amount_paid     REAL DEFAULT 0,
+    method          TEXT,
+    paid_at         TEXT,
+    reference_no    TEXT,
+    status          TEXT DEFAULT 'unpaid',
+    notes           TEXT,
+    created_by      TEXT,
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT DEFAULT (datetime('now'))
+  )`);
+
   // ── tryAlter: 扩展考试评估表 ──
   tryAlter('ALTER TABLE admission_assessments ADD COLUMN sub_scores TEXT');
   tryAlter('ALTER TABLE admission_assessments ADD COLUMN target_score REAL');
@@ -1739,6 +1776,10 @@ function createSchema() {
     'CREATE INDEX IF NOT EXISTS idx_referrals_agent ON referrals(agent_id)',
     'CREATE INDEX IF NOT EXISTS idx_intake_cases_referral ON intake_cases(referral_id)',
     'CREATE INDEX IF NOT EXISTS idx_commission_ref_inv ON commission_payouts(referral_id, invoice_id)',
+    'CREATE INDEX IF NOT EXISTS idx_tp_student ON tuition_fee_plans(student_id)',
+    'CREATE INDEX IF NOT EXISTS idx_tfp_plan ON tuition_fee_payments(plan_id)',
+    'CREATE INDEX IF NOT EXISTS idx_tfp_due ON tuition_fee_payments(due_date)',
+    'CREATE INDEX IF NOT EXISTS idx_tfp_status ON tuition_fee_payments(status)',
   ];
   for (const sql of indexes) {
     try { db.run(sql); } catch(e) { /* ignore */ }

@@ -39,6 +39,10 @@ const PAGES = {
   'adm-case-detail':    () => { navigate('intake-cases'); },
   'accounts':           (p) => renderAccountsPage(p),
   'intake-forms':       (p) => renderIntakeFormsPage(p),
+  'finance-dashboard':  (p) => renderFinanceDashboard(p),
+  'tuition-plans':      (p) => renderTuitionPlans(p),
+  'tuition-plan-detail':(p) => renderTuitionPlanDetail(p),
+  'finance-reports':    (p) => renderFinanceReports(p),
 };
 
 const PAGE_ROLES = {
@@ -70,6 +74,10 @@ const PAGE_ROLES = {
   'adm-case-detail':    ['principal', 'counselor', 'intake_staff'],
   'accounts':           ['principal'],
   'intake-forms':       ['principal', 'counselor', 'intake_staff'],
+  'finance-dashboard':  ['principal', 'finance'],
+  'tuition-plans':      ['principal', 'finance', 'intake_staff'],
+  'tuition-plan-detail':['principal', 'finance', 'intake_staff'],
+  'finance-reports':    ['principal', 'finance'],
 };
 
 function canAccessPage(page) {

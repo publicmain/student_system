@@ -1780,11 +1780,34 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
               <div class="stu-sb-title"><span><i class="bi bi-person"></i>基本档案</span></div>
               <table class="stu-sb-table">
                 <tr><th>考试体系</th><td>${escapeHtml(student.exam_board||'—')}</td></tr>
-                <tr><th>入学</th><td>${fmtDate(student.enrol_date)||'—'}</td></tr>
+                ${student.gender ? `<tr><th>性别</th><td>${escapeHtml(student.gender)}</td></tr>` : ''}
                 ${student.date_of_birth ? `<tr><th>出生</th><td>${fmtDate(student.date_of_birth)}${isUnder14(student.date_of_birth) ? ' <span class="badge badge-soft-warning" style="font-size:.6rem">未满14岁</span>' : ''}</td></tr>` : ''}
+                ${student.nationality ? `<tr><th>国籍</th><td>${escapeHtml(student.nationality)}</td></tr>` : ''}
+                ${student.id_number ? `<tr><th>证件号</th><td>${escapeHtml(student.id_number)}</td></tr>` : ''}
+                ${student.current_school ? `<tr><th>原学校</th><td>${escapeHtml(student.current_school)}</td></tr>` : ''}
+                <tr><th>入学</th><td>${fmtDate(student.enrol_date)||'—'}</td></tr>
                 ${student.notes ? `<tr><th>备注</th><td style="font-size:.78rem;color:var(--text-secondary)">${escapeHtml(student.notes)}</td></tr>` : ''}
               </table>
             </div>
+
+            <!-- Contact Info -->
+            ${(student.phone || student.email || student.wechat || student.address) ? `
+            <div class="stu-sb-module">
+              <div class="stu-sb-title"><span><i class="bi bi-telephone"></i>联系方式</span></div>
+              <table class="stu-sb-table">
+                ${student.phone ? `<tr><th>电话</th><td>${escapeHtml(student.phone)}</td></tr>` : ''}
+                ${student.email ? `<tr><th>邮箱</th><td>${escapeHtml(student.email)}</td></tr>` : ''}
+                ${student.wechat ? `<tr><th>微信</th><td>${escapeHtml(student.wechat)}</td></tr>` : ''}
+                ${student.address ? `<tr><th>地址</th><td style="font-size:.78rem;color:var(--text-secondary)">${escapeHtml(student.address)}</td></tr>` : ''}
+              </table>
+            </div>` : ''}
+
+            <!-- Health Notes -->
+            ${student.health_notes ? `
+            <div class="stu-sb-module">
+              <div class="stu-sb-title"><span><i class="bi bi-heart-pulse"></i>健康备注</span></div>
+              <div style="font-size:.78rem;color:var(--text-secondary)">${escapeHtml(student.health_notes)}</div>
+            </div>` : ''}
 
             <!-- Team -->
             <div class="stu-sb-module">
@@ -2967,6 +2990,8 @@ function selectFeedbackItem(f, el) {
 // ════════════════════════════════════════════════════════
 
 async function openStudentModal(id = null) {
+  const fields = ['s-id','s-name','s-board','s-enrol','s-dob','s-notes','s-gender','s-nationality','s-idnumber','s-school','s-phone','s-email','s-wechat','s-address','s-target-countries','s-target-major','s-health'];
+  fields.forEach(f => { const el = document.getElementById(f); if (el) el.value = ''; });
   if (id) {
     try {
       const d = await GET(`/api/students/${id}`);
@@ -2977,16 +3002,20 @@ async function openStudentModal(id = null) {
       document.getElementById('s-enrol').value = s.enrol_date || '';
       document.getElementById('s-dob').value = s.date_of_birth || '';
       document.getElementById('s-notes').value = s.notes || '';
+      document.getElementById('s-gender').value = s.gender || '';
+      document.getElementById('s-nationality').value = s.nationality || '';
+      document.getElementById('s-idnumber').value = s.id_number || '';
+      document.getElementById('s-school').value = s.current_school || '';
+      document.getElementById('s-phone').value = s.phone || '';
+      document.getElementById('s-email').value = s.email || '';
+      document.getElementById('s-wechat').value = s.wechat || '';
+      document.getElementById('s-address').value = s.address || '';
+      document.getElementById('s-target-countries').value = s.target_countries || '';
+      document.getElementById('s-target-major').value = s.target_major || '';
+      document.getElementById('s-health').value = s.health_notes || '';
       document.getElementById('student-modal-title').textContent = '编辑学生信息';
     } catch(e) { showError(e.message); return; }
   } else {
-    document.getElementById('s-id').value = '';
-    document.getElementById('s-name').value = '';
-    document.getElementById('s-grade').value = 'G12';
-    document.getElementById('s-board').value = 'Edexcel';
-    document.getElementById('s-enrol').value = '';
-    document.getElementById('s-dob').value = '';
-    document.getElementById('s-notes').value = '';
     document.getElementById('student-modal-title').textContent = '新增学生';
   }
   bootstrap.Modal.getOrCreateInstance(document.getElementById('student-modal')).show();
@@ -3534,6 +3563,17 @@ async function saveStudent() {
     enrol_date: document.getElementById('s-enrol').value,
     date_of_birth: document.getElementById('s-dob').value || null,
     notes: document.getElementById('s-notes').value,
+    gender: document.getElementById('s-gender').value || null,
+    nationality: document.getElementById('s-nationality').value.trim() || null,
+    id_number: document.getElementById('s-idnumber').value.trim() || null,
+    current_school: document.getElementById('s-school').value.trim() || null,
+    phone: document.getElementById('s-phone').value.trim() || null,
+    email: document.getElementById('s-email').value.trim() || null,
+    wechat: document.getElementById('s-wechat').value.trim() || null,
+    address: document.getElementById('s-address').value.trim() || null,
+    target_countries: document.getElementById('s-target-countries').value.trim() || null,
+    target_major: document.getElementById('s-target-major').value.trim() || null,
+    health_notes: document.getElementById('s-health').value.trim() || null,
   };
   try {
     if (id) {

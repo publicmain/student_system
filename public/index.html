@@ -203,12 +203,24 @@
       </div>
       <div class="modal-body">
         <input type="hidden" id="s-id">
+        <input type="hidden" id="s-grade" value="">
         <div class="row g-3">
           <div class="col-md-6">
             <label class="form-label">姓名 *</label>
             <input class="form-control" id="s-name" required>
           </div>
-          <input type="hidden" id="s-grade" value="">
+          <div class="col-md-3">
+            <label class="form-label">性别</label>
+            <select class="form-select" id="s-gender">
+              <option value="">未指定</option>
+              <option value="男">男</option>
+              <option value="女">女</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">国籍</label>
+            <input class="form-control" id="s-nationality" placeholder="如: 中国">
+          </div>
           <div class="col-md-6">
             <label class="form-label">考试体系</label>
             <select class="form-select" id="s-board">
@@ -220,17 +232,53 @@
               <option value="CIE IGCSE">CIE IGCSE</option>
             </select>
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label">入学日期</label>
             <input type="date" class="form-control" id="s-enrol">
           </div>
-          <div class="col-md-4">
-            <label class="form-label">出生日期 <span class="text-muted small">（用于未满14岁合规判断）</span></label>
+          <div class="col-md-3">
+            <label class="form-label">出生日期</label>
             <input type="date" class="form-control" id="s-dob">
           </div>
-          <div class="col-12">
+          <div class="col-md-4">
+            <label class="form-label">证件号码</label>
+            <input class="form-control" id="s-idnumber" placeholder="身份证/护照号">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">原就读学校</label>
+            <input class="form-control" id="s-school" placeholder="原学校名称">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">电话</label>
+            <input class="form-control" id="s-phone" placeholder="学生电话">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">邮箱</label>
+            <input type="email" class="form-control" id="s-email" placeholder="学生邮箱">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">微信</label>
+            <input class="form-control" id="s-wechat" placeholder="微信号">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">家庭地址</label>
+            <input class="form-control" id="s-address">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">意向留学国家</label>
+            <input class="form-control" id="s-target-countries" placeholder="如: 英国、新加坡">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">意向专业</label>
+            <input class="form-control" id="s-target-major" placeholder="如: 计算机科学">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">健康/特殊需求</label>
+            <input class="form-control" id="s-health" placeholder="如有特殊情况请填写">
+          </div>
+          <div class="col-md-6">
             <label class="form-label">备注</label>
-            <textarea class="form-control" id="s-notes" rows="2"></textarea>
+            <textarea class="form-control" id="s-notes" rows="1"></textarea>
           </div>
         </div>
       </div>

@@ -96,13 +96,18 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   });
 
   router.post('/students', requireRole('principal','counselor'), (req, res) => {
-    const { name, grade_level, enrol_date, exam_board, notes, date_of_birth, agent_id } = req.body;
+    const { name, grade_level, enrol_date, exam_board, notes, date_of_birth, agent_id,
+            gender, nationality, id_number, phone, email, wechat, address, current_school,
+            target_countries, target_major, health_notes } = req.body;
     if (!name) return res.status(400).json({ error: '姓名必填' });
     if (typeof name !== 'string' || name.trim().length === 0 || name.length > _getStudentNameMaxLength()) return res.status(400).json({ error: '学生姓名格式不合法' });
     const id = uuidv4();
     const now = new Date().toISOString();
-    db.run(`INSERT INTO students (id,name,grade_level,enrol_date,exam_board,status,notes,created_at,updated_at,date_of_birth,agent_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [id, name.trim(), grade_level||'', enrol_date||null, exam_board||null, 'active', notes||'', now, now, date_of_birth||null, agent_id||null]);
+    db.run(`INSERT INTO students (id,name,grade_level,enrol_date,exam_board,status,notes,created_at,updated_at,date_of_birth,agent_id,
+            gender,nationality,id_number,phone,email,wechat,address,current_school,target_countries,target_major,health_notes)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [id, name.trim(), grade_level||'', enrol_date||null, exam_board||null, 'active', notes||'', now, now, date_of_birth||null, agent_id||null,
+       gender||null, nationality||null, id_number||null, phone||null, email||null, wechat||null, address||null, current_school||null, target_countries||null, target_major||null, health_notes||null]);
     audit(req, 'CREATE', 'students', id, { name });
     res.json({ id });
   });
@@ -174,34 +179,39 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
 
   router.put('/students/:id', requireRole('principal','counselor'), (req, res) => {
     const { id } = req.params;
-    const { name, grade_level, enrol_date, exam_board, notes, status, date_of_birth, agent_id, _partial, _expected_updated_at } = req.body;
-    if (_partial) {
+    const b = req.body;
+    if (b._partial) {
       // 局部更新：仅更新传入的非 undefined 字段
-      if (agent_id !== undefined) {
-        db.run(`UPDATE students SET agent_id=?, updated_at=? WHERE id=?`, [agent_id||null, new Date().toISOString(), id]);
+      if (b.agent_id !== undefined) {
+        db.run(`UPDATE students SET agent_id=?, updated_at=? WHERE id=?`, [b.agent_id||null, new Date().toISOString(), id]);
       }
-      audit(req, 'UPDATE', 'students', id, { agent_id });
+      audit(req, 'UPDATE', 'students', id, { agent_id: b.agent_id });
       return res.json({ ok: true });
     }
+    // Merge with existing data so partial requests don't wipe fields
+    const existing = db.get('SELECT * FROM students WHERE id=?', [id]);
+    if (!existing) return res.status(404).json({ error: '学生不存在' });
+    const name = b.name !== undefined ? b.name : existing.name;
     const _maxLen = _getStudentNameMaxLength();
     if (!name || typeof name !== 'string' || name.trim().length === 0 || name.length > _maxLen) {
       return res.status(400).json({ error: `学生姓名不能为空且不超过${_maxLen}字符` });
     }
-    // grade_level is no longer required — accept any value
+    const status = b.status !== undefined ? b.status : existing.status;
     const VALID_STATUS = _getValidStudentStatuses();
     if (status && !VALID_STATUS.includes(status)) {
       return res.status(400).json({ error: `状态必须是以下之一: ${VALID_STATUS.join(', ')}` });
     }
-    // 乐观锁：如果客户端传了 _expected_updated_at，检查是否与数据库一致
-    if (_expected_updated_at) {
-      const current = db.get('SELECT updated_at FROM students WHERE id=?', [id]);
-      if (current && current.updated_at !== _expected_updated_at) {
-        return res.status(409).json({ error: '数据已被其他用户修改，请刷新后重试', current_updated_at: current.updated_at });
+    if (b._expected_updated_at) {
+      if (existing.updated_at !== b._expected_updated_at) {
+        return res.status(409).json({ error: '数据已被其他用户修改，请刷新后重试', current_updated_at: existing.updated_at });
       }
     }
+    const v = (key, fallback) => b[key] !== undefined ? (b[key] || fallback) : (existing[key] || fallback);
     const now = new Date().toISOString();
-    db.run(`UPDATE students SET name=?,grade_level=?,enrol_date=?,exam_board=?,notes=?,status=?,updated_at=?,date_of_birth=?,agent_id=? WHERE id=?`,
-      [name.trim(), grade_level, enrol_date, exam_board, notes, status||'active', now, date_of_birth||null, agent_id||null, id]);
+    db.run(`UPDATE students SET name=?,grade_level=?,enrol_date=?,exam_board=?,notes=?,status=?,updated_at=?,date_of_birth=?,agent_id=?,
+            gender=?,nationality=?,id_number=?,phone=?,email=?,wechat=?,address=?,current_school=?,target_countries=?,target_major=?,health_notes=? WHERE id=?`,
+      [name.trim(), v('grade_level',''), v('enrol_date',null), v('exam_board',null), v('notes',''), status||'active', now, v('date_of_birth',null), v('agent_id',null),
+       v('gender',null), v('nationality',null), v('id_number',null), v('phone',null), v('email',null), v('wechat',null), v('address',null), v('current_school',null), v('target_countries',null), v('target_major',null), v('health_notes',null), id]);
     audit(req, 'UPDATE', 'students', id, { name });
     res.json({ ok: true, updated_at: now });
   });

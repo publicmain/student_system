@@ -60,6 +60,16 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     res.json(db.all('SELECT * FROM subjects ORDER BY category, code'));
   });
 
+  router.post('/subjects', requireRole('principal','counselor'), (req, res) => {
+    const { code, name, category } = req.body;
+    if (!code || !name) return res.status(400).json({ error: '科目代码和名称必填' });
+    const existing = db.get('SELECT id FROM subjects WHERE code=?', [code]);
+    if (existing) return res.status(409).json({ error: '科目代码已存在', id: existing.id });
+    const id = uuidv4();
+    db.run('INSERT INTO subjects (id, code, name, category) VALUES (?,?,?,?)', [id, code, name, category || '']);
+    res.status(201).json({ id, code, name, category });
+  });
+
   // ═══════════════════════════════════════════════════════
   //  TIMELINE TEMPLATES
   // ═══════════════════════════════════════════════════════

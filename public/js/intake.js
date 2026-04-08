@@ -1268,10 +1268,10 @@ function _renderStudentTab(c) {
   return `
     <div class="d-flex justify-content-between align-items-center mb-3">
       <span class="text-muted small">与学生/家长的文件协作</span>
-      <div class="d-flex gap-2">
+      ${c.status !== 'closed' ? `<div class="d-flex gap-2">
         <button class="btn btn-sm btn-primary" onclick="openFxNewModal('${c.id}','send')"><i class="bi bi-send me-1"></i>发送文件</button>
         <button class="btn btn-sm btn-outline-primary" onclick="openFxNewModal('${c.id}','request')"><i class="bi bi-cloud-arrow-up me-1"></i>请求上传</button>
-      </div>
+      </div>` : ''}
     </div>
     ${fxSent.length === 0 ? `
       <div class="text-center py-4 text-muted">
@@ -1886,7 +1886,7 @@ async function renderIntakeCaseDetail() {
     }
     if (cardId === 'tasks') {
       // 任务卡操作权限：intake_staff 交接后只读，student_admin 只看自己的阶段
-      const canAddTask = hasRole('principal') || (_isIntakeStaff && !_handedOff) || (_isStudentAdmin && _si >= 6);
+      const canAddTask = c.status !== 'closed' && (hasRole('principal') || (_isIntakeStaff && !_handedOff) || (_isStudentAdmin && _si >= 6));
       if (canAddTask) headerExtra = `<button class="btn btn-sm btn-outline-primary py-0 px-1" onclick="showAddCaseTaskModal('${c.id}')"><i class="bi bi-plus-lg"></i></button>`;
       // intake_staff 交接后任务变为只读提示
       const taskReadOnlyBanner = (_isIntakeStaff && _handedOff)
@@ -2091,7 +2091,7 @@ async function renderIntakeCaseDetail() {
       <div class="flex-grow-1 min-width-0">
         <div class="d-flex align-items-center gap-2 flex-wrap">
           ${_inPanel?'<h5':'<h4'} class="mb-0 text-truncate">
-            ${!hasRole('intake_staff','student_admin')
+            ${(!hasRole('intake_staff','student_admin') && c.student_id)
               ? `<a href="#" class="student-name-link" onclick="navigate('student-detail',{studentId:'${c.student_id}'})" title="查看学生档案">${escapeHtml(c.student_name||'')}</a>`
               : `<span>${escapeHtml(c.student_name||'')}</span>`}
           ${_inPanel?'</h5>':'</h4>'}
@@ -2099,7 +2099,7 @@ async function renderIntakeCaseDetail() {
         </div>
         <div class="text-muted" style="font-size:.8rem">${escapeHtml(c.program_name||'')} · ${c.intake_year}${c.owner_name ? ' · '+escapeHtml(c.owner_name) : ''}</div>
       </div>
-      ${!hasRole('intake_staff','student_admin') ? `<button class="btn btn-outline-primary btn-sm flex-shrink-0" onclick="navigate('student-detail',{studentId:'${c.student_id}'})"><i class="bi bi-person-fill${_inPanel?'':' me-1'}"></i>${_inPanel?'':'查看学生'}</button>` : ''}
+      ${(!hasRole('intake_staff','student_admin') && c.student_id) ? `<button class="btn btn-outline-primary btn-sm flex-shrink-0" onclick="navigate('student-detail',{studentId:'${c.student_id}'})"><i class="bi bi-person-fill${_inPanel?'':' me-1'}"></i>${_inPanel?'':'查看学生'}</button>` : ''}
     </div>
 
     ${_handedOff && _isIntakeStaff ? `<div class="text-muted small mb-2" style="padding:6px 10px;background:#f8fafc;border-radius:6px;border:1px solid #e5e7eb"><i class="bi bi-check-circle me-1"></i>已移交学管，当前为只读视图</div>` : ''}
@@ -2147,7 +2147,7 @@ async function renderIntakeCaseDetail() {
         <i class="bi bi-passport text-warning"></i>
         <span>签证</span>
         <span class="badge bg-${c.visa?.status==='approved'?'success':c.visa?.status==='rejected'?'danger':'info'}">${visaStatusMap[c.visa?.status]||'未开始'}</span>
-        ${hasRole('principal','intake_staff') ? `<button class="css-chip-btn" onclick="openVisaEditPanel('${c.id}')"><i class="bi bi-pencil"></i></button>` : ''}
+        ${(hasRole('principal','intake_staff') && c.visa) ? `<button class="css-chip-btn" onclick="openVisaEditPanel('${c.id}')"><i class="bi bi-pencil"></i></button>` : ''}
       </div>` : ''}
       <div class="css-chip">
         <i class="bi bi-check2-square text-primary"></i>
@@ -2206,7 +2206,7 @@ async function renderIntakeCaseDetail() {
               <span class="fw-semibold small"><i class="bi bi-passport me-1 text-warning"></i>签证</span>
               <div class="d-flex align-items-center gap-1">
                 <span class="badge bg-${c.visa?.status==='approved'?'success':c.visa?.status==='rejected'?'danger':'info'}" style="font-size:.7rem">${visaStatusMap[c.visa?.status]||'未开始'}</span>
-                ${hasRole('principal','intake_staff') ? `<button class="btn btn-outline-secondary py-0 px-1" style="font-size:.7rem" onclick="openVisaEditPanel('${c.id}')"><i class="bi bi-pencil"></i></button>` : ''}
+                ${(hasRole('principal','intake_staff') && c.visa) ? `<button class="btn btn-outline-secondary py-0 px-1" style="font-size:.7rem" onclick="openVisaEditPanel('${c.id}')"><i class="bi bi-pencil"></i></button>` : ''}
               </div>
             </div>
             ${c.visa?.submission_date ? `<div class="small text-muted">提交: ${c.visa.submission_date}</div>` : ''}
@@ -2465,7 +2465,8 @@ function updateCaseStatus(caseId, status, label) {
     if (!acquireSubmit(lockKey)) return;
     try {
       await api('PUT', `/api/intake-cases/${caseId}/status`, { status });
-      showSuccess('状态已更新'); renderIntakeCaseDetail();
+      showSuccess('状态已更新');
+      renderIntakeCases().then(() => showCaseDetail(caseId));
     } catch(e) { showError(e.message); }
     finally { releaseSubmit(lockKey); }
   }, { danger: isClose });

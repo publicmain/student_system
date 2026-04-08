@@ -3124,6 +3124,13 @@ function seedData() {
     console.log(`[DB] Cleaned up junk staff: ${s.id}`);
   }
 
+  // ── 清理孤儿数据（引用不存在学生的记录）──────────────────
+  const orphanApps = run('DELETE FROM applications WHERE student_id NOT IN (SELECT id FROM students)');
+  const orphanMentors = run('DELETE FROM mentor_assignments WHERE student_id NOT IN (SELECT id FROM students)');
+  run(`UPDATE intake_form_submissions SET imported_student_id=NULL, status='pending' WHERE imported_student_id IS NOT NULL AND imported_student_id NOT IN (SELECT id FROM students)`);
+  if (orphanApps.changes) console.log(`[DB] Cleaned ${orphanApps.changes} orphan applications`);
+  if (orphanMentors.changes) console.log(`[DB] Cleaned ${orphanMentors.changes} orphan mentor_assignments`);
+
   // ── 演示用学生数据（苏瑶 + 林子轩 + 补全已有学生）────────
   try {
     const demo = require('./seed-demo');

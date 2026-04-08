@@ -13,6 +13,7 @@ const fs = require('fs');
 const db = require('./db');
 const SQLiteSessionStore = require('./session-store');
 const { sendMail } = require('./mailer');
+const crypto = require('crypto');
 const archiver = require('archiver');
 const xlsx = require('xlsx');
 let aiPlanner = null, aiEval = null;

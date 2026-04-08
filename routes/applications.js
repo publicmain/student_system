@@ -84,14 +84,21 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   });
 
   router.post('/applications', requireRole('principal','counselor'), (req, res) => {
-    const { student_id, uni_name, department, tier, cycle_year, route, submit_deadline, grade_type_used } = req.body;
+    const { student_id, university_id, uni_name, department, tier, cycle_year, route, submit_deadline, grade_type_used } = req.body;
     if (!student_id) return res.status(400).json({ error: 'student_id 必填' });
     const studentExists = db.get('SELECT id FROM students WHERE id=? AND status != "deleted"', [student_id]);
     if (!studentExists) return res.status(400).json({ error: '学生不存在或已归档' });
     const id = uuidv4();
     const now = new Date().toISOString();
+    // Look up university_id: use provided value, or match by name, or generate new
+    let uniId = university_id || null;
+    if (!uniId && uni_name) {
+      const existing = db.get('SELECT id FROM universities WHERE name LIKE ?', [`%${uni_name}%`]);
+      if (existing) uniId = existing.id;
+    }
+    if (!uniId) uniId = uuidv4();
     db.run(`INSERT INTO applications (id,student_id,university_id,uni_name,department,tier,cycle_year,route,submit_deadline,submit_date,grade_type_used,independent_tests,offer_date,offer_type,conditions,firm_choice,insurance_choice,matriculation_date,status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [id, student_id, uuidv4(), uni_name, department, tier, cycle_year, route||_getSettingRaw('default_application_route','UK-UG'),
+      [id, student_id, uniId, uni_name, department, tier, cycle_year, route||_getSettingRaw('default_application_route','UK-UG'),
       submit_deadline, null, grade_type_used||_getSettingRaw('default_grade_type_used','Predicted'), '[]', null, _getSettingRaw('default_application_status','Pending'), null, 0, 0, null, 'pending', '', now, now]);
     res.json({ id });
   });

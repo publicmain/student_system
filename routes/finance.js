@@ -62,7 +62,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     if (status) { where.push('fi.status=?'); params.push(status); }
     if (case_id) { where.push('fi.case_id=?'); params.push(case_id); }
     const invoices = db.all(`
-      SELECT fi.*, ic.program_name, s.name as student_name,
+      SELECT fi.*, ic.program_name, COALESCE(s.name, ic.student_name) as student_name,
         COALESCE((SELECT SUM(fp.paid_amount) FROM finance_payments fp WHERE fp.invoice_id=fi.id), 0) as paid_amount
       FROM finance_invoices fi
       LEFT JOIN intake_cases ic ON ic.id=fi.case_id
@@ -342,13 +342,19 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     const tuitionTotal = db.get('SELECT COALESCE(SUM(total_amount),0) as val FROM tuition_fee_plans WHERE status IN ("active","completed")') || {};
     const tuitionPaid = db.get('SELECT COALESCE(SUM(amount_paid),0) as val FROM tuition_fee_payments WHERE status="paid"') || {};
     const overdueCount = db.get('SELECT COUNT(*) as val FROM tuition_fee_payments WHERE status IN ("unpaid","overdue") AND due_date < date("now")') || {};
+
+    // 入学账单 KPI
+    const invTotal = db.get('SELECT COALESCE(SUM(amount_total),0) as val FROM finance_invoices WHERE status != "void"') || {};
+    const invPaid = db.get(`SELECT COALESCE(SUM(fp.paid_amount),0) as val FROM finance_payments fp JOIN finance_invoices fi ON fi.id=fp.invoice_id WHERE fi.status != 'void'`) || {};
+    const invOverdueCount = db.get(`SELECT COUNT(*) as val FROM finance_invoices WHERE status IN ('unpaid','partial') AND due_at IS NOT NULL AND due_at < date('now')`) || {};
+
     // 佣金 KPI
     const commTotal = db.get('SELECT COALESCE(SUM(commission_amount),0) as val FROM commission_payouts WHERE status != "void"') || {};
     const commPaid = db.get('SELECT COALESCE(SUM(commission_amount),0) as val FROM commission_payouts WHERE status="paid"') || {};
     const commPending = db.get('SELECT COALESCE(SUM(commission_amount),0) as val FROM commission_payouts WHERE status IN ("pending","approved")') || {};
-    // 即将到期（30天内）
+    // 即将到期（30天内）— 学费分期
     const upcoming = db.all(`
-      SELECT tfp.*, tp.plan_name, tp.student_id, s.name as student_name
+      SELECT tfp.*, tp.plan_name, tp.student_id, s.name as student_name, 'tuition' as source
       FROM tuition_fee_payments tfp
       JOIN tuition_fee_plans tp ON tp.id=tfp.plan_id
       LEFT JOIN students s ON s.id=tp.student_id
@@ -356,10 +362,21 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
       ORDER BY tfp.due_date
       LIMIT 50
     `);
-    // 逾期列表
+    // 即将到期 — 入学账单
+    const upcomingInvoices = db.all(`
+      SELECT fi.id, fi.invoice_no as plan_name, fi.amount_total as amount_due, fi.due_at as due_date,
+        COALESCE(s.name, ic.student_name) as student_name, ic.student_id, 'invoice' as source
+      FROM finance_invoices fi
+      LEFT JOIN intake_cases ic ON ic.id=fi.case_id
+      LEFT JOIN students s ON s.id=ic.student_id
+      WHERE fi.status IN ('unpaid','partial') AND fi.due_at IS NOT NULL AND fi.due_at <= date('now','+30 days')
+      ORDER BY fi.due_at
+      LIMIT 50
+    `);
+    // 逾期列表 — 学费分期
     const overdue = db.all(`
       SELECT tfp.*, tp.plan_name, tp.student_id, s.name as student_name,
-        CAST(julianday('now') - julianday(tfp.due_date) AS INTEGER) as overdue_days
+        CAST(julianday('now') - julianday(tfp.due_date) AS INTEGER) as overdue_days, 'tuition' as source
       FROM tuition_fee_payments tfp
       JOIN tuition_fee_plans tp ON tp.id=tfp.plan_id
       LEFT JOIN students s ON s.id=tp.student_id
@@ -367,10 +384,27 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
       ORDER BY tfp.due_date
       LIMIT 50
     `);
+    // 逾期 — 入学账单
+    const overdueInvoices = db.all(`
+      SELECT fi.id, fi.invoice_no as plan_name, fi.amount_total as amount_due, fi.due_at as due_date,
+        COALESCE(s.name, ic.student_name) as student_name, ic.student_id,
+        CAST(julianday('now') - julianday(fi.due_at) AS INTEGER) as overdue_days, 'invoice' as source
+      FROM finance_invoices fi
+      LEFT JOIN intake_cases ic ON ic.id=fi.case_id
+      LEFT JOIN students s ON s.id=ic.student_id
+      WHERE fi.status IN ('unpaid','partial') AND fi.due_at IS NOT NULL AND fi.due_at < date('now')
+      ORDER BY fi.due_at
+      LIMIT 50
+    `);
+    // 合并并按日期排序
+    const allUpcoming = [...upcoming, ...upcomingInvoices].sort((a,b) => (a.due_date||'').localeCompare(b.due_date||'')).slice(0, 50);
+    const allOverdue = [...overdue, ...overdueInvoices].sort((a,b) => (a.due_date||'').localeCompare(b.due_date||'')).slice(0, 50);
+
     res.json({
       tuition: { total: tuitionTotal.val, paid: tuitionPaid.val, unpaid: tuitionTotal.val - tuitionPaid.val, overdue_count: overdueCount.val },
+      invoice: { total: invTotal.val, paid: invPaid.val, unpaid: invTotal.val - invPaid.val, overdue_count: invOverdueCount.val },
       commission: { total: commTotal.val, paid: commPaid.val, pending: commPending.val },
-      upcoming, overdue
+      upcoming: allUpcoming, overdue: allOverdue
     });
   });
 
@@ -414,11 +448,24 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   // 现金流报表
   router.get('/finance/report/cashflow', requireRole('principal','finance'), (req, res) => {
     // 学费收入按月
-    const income = db.all(`
+    const tuitionIncome = db.all(`
       SELECT strftime('%Y-%m', paid_at) as month, SUM(amount_paid) as amount
       FROM tuition_fee_payments WHERE status='paid' AND paid_at IS NOT NULL
       GROUP BY strftime('%Y-%m', paid_at) ORDER BY month
     `);
+    // 入学账单收入按月
+    const invoiceIncome = db.all(`
+      SELECT strftime('%Y-%m', fp.paid_at) as month, SUM(fp.paid_amount) as amount
+      FROM finance_payments fp
+      JOIN finance_invoices fi ON fi.id=fp.invoice_id
+      WHERE fi.status != 'void' AND fp.paid_at IS NOT NULL
+      GROUP BY strftime('%Y-%m', fp.paid_at) ORDER BY month
+    `);
+    // 合并学费+账单收入
+    const incomeMap0 = {};
+    for (const r of tuitionIncome) { incomeMap0[r.month] = (incomeMap0[r.month]||0) + r.amount; }
+    for (const r of invoiceIncome) { incomeMap0[r.month] = (incomeMap0[r.month]||0) + r.amount; }
+    const income = Object.entries(incomeMap0).map(([month, amount]) => ({ month, amount })).sort((a,b) => a.month.localeCompare(b.month));
     // 佣金支出按月
     const expense = db.all(`
       SELECT strftime('%Y-%m', paid_at) as month, SUM(commission_amount) as amount

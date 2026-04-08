@@ -43,6 +43,7 @@ async function renderFinanceDashboardTab(container) {
   try {
     const data = await GET('/api/finance/dashboard');
     const t = data.tuition;
+    const inv = data.invoice || { total: 0, paid: 0, unpaid: 0, overdue_count: 0 };
     const c = data.commission;
     container.innerHTML = `
       <div class="d-flex justify-content-end mb-3">
@@ -66,6 +67,22 @@ async function renderFinanceDashboardTab(container) {
         </div></div></div>
       </div>
 
+      <h6 class="text-muted mb-2">入学账单</h6>
+      <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body text-center">
+          <div class="text-muted small">总应收</div><div class="fs-5 fw-bold text-primary">${fmtMoney(inv.total)}</div>
+        </div></div></div>
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body text-center">
+          <div class="text-muted small">已收</div><div class="fs-5 fw-bold text-success">${fmtMoney(inv.paid)}</div>
+        </div></div></div>
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body text-center">
+          <div class="text-muted small">未收</div><div class="fs-5 fw-bold text-warning">${fmtMoney(inv.unpaid)}</div>
+        </div></div></div>
+        <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body text-center">
+          <div class="text-muted small">逾期笔数</div><div class="fs-5 fw-bold text-danger">${inv.overdue_count}</div>
+        </div></div></div>
+      </div>
+
       <h6 class="text-muted mb-2">佣金支出</h6>
       <div class="row g-3 mb-4">
         <div class="col-md-4"><div class="card border-0 shadow-sm"><div class="card-body text-center">
@@ -85,9 +102,11 @@ async function renderFinanceDashboardTab(container) {
             <div class="card-header bg-white"><h6 class="mb-0">即将到期（30天内）</h6></div>
             <div class="card-body p-0">
               ${data.upcoming.length ? `<table class="table table-sm table-hover mb-0">
-                <thead><tr><th>学生</th><th>计划</th><th>金额</th><th>到期日</th></tr></thead>
+                <thead><tr><th>学生</th><th>类型</th><th>计划/账单</th><th>金额</th><th>到期日</th></tr></thead>
                 <tbody>${data.upcoming.map(u => `<tr>
-                  <td>${u.student_name||'-'}</td><td>${u.plan_name||'-'}</td>
+                  <td>${u.student_name||'-'}</td>
+                  <td><span class="badge bg-${u.source==='invoice'?'info':'primary'} bg-opacity-75">${u.source==='invoice'?'账单':'学费'}</span></td>
+                  <td>${u.plan_name||'-'}</td>
                   <td>${fmtMoney(u.amount_due)}</td><td>${u.due_date}</td>
                 </tr>`).join('')}</tbody>
               </table>` : '<div class="text-center text-muted py-3">暂无</div>'}
@@ -99,9 +118,11 @@ async function renderFinanceDashboardTab(container) {
             <div class="card-header bg-white"><h6 class="mb-0 text-danger">逾期列表</h6></div>
             <div class="card-body p-0">
               ${data.overdue.length ? `<table class="table table-sm table-hover mb-0">
-                <thead><tr><th>学生</th><th>计划</th><th>金额</th><th>逾期天数</th></tr></thead>
+                <thead><tr><th>学生</th><th>类型</th><th>计划/账单</th><th>金额</th><th>逾期天数</th></tr></thead>
                 <tbody>${data.overdue.map(o => `<tr class="table-danger">
-                  <td>${o.student_name||'-'}</td><td>${o.plan_name||'-'}</td>
+                  <td>${o.student_name||'-'}</td>
+                  <td><span class="badge bg-${o.source==='invoice'?'info':'primary'} bg-opacity-75">${o.source==='invoice'?'账单':'学费'}</span></td>
+                  <td>${o.plan_name||'-'}</td>
                   <td>${fmtMoney(o.amount_due)}</td><td>${o.overdue_days} 天</td>
                 </tr>`).join('')}</tbody>
               </table>` : '<div class="text-center text-muted py-3">暂无逾期</div>'}

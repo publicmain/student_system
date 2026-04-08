@@ -29,8 +29,8 @@ module.exports = function({ db, requireAuth, requireRole }) {
     try {
       const offerStatuses = "('offer','conditional_offer','conditional','unconditional','firm','enrolled')";
 
-      totalOffers = (db.get(`SELECT COUNT(*) as cnt FROM applications WHERE status IN ${offerStatuses}`) || {}).cnt || 0;
-      const appliedCount = (db.get(`SELECT COUNT(*) as cnt FROM applications WHERE status NOT IN ('pending','draft')`) || {}).cnt || 0;
+      totalOffers = (db.get(`SELECT COUNT(*) as cnt FROM applications a JOIN students s ON s.id=a.student_id WHERE a.status IN ${offerStatuses}`) || {}).cnt || 0;
+      const appliedCount = (db.get(`SELECT COUNT(*) as cnt FROM applications a JOIN students s ON s.id=a.student_id WHERE a.status NOT IN ('pending','draft')`) || {}).cnt || 0;
       acceptanceRate = appliedCount > 0 ? Math.round(totalOffers / appliedCount * 1000) / 10 : 0;
 
       essayTotal = (db.get('SELECT COUNT(*) as cnt FROM essays') || {}).cnt || 0;
@@ -112,6 +112,7 @@ module.exports = function({ db, requireAuth, requireRole }) {
         COUNT(DISTINCT ma.student_id) as current_students
       FROM staff st
       LEFT JOIN mentor_assignments ma ON ma.staff_id = st.id AND ma.end_date IS NULL
+        AND ma.student_id IN (SELECT id FROM students WHERE status='active')
       GROUP BY st.id
       ORDER BY current_students DESC
     `);

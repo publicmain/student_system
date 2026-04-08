@@ -4104,8 +4104,8 @@ function bindEvents() {
     });
   });
 
-  // 导航项
-  document.querySelectorAll('.nav-item').forEach(el => {
+  // 导航项 — 仅侧边栏中带 data-page 的导航项
+  document.querySelectorAll('.sidebar .nav-item[data-page]').forEach(el => {
     el.addEventListener('click', (e) => {
       e.preventDefault();
       navigate(el.dataset.page);
@@ -7428,59 +7428,24 @@ async function viewSubmissionDetail(subId, formId, formTitle) {
 
     const fieldLabels = {
       student_name:'学生姓名', gender:'性别', date_of_birth:'出生日期', nationality:'国籍',
-      id_number:'证件号码', exam_board:'考试体系', current_school:'原就读学校',
+      id_number:'证件号码', grade_level:'当前年级', exam_board:'考试体系', current_school:'原就读学校',
       student_phone:'学生电话', student_email:'学生邮箱', student_wechat:'学生微信', address:'家庭地址',
       parent1_name:'家长1姓名', parent1_relation:'家长1关系', parent1_phone:'家长1电话',
       parent1_email:'家长1邮箱', parent1_wechat:'家长1微信',
       parent2_name:'家长2姓名', parent2_relation:'家长2关系', parent2_phone:'家长2电话',
       parent2_email:'家长2邮箱', parent2_wechat:'家长2微信',
       target_countries:'意向留学国家', target_major:'意向专业', enrol_date:'预计入学时间',
-      subjects:'在读科目', test_scores:'标化成绩',
-      activities:'课外活动', honors:'获奖经历',
+      current_subjects:'在读科目', test_scores:'标化成绩',
       hobbies:'兴趣爱好', health_notes:'健康/特殊需求', extra_notes:'补充说明'
     };
 
-    // 格式化字段值：将数组/对象类型转为易读文本
-    function formatFieldValue(key, val) {
-      if (val == null || val === '') return '';
-      // 数组类型字段
-      if (Array.isArray(val)) {
-        if (val.length === 0) return '';
-        // target_countries: 简单字符串数组
-        if (key === 'target_countries') return val.join('、');
-        // subjects: [{name, level, predicted_grade}]
-        if (key === 'subjects') {
-          return val.map(s => `${s.name||''}（${s.level||''}，预估${s.predicted_grade||'—'}）`).join('；');
-        }
-        // test_scores: [{type, total_score, sub_scores, date}]
-        if (key === 'test_scores') {
-          return val.map(t => `${t.type||''} ${t.total_score||''}${t.sub_scores ? '（'+t.sub_scores+'）' : ''}${t.date ? ' '+t.date : ''}`).join('；');
-        }
-        // activities: [{category, name, role}]
-        if (key === 'activities') {
-          return val.map(a => `${a.category||''} - ${a.name||''}${a.role ? '（'+a.role+'）' : ''}`).join('；');
-        }
-        // honors: [{name, ...}]
-        if (key === 'honors') {
-          return val.map(h => typeof h === 'string' ? h : (h.name || JSON.stringify(h))).join('；');
-        }
-        // 其他数组：尝试 join
-        return val.map(v => typeof v === 'string' ? v : JSON.stringify(v)).join('、');
-      }
-      // JSON 字符串（兼容旧数据）
-      if (typeof val === 'string' && val.startsWith('[')) {
-        try { return formatFieldValue(key, JSON.parse(val)); } catch(e) { /* fall through */ }
-      }
-      return String(val);
-    }
-
     const sections = [
-      { title: '学生基本信息', fields: ['student_name','gender','date_of_birth','nationality','id_number','exam_board','current_school'] },
+      { title: '学生基本信息', fields: ['student_name','gender','date_of_birth','nationality','id_number','grade_level','exam_board','current_school'] },
       { title: '学生联系方式', fields: ['student_phone','student_email','student_wechat','address'] },
       { title: '家长1信息', fields: ['parent1_name','parent1_relation','parent1_phone','parent1_email','parent1_wechat'] },
       { title: '家长2信息', fields: ['parent2_name','parent2_relation','parent2_phone','parent2_email','parent2_wechat'] },
-      { title: '学业与留学意向', fields: ['target_countries','target_major','enrol_date','subjects','test_scores'] },
-      { title: '活动与补充信息', fields: ['activities','honors','hobbies','health_notes','extra_notes'] },
+      { title: '学业与留学意向', fields: ['target_countries','target_major','enrol_date','current_subjects','test_scores'] },
+      { title: '补充信息', fields: ['hobbies','health_notes','extra_notes'] },
     ];
 
     const canAction = sub.status === 'pending' && ['principal','counselor'].includes(State.user?.role);
@@ -7507,16 +7472,10 @@ async function viewSubmissionDetail(subId, formId, formTitle) {
               <div class="card-header bg-light"><h6 class="mb-0">${sec.title}</h6></div>
               <div class="card-body">
                 <div class="row g-3">
-                  ${sec.fields.map(f => {
-                    const v = data[f];
-                    if (v == null || v === '' || (Array.isArray(v) && v.length === 0)) return '';
-                    const display = formatFieldValue(f, v);
-                    if (!display) return '';
-                    return `<div class="col-md-6">
-                      <div class="small text-muted">${fieldLabels[f]||f}</div>
-                      <div class="fw-medium">${escapeHtml(display)}</div>
-                    </div>`;
-                  }).join('')}
+                  ${sec.fields.map(f => data[f] ? `<div class="col-md-6">
+                    <div class="small text-muted">${fieldLabels[f]||f}</div>
+                    <div class="fw-medium">${escapeHtml(data[f])}</div>
+                  </div>` : '').join('')}
                 </div>
               </div>
             </div>`;

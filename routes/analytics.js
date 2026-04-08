@@ -15,9 +15,9 @@ module.exports = function({ db, audit, requireAuth, requireRole }) {
   router.get('/analytics/overview', requireRole('principal','counselor'), (req, res) => {
     const admissionRate = db.get(`SELECT
       COUNT(*) as total,
-      SUM(CASE WHEN offer_type IN ('Conditional','Unconditional') THEN 1 ELSE 0 END) as offers,
-      SUM(CASE WHEN status='enrolled' THEN 1 ELSE 0 END) as enrolled
-      FROM applications`);
+      SUM(CASE WHEN a.status IN ('offer','conditional_offer','conditional','unconditional','firm','enrolled') THEN 1 ELSE 0 END) as offers,
+      SUM(CASE WHEN a.status='enrolled' THEN 1 ELSE 0 END) as enrolled
+      FROM applications a JOIN students s ON s.id=a.student_id`);
     const taskStats = db.all(`SELECT category, COUNT(*) as total,
       SUM(CASE WHEN status='done' THEN 1 ELSE 0 END) as done,
       SUM(CASE WHEN status NOT IN ('done') AND due_date < date('now') THEN 1 ELSE 0 END) as overdue

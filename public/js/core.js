@@ -589,7 +589,7 @@ function _doNavigate(page, params = {}) {
     window.history.replaceState(null, '', '#' + hashStr);
   } catch(e) {}
 
-  document.querySelectorAll('.nav-item').forEach(el => {
+  document.querySelectorAll('.sidebar .nav-item[data-page]').forEach(el => {
     el.classList.toggle('active', el.dataset.page === page);
   });
 

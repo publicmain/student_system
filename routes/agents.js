@@ -86,7 +86,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     res.json({ ok: true });
   });
 
-  router.post('/referrals', requireRole('principal'), (req, res) => {
+  router.post('/referrals', requireRole('principal','intake_staff'), (req, res) => {
     const { source_type, agent_id, anonymous_label, referrer_name, notes } = req.body;
     if (!source_type) return res.status(400).json({ error: '缺少 source_type' });
     const id = uuidv4();

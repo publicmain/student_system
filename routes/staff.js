@@ -12,6 +12,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, bcrypt,
         COUNT(DISTINCT ma.student_id) as current_students
       FROM staff st
       LEFT JOIN mentor_assignments ma ON ma.staff_id=st.id AND ma.end_date IS NULL
+        AND ma.student_id IN (SELECT id FROM students WHERE status='active')
       GROUP BY st.id
       ORDER BY st.role, st.name
     `);

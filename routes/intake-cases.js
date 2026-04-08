@@ -519,7 +519,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
 
     if (isPrincipal) {
       // ── Principal：全局视图 ──
-      payload.total = db.get('SELECT COUNT(*) as cnt FROM intake_cases WHERE status != "closed"').cnt;
+      payload.total = db.get('SELECT COUNT(*) as cnt FROM intake_cases').cnt;
       payload.byStatus = db.all('SELECT status, COUNT(*) as cnt FROM intake_cases GROUP BY status');
       payload.overdueTasks = db.get(`SELECT COUNT(*) as cnt FROM milestone_tasks WHERE intake_case_id IS NOT NULL AND status != 'done' AND due_date < date('now')`).cnt;
       payload.unpaidInvoices = db.get(`SELECT COUNT(*) as cnt, COALESCE(SUM(amount_total),0) as total FROM finance_invoices WHERE status IN ('unpaid','partial')`);

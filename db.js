@@ -454,6 +454,7 @@ function createSchema() {
   // 申请：截止时间 + 时区
   tryAlter('ALTER TABLE applications ADD COLUMN submit_deadline_time TEXT');
   tryAlter('ALTER TABLE applications ADD COLUMN submit_deadline_tz TEXT');
+  tryAlter('ALTER TABLE applications ADD COLUMN program_id TEXT');
   // 时间线模板：默认截止时间与时区（适用该模板下所有任务）
   tryAlter('ALTER TABLE timeline_templates ADD COLUMN deadline_time TEXT');
   tryAlter('ALTER TABLE timeline_templates ADD COLUMN deadline_timezone TEXT');
@@ -2239,7 +2240,7 @@ function seedData() {
       const pnow = new Date().toISOString();
 
       // 确保 uni_programs 引用的大学存在于 universities 表
-      const pUniCam = uid(), pUniUCL = uid(), pUniEd = uid(), pUniNUS = uid(), pUniManch = uid();
+      const pUniCam = uuidv4(), pUniUCL = uuidv4(), pUniEd = uuidv4(), pUniNUS = uuidv4(), pUniManch = uuidv4();
       for (const u of [
         [pUniCam, '剑桥大学 University of Cambridge', 'UK', ''],
         [pUniUCL, '伦敦大学学院 UCL', 'UK', ''],
@@ -2678,13 +2679,13 @@ function seedData() {
   ]);
 
   // ── 用户账户 ────────────────────────────────────────
-  db.run(`INSERT INTO users VALUES (?,?,?,?,?,?,?)`, [
+  db.run(`INSERT INTO users (id,username,password,role,linked_id,name,created_at) VALUES (?,?,?,?,?,?,?)`, [
     principalId, 'principal', hash('123456'), 'principal', staff3Id, '王校长', now
   ]);
-  db.run(`INSERT INTO users VALUES (?,?,?,?,?,?,?)`, [
+  db.run(`INSERT INTO users (id,username,password,role,linked_id,name,created_at) VALUES (?,?,?,?,?,?,?)`, [
     counselorId, 'counselor', hash('123456'), 'counselor', staff1Id, '李老师', now
   ]);
-  db.run(`INSERT INTO users VALUES (?,?,?,?,?,?,?)`, [
+  db.run(`INSERT INTO users (id,username,password,role,linked_id,name,created_at) VALUES (?,?,?,?,?,?,?)`, [
     mentorId, 'mentor', hash('123456'), 'mentor', staff2Id, '张导师', now
   ]);
 
@@ -2704,7 +2705,7 @@ function seedData() {
   ]);
 
   // 学生用户
-  db.run(`INSERT INTO users VALUES (?,?,?,?,?,?,?)`, [
+  db.run(`INSERT INTO users (id,username,password,role,linked_id,name,created_at) VALUES (?,?,?,?,?,?,?)`, [
     student1UserId, 'student1', hash('123456'), 'student', stu1, '张三', now
   ]);
 
@@ -2728,7 +2729,7 @@ function seedData() {
     par1, '张父', '父', '13900000010', 'zhangfu@email.com', 'zhangfu_wx', now
   ]);
   db.run(`INSERT INTO student_parents VALUES (?,?)`, [stu1, par1]);
-  db.run(`INSERT INTO users VALUES (?,?,?,?,?,?,?)`, [
+  db.run(`INSERT INTO users (id,username,password,role,linked_id,name,created_at) VALUES (?,?,?,?,?,?,?)`, [
     parent1UserId, 'parent1', hash('123456'), 'parent', par1, '张父', now
   ]);
 
@@ -3131,11 +3132,13 @@ function seedData() {
   }
 
   // ── 清理孤儿数据（引用不存在学生的记录）──────────────────
-  const orphanApps = run('DELETE FROM applications WHERE student_id NOT IN (SELECT id FROM students)');
-  const orphanMentors = run('DELETE FROM mentor_assignments WHERE student_id NOT IN (SELECT id FROM students)');
+  const _oaBefore = (get('SELECT COUNT(*) as cnt FROM applications WHERE student_id NOT IN (SELECT id FROM students)') || {}).cnt || 0;
+  const _omBefore = (get('SELECT COUNT(*) as cnt FROM mentor_assignments WHERE student_id NOT IN (SELECT id FROM students)') || {}).cnt || 0;
+  run('DELETE FROM applications WHERE student_id NOT IN (SELECT id FROM students)');
+  run('DELETE FROM mentor_assignments WHERE student_id NOT IN (SELECT id FROM students)');
   run(`UPDATE intake_form_submissions SET imported_student_id=NULL, status='pending' WHERE imported_student_id IS NOT NULL AND imported_student_id NOT IN (SELECT id FROM students)`);
-  if (orphanApps.changes) console.log(`[DB] Cleaned ${orphanApps.changes} orphan applications`);
-  if (orphanMentors.changes) console.log(`[DB] Cleaned ${orphanMentors.changes} orphan mentor_assignments`);
+  if (_oaBefore) console.log(`[DB] Cleaned ${_oaBefore} orphan applications`);
+  if (_omBefore) console.log(`[DB] Cleaned ${_omBefore} orphan mentor_assignments`);
 
   // ── 演示用学生数据（苏瑶 + 林子轩 + 补全已有学生）────────
   try {

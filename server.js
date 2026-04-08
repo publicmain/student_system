@@ -623,11 +623,13 @@ db.init().then(() => {
 
   // ── 全局孤儿数据清理（在所有 seed/migration 之后执行）──
   try {
-    const orphanApps = db.run('DELETE FROM applications WHERE student_id NOT IN (SELECT id FROM students)');
-    const orphanMentors = db.run('DELETE FROM mentor_assignments WHERE student_id NOT IN (SELECT id FROM students)');
+    const beforeApps = db.get('SELECT COUNT(*) as cnt FROM applications WHERE student_id NOT IN (SELECT id FROM students)');
+    const beforeMentors = db.get('SELECT COUNT(*) as cnt FROM mentor_assignments WHERE student_id NOT IN (SELECT id FROM students)');
+    db.run('DELETE FROM applications WHERE student_id NOT IN (SELECT id FROM students)');
+    db.run('DELETE FROM mentor_assignments WHERE student_id NOT IN (SELECT id FROM students)');
     db.run(`UPDATE intake_form_submissions SET imported_student_id=NULL, status='pending' WHERE imported_student_id IS NOT NULL AND imported_student_id NOT IN (SELECT id FROM students)`);
-    if (orphanApps.changes) console.log(`[cleanup] Cleaned ${orphanApps.changes} orphan applications`);
-    if (orphanMentors.changes) console.log(`[cleanup] Cleaned ${orphanMentors.changes} orphan mentor_assignments`);
+    if (beforeApps?.cnt) console.log(`[cleanup] Cleaned ${beforeApps.cnt} orphan applications`);
+    if (beforeMentors?.cnt) console.log(`[cleanup] Cleaned ${beforeMentors.cnt} orphan mentor_assignments`);
   } catch(e) { console.error('[cleanup] orphan cleanup error:', e.message); }
 
   // 磁盘清理（每次启动时运行）
@@ -644,28 +646,107 @@ db.init().then(() => {
     _ensureFinanceDemoAccount();
   }
 
-  // ── 修复代理关联：为 agent 来源的入学案例创建 referral 链接 ──
+  // ── BUG-1 修复：为每个 intake_case 创建对应 student 记录并关联 ──
+  try {
+    const casesNoStudent = db.all("SELECT id, student_name, program_name, intake_year FROM intake_cases WHERE student_id IS NULL AND student_name IS NOT NULL");
+    for (const c of casesNoStudent) {
+      // 按名字查找已有学生
+      let stu = db.get("SELECT id FROM students WHERE name=?", [c.student_name]);
+      if (!stu) {
+        const stuId = uuidv4();
+        db.run(`INSERT INTO students (id,name,grade_level,enrol_date,exam_board,status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,datetime('now'),datetime('now'))`,
+          [stuId, c.student_name, '', c.intake_year ? c.intake_year+'-01-01' : '2026-01-01', '', 'active', '由入学案例自动创建']);
+        stu = { id: stuId };
+      }
+      db.run("UPDATE intake_cases SET student_id=? WHERE id=?", [stu.id, c.id]);
+    }
+    if (casesNoStudent.length) console.log(`[fix] Linked ${casesNoStudent.length} intake cases to student records`);
+  } catch(e) { console.error('[fix] intake-student linkage error:', e.message); }
+
+  // ── BUG-10 修复：为 agent 来源的入学案例创建 referral 链接 ──
   try {
     const agentCases = db.all("SELECT ic.id, ic.student_name FROM intake_cases ic WHERE ic.source_type='agent' AND ic.referral_id IS NULL");
     if (agentCases.length > 0) {
-      const agent = db.get("SELECT id FROM agents WHERE status='active' LIMIT 1");
-      if (agent) {
-        for (const c of agentCases) {
-          const existingRef = db.get("SELECT id FROM referrals WHERE agent_id=? AND student_name=?", [agent.id, c.student_name]);
-          let refId;
-          if (existingRef) {
-            refId = existingRef.id;
-          } else {
-            refId = uuidv4();
-            db.run(`INSERT INTO referrals (id, agent_id, student_name, source_type, status, created_at, updated_at) VALUES (?,?,?,?,?,datetime('now'),datetime('now'))`,
-              [refId, agent.id, c.student_name, 'agent', 'active']);
-          }
-          db.run(`UPDATE intake_cases SET referral_id=? WHERE id=?`, [refId, c.id]);
-        }
-        console.log(`[fix] Linked ${agentCases.length} agent-source intake cases to referrals`);
+      // 确保至少有一个 agent 存在
+      let agent = db.get("SELECT id FROM agents WHERE status='active' LIMIT 1");
+      if (!agent) {
+        const agentId = uuidv4();
+        db.run(`INSERT INTO agents (id,name,type,contact,email,phone,status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))`,
+          [agentId, 'Demo Agency', 'agency', 'Agent Contact', 'agent@demo.com', '+65-90000000', 'active', '演示代理']);
+        agent = { id: agentId };
       }
+      for (const c of agentCases) {
+        const refId = uuidv4();
+        db.run(`INSERT INTO referrals (id, source_type, agent_id, referrer_name, notes, created_at) VALUES (?,?,?,?,?,datetime('now'))`,
+          [refId, 'agent', agent.id, c.student_name, 'auto-linked']);
+        db.run(`UPDATE intake_cases SET referral_id=? WHERE id=?`, [refId, c.id]);
+      }
+      console.log(`[fix] Linked ${agentCases.length} agent-source intake cases to referrals`);
     }
   } catch(e) { console.error('[fix] agent linkage error:', e.message); }
+
+  // ── BUG-11 修复：为入学案例创建演示财务数据 ──
+  try {
+    const existingInvoices = db.get("SELECT COUNT(*) as cnt FROM finance_invoices");
+    if (!existingInvoices || existingInvoices.cnt === 0) {
+      // 为已有入学案例创建演示发票
+      const cases = db.all("SELECT id, student_name, program_name FROM intake_cases WHERE status NOT IN ('closed') LIMIT 3");
+      for (let i = 0; i < cases.length; i++) {
+        const c = cases[i];
+        const invId = uuidv4();
+        const invNo = `INV-2026-${String(i+1).padStart(3,'0')}`;
+        const items = JSON.stringify([{ description: `${c.program_name} 学费`, amount: 15000 + i * 5000 }]);
+        const amount = 15000 + i * 5000;
+        const dueDate = `2026-0${4+i}-15`;
+        db.run(`INSERT INTO finance_invoices (id,case_id,invoice_no,currency,amount_total,items_json,status,due_at,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))`,
+          [invId, c.id, invNo, 'SGD', amount, items, 'unpaid', dueDate, 'system']);
+      }
+      if (cases.length) console.log(`[fix] Created ${cases.length} demo invoices for intake cases`);
+    }
+
+    // 创建演示学费计划
+    const existingPlans = db.get("SELECT COUNT(*) as cnt FROM tuition_fee_plans");
+    if (!existingPlans || existingPlans.cnt === 0) {
+      const stuForPlan = db.get("SELECT id, name FROM students WHERE status='active' LIMIT 1");
+      if (stuForPlan) {
+        const planId = uuidv4();
+        db.run(`INSERT INTO tuition_fee_plans (id,student_id,plan_name,currency,total_amount,frequency,installment_amount,num_installments,start_date,next_due_date,status,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))`,
+          [planId, stuForPlan.id, `${stuForPlan.name} 2026年度学费`, 'SGD', 30000, 'semi_annual', 15000, 2, '2026-03-01', '2026-03-01', 'active', 'system']);
+        // 创建2期分期
+        for (let p = 0; p < 2; p++) {
+          db.run(`INSERT INTO tuition_fee_payments (id,plan_id,period_label,due_date,amount_due,status,created_at,updated_at) VALUES (?,?,?,?,?,?,datetime('now'),datetime('now'))`,
+            [uuidv4(), planId, p === 0 ? '2026-H1' : '2026-H2', p === 0 ? '2026-03-01' : '2026-09-01', 15000, 'unpaid']);
+        }
+        console.log(`[fix] Created demo tuition plan for ${stuForPlan.name}`);
+      }
+    }
+  } catch(e) { console.error('[fix] finance seed error:', e.message); }
+
+  // ── BUG-18 修复：将 applications 通过 uni_name 关联到 uni_programs ──
+  try {
+    const unlinkedApps = db.all("SELECT a.id, a.uni_name, a.department FROM applications a WHERE a.program_id IS NULL AND a.uni_name IS NOT NULL");
+    let linked = 0;
+    for (const app of unlinkedApps) {
+      // 尝试通过大学名 + 专业名匹配
+      let prog = db.get("SELECT id, university_id FROM uni_programs WHERE uni_name LIKE ? AND program_name LIKE ?",
+        [`%${(app.uni_name||'').replace(/[^a-zA-Z\u4e00-\u9fff]/g,' ').trim().split(/\s+/)[0]}%`,
+         `%${(app.department||'').split(/\s+/)[0]}%`]);
+      // 如果匹配不到，只按大学名匹配
+      if (!prog) {
+        prog = db.get("SELECT id, university_id FROM uni_programs WHERE uni_name LIKE ?",
+          [`%${(app.uni_name||'').replace(/[^a-zA-Z\u4e00-\u9fff]/g,' ').trim().split(/\s+/)[0]}%`]);
+      }
+      if (prog) {
+        db.run("UPDATE applications SET program_id=? WHERE id=?", [prog.id, app.id]);
+        // 如果 application 的 university_id 也缺失，同步更新
+        if (prog.university_id) {
+          db.run("UPDATE applications SET university_id=COALESCE(university_id,?) WHERE id=? AND university_id IS NULL", [prog.university_id, app.id]);
+        }
+        linked++;
+      }
+    }
+    if (linked) console.log(`[fix] Linked ${linked}/${unlinkedApps.length} applications to uni_programs`);
+  } catch(e) { console.error('[fix] app-program linkage error:', e.message); }
 
   sessionStore.setDb(db);
   app.listen(PORT, () => {

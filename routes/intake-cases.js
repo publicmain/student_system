@@ -426,7 +426,9 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
   router.post('/intake-cases/:id/docs', requireRole('principal','intake_staff'), (req, res) => {
     const { material_type, title, status, notes, doc_tag } = req.body;
     if (!material_type) return res.status(400).json({ error: '缺少 material_type' });
-    if (!db.get('SELECT id FROM intake_cases WHERE id=?', [req.params.id])) return res.status(404).json({ error: 'Case 不存在' });
+    const _ic = db.get('SELECT id, status FROM intake_cases WHERE id=?', [req.params.id]);
+    if (!_ic) return res.status(404).json({ error: 'Case 不存在' });
+    if (_ic.status === 'closed') return res.status(400).json({ error: '案例已关闭，不能添加文档' });
     const id = uuidv4();
     db.run(`INSERT INTO material_items (id,student_id,intake_case_id,material_type,title,status,notes,doc_tag) VALUES (?,?,?,?,?,?,?,?)`,
       [id, null, req.params.id, material_type, title||material_type, status||'未开始', notes||null, doc_tag||null]);
@@ -437,8 +439,9 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
   router.post('/intake-cases/:id/tasks', requireRole('principal','intake_staff'), (req, res) => {
     const { title, description, category, due_date, priority, assigned_to } = req.body;
     if (!title) return res.status(400).json({ error: '缺少 title' });
-    const ic = db.get('SELECT id, student_id FROM intake_cases WHERE id=?', [req.params.id]);
+    const ic = db.get('SELECT id, student_id, status FROM intake_cases WHERE id=?', [req.params.id]);
     if (!ic) return res.status(404).json({ error: 'Case 不存在' });
+    if (ic.status === 'closed') return res.status(400).json({ error: '案例已关闭，不能创建任务' });
     const id = uuidv4();
     db.run(`INSERT INTO milestone_tasks (id,student_id,intake_case_id,title,description,category,due_date,status,priority,assigned_to) VALUES (?,?,?,?,?,?,?,?,?,?)`,
       [id, ic.student_id || '', req.params.id, title, description||null, category||'其他', due_date||null, 'pending', priority||'normal', assigned_to||null]);
@@ -454,8 +457,9 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     try {
     const { email, material_ids } = req.body;
     if (!email) return res.status(400).json({ error: '请提供收件人邮箱' });
-    const ic = db.get('SELECT id, student_name FROM intake_cases WHERE id=?', [req.params.id]);
+    const ic = db.get('SELECT id, student_name, status FROM intake_cases WHERE id=?', [req.params.id]);
     if (!ic) return res.status(404).json({ error: 'Case 不存在' });
+    if (ic.status === 'closed') return res.status(400).json({ error: '案例已关闭，不能发送文件' });
 
     // 1. 查询文件（无论有没有都继续）
     let files = [];

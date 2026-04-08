@@ -27,7 +27,7 @@ module.exports = function({ db, requireAuth, requireRole }) {
     let gradeDistribution = [], recentOffers = [], tierResults = [], essayProgress = [];
 
     try {
-      const offerStatuses = "('offer','conditional_offer','conditional','unconditional','firm','enrolled')";
+      const offerStatuses = "('offer','conditional_offer','conditional','unconditional','unconditional_offer','firm','enrolled')";
 
       totalOffers = (db.get(`SELECT COUNT(*) as cnt FROM applications a JOIN students s ON s.id=a.student_id WHERE a.status IN ${offerStatuses}`) || {}).cnt || 0;
       const appliedCount = (db.get(`SELECT COUNT(*) as cnt FROM applications a JOIN students s ON s.id=a.student_id WHERE a.status NOT IN ('pending','draft')`) || {}).cnt || 0;

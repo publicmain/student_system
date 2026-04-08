@@ -586,7 +586,9 @@ function _doNavigate(page, params = {}) {
       hashParams.set('studentId', State.currentStudentId);
     }
     const hashStr = page + (hashParams.toString() ? '?' + hashParams.toString() : '');
-    window.history.replaceState(null, '', '#' + hashStr);
+    if (window.location.hash.slice(1) !== hashStr) {
+      window.history.pushState(null, '', '#' + hashStr);
+    }
   } catch(e) {}
 
   document.querySelectorAll('.sidebar .nav-item[data-page]').forEach(el => {

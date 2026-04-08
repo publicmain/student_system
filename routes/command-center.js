@@ -37,9 +37,10 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
     const wStr = where.length ? `AND ${where.join(' AND ')}` : '';
 
     const notDel = "AND a.status != 'deleted'";
-    const total = db.get(`SELECT COUNT(*) as cnt FROM applications a WHERE 1=1 ${notDel} ${wStr}`, params).cnt;
-    const submitted = db.get(`SELECT COUNT(*) as cnt FROM applications a WHERE a.status IN ('applied','submitted') ${wStr}`, params).cnt;
-    const offers = db.get(`SELECT COUNT(*) as cnt FROM applications a WHERE (a.status IN ('offer','conditional_offer','unconditional_offer') OR a.offer_type IN ('Conditional','Unconditional')) ${notDel} ${wStr}`, params).cnt;
+    const offerStatuses = "('offer','conditional_offer','conditional','unconditional','unconditional_offer','firm','enrolled')";
+    const total = db.get(`SELECT COUNT(*) as cnt FROM applications a JOIN students s ON s.id=a.student_id WHERE 1=1 ${notDel} ${wStr}`, params).cnt;
+    const submitted = db.get(`SELECT COUNT(*) as cnt FROM applications a JOIN students s ON s.id=a.student_id WHERE a.status IN ('applied','submitted') ${wStr}`, params).cnt;
+    const offers = db.get(`SELECT COUNT(*) as cnt FROM applications a JOIN students s ON s.id=a.student_id WHERE a.status IN ${offerStatuses} ${notDel} ${wStr}`, params).cnt;
 
     // 风险：截止日在 21 天内但状态仍为 pending
     const atRisk = db.get(`SELECT COUNT(*) as cnt FROM applications a

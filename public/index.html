@@ -162,7 +162,7 @@
 
 <!-- ════════════════════ 模态框 ════════════════════ -->
 
-<!-- 通用确认框 -->
+<!-- 通用确认框（保留在初始DOM，登录前可能用到） -->
 <div class="modal fade" id="confirm-modal" tabindex="-1">
   <div class="modal-dialog modal-dialog-scrollable">
     <div class="modal-content">
@@ -192,6 +192,19 @@
     </div>
   </div>
 </div>
+
+<!-- Toast 通知（保留在初始DOM） -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+  <div id="toast" class="toast align-items-center text-white border-0" role="alert">
+    <div class="d-flex">
+      <div class="toast-body" id="toast-body"></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ 以下模态框延迟加载（登录后注入DOM，减少初始渲染压力）════════ -->
+<template id="deferred-modals">
 
 <!-- 学生表单 -->
 <div class="modal fade" id="student-modal" tabindex="-1">
@@ -1567,16 +1580,6 @@
   </div>
 </div>
 
-<!-- Toast 通知 -->
-<div class="toast-container position-fixed bottom-0 end-0 p-3">
-  <div id="toast" class="toast align-items-center text-white border-0" role="alert">
-    <div class="d-flex">
-      <div class="toast-body" id="toast-body"></div>
-      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-    </div>
-  </div>
-</div>
-
 <!-- 修改密码弹窗 -->
 <div class="modal fade" id="change-password-modal" tabindex="-1">
   <div class="modal-dialog modal-sm">
@@ -1789,6 +1792,7 @@
     </div>
   </div>
 </div>
+</template>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script>var v=Date.now();['js/core.js','app.js','js/settings.js','js/intake.js','js/mat-collection.js','js/adm-profiles.js','js/activities.js','js/essays.js','js/finance.js'].forEach(function(s){document.write('<script src="'+s+'?v='+v+'"><\/script>')})</script>

@@ -4219,6 +4219,23 @@ function initApp() {
   } catch(e) {}
   if (!restored) navigate(defaultPages[user.role] || 'dashboard');
 
+  // ── popstate 监听：支持浏览器前进/后退按钮 ──
+  window.addEventListener('popstate', () => {
+    try {
+      const hash = window.location.hash.slice(1);
+      if (!hash || hash.length <= 2) return;
+      const qIdx = hash.indexOf('?');
+      const hashPage = qIdx >= 0 ? hash.substring(0, qIdx) : hash;
+      const hashQuery = qIdx >= 0 ? hash.substring(qIdx + 1) : '';
+      if (hashPage && PAGES[hashPage] && canAccessPage(hashPage)) {
+        const params = {};
+        if (hashQuery) new URLSearchParams(hashQuery).forEach((v, k) => { params[k] = v; });
+        // 直接调用 _doNavigate 避免再次 pushState
+        _doNavigate(hashPage, params);
+      }
+    } catch(e) {}
+  });
+
   // 会话超时提醒
   _setupSessionWarning();
 }

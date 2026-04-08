@@ -621,6 +621,15 @@ db.init().then(() => {
     if (demoMigrated) console.log('✅ 演示学生数据创建完成');
   } catch(e) { console.error('[migration] 演示学生创建失败:', e.message); }
 
+  // ── 全局孤儿数据清理（在所有 seed/migration 之后执行）──
+  try {
+    const orphanApps = db.run('DELETE FROM applications WHERE student_id NOT IN (SELECT id FROM students)');
+    const orphanMentors = db.run('DELETE FROM mentor_assignments WHERE student_id NOT IN (SELECT id FROM students)');
+    db.run(`UPDATE intake_form_submissions SET imported_student_id=NULL, status='pending' WHERE imported_student_id IS NOT NULL AND imported_student_id NOT IN (SELECT id FROM students)`);
+    if (orphanApps.changes) console.log(`[cleanup] Cleaned ${orphanApps.changes} orphan applications`);
+    if (orphanMentors.changes) console.log(`[cleanup] Cleaned ${orphanMentors.changes} orphan mentor_assignments`);
+  } catch(e) { console.error('[cleanup] orphan cleanup error:', e.message); }
+
   // 磁盘清理（每次启动时运行）
   try {
     const runCleanup = require('./cleanup-disk');
@@ -634,6 +643,29 @@ db.init().then(() => {
     _ensureStudentAdminDemoAccount();
     _ensureFinanceDemoAccount();
   }
+
+  // ── 修复代理关联：为 agent 来源的入学案例创建 referral 链接 ──
+  try {
+    const agentCases = db.all("SELECT ic.id, ic.student_name FROM intake_cases ic WHERE ic.source_type='agent' AND ic.referral_id IS NULL");
+    if (agentCases.length > 0) {
+      const agent = db.get("SELECT id FROM agents WHERE status='active' LIMIT 1");
+      if (agent) {
+        for (const c of agentCases) {
+          const existingRef = db.get("SELECT id FROM referrals WHERE agent_id=? AND student_name=?", [agent.id, c.student_name]);
+          let refId;
+          if (existingRef) {
+            refId = existingRef.id;
+          } else {
+            refId = uuidv4();
+            db.run(`INSERT INTO referrals (id, agent_id, student_name, source_type, status, created_at, updated_at) VALUES (?,?,?,?,?,datetime('now'),datetime('now'))`,
+              [refId, agent.id, c.student_name, 'agent', 'active']);
+          }
+          db.run(`UPDATE intake_cases SET referral_id=? WHERE id=?`, [refId, c.id]);
+        }
+        console.log(`[fix] Linked ${agentCases.length} agent-source intake cases to referrals`);
+      }
+    }
+  } catch(e) { console.error('[fix] agent linkage error:', e.message); }
 
   sessionStore.setDb(db);
   app.listen(PORT, () => {

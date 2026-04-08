@@ -2237,24 +2237,30 @@ function seedData() {
     const existingPrograms = get('SELECT COUNT(*) as cnt FROM uni_programs');
     if (!existingPrograms || existingPrograms.cnt === 0) {
       const pnow = new Date().toISOString();
-      // 统一使用 31 列格式: id,uni_name,program_name,department,country,route,cycle_year,
-      //   app_deadline,app_deadline_time,app_deadline_tz,ucas_early_deadline,
-      //   grade_requirements,min_subjects,grade_type,ielts_overall,ielts_min_component,
-      //   extra_tests,reference_required,reference_notes,
-      //   hist_applicants,hist_offers,hist_offer_rate,hist_avg_grade,hist_data_year,
-      //   weight_academic,weight_language,weight_extra,notes,created_by,created_at,updated_at
-      const pCols = `(id,uni_name,program_name,department,country,route,cycle_year,
+
+      // 确保 uni_programs 引用的大学存在于 universities 表
+      const pUniCam = uid(), pUniUCL = uid(), pUniEd = uid(), pUniNUS = uid(), pUniManch = uid();
+      for (const u of [
+        [pUniCam, '剑桥大学 University of Cambridge', 'UK', ''],
+        [pUniUCL, '伦敦大学学院 UCL', 'UK', ''],
+        [pUniEd,  '爱丁堡大学 University of Edinburgh', 'UK', ''],
+        [pUniNUS, '新加坡国立大学 NUS', 'SG', ''],
+        [pUniManch,'曼彻斯特大学 University of Manchester', 'UK', ''],
+      ]) run(`INSERT OR IGNORE INTO universities VALUES (?,?,?,?)`, u);
+
+      // 统一使用 32 列格式（含 university_id）
+      const pCols = `(id,university_id,uni_name,program_name,department,country,route,cycle_year,
          app_deadline,app_deadline_time,app_deadline_tz,ucas_early_deadline,
          grade_requirements,min_subjects,grade_type,ielts_overall,ielts_min_component,
          extra_tests,reference_required,reference_notes,
          hist_applicants,hist_offers,hist_offer_rate,hist_avg_grade,hist_data_year,
          weight_academic,weight_language,weight_extra,notes,created_by,created_at,updated_at)`;
-      const pQ = 'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)';
+      const pQ = 'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)';
 
       // ① 剑桥大学 — 计算机科学
       const camCs = uuidv4();
       db.run(`INSERT INTO uni_programs ${pCols} ${pQ}`,
-        [camCs,'University of Cambridge','Computer Science BA','Department of Computer Science and Technology',
+        [camCs,pUniCam,'University of Cambridge','Computer Science BA','Department of Computer Science and Technology',
          'UK','UK-UG',2026,'2025-10-15','18:00','Europe/London',1,
          JSON.stringify([
            { subject:'Mathematics',         min_grade:'A*', required:true,  notes:'必须A*' },
@@ -2277,7 +2283,7 @@ function seedData() {
       // ② UCL — 经济学
       const uclEcon = uuidv4();
       db.run(`INSERT INTO uni_programs ${pCols} ${pQ}`,
-        [uclEcon,'University College London (UCL)','Economics BSc','Department of Economics',
+        [uclEcon,pUniUCL,'University College London (UCL)','Economics BSc','Department of Economics',
          'UK','UK-UG',2026,'2026-01-28','18:00','Europe/London',0,
          JSON.stringify([
            { subject:'Mathematics', min_grade:'A',  required:true,  notes:'数学为硬性要求' },
@@ -2298,7 +2304,7 @@ function seedData() {
       // ③ 爱丁堡大学 — 医学 MBChB
       const edMed = uuidv4();
       db.run(`INSERT INTO uni_programs ${pCols} ${pQ}`,
-        [edMed,'University of Edinburgh','Medicine MBChB','Edinburgh Medical School',
+        [edMed,pUniEd,'University of Edinburgh','Medicine MBChB','Edinburgh Medical School',
          'UK','UK-UG',2026,'2025-10-15','18:00','Europe/London',1,
          JSON.stringify([
            { subject:'Chemistry',   min_grade:'A', required:true,  notes:'化学必须A' },
@@ -2320,7 +2326,7 @@ function seedData() {
       // ④ NUS — 商科
       const nusBiz = uuidv4();
       db.run(`INSERT INTO uni_programs ${pCols} ${pQ}`,
-        [nusBiz,'National University of Singapore (NUS)','Business Administration (International)','NUS Business School',
+        [nusBiz,pUniNUS,'National University of Singapore (NUS)','Business Administration (International)','NUS Business School',
          'SG','SG',2026,'2026-03-17','23:59','Asia/Singapore',0,
          JSON.stringify([
            { subject:'Mathematics', min_grade:'B', required:true,  notes:'H2数学或等同学历' },
@@ -2341,7 +2347,7 @@ function seedData() {
       // ⑤ 曼彻斯特大学 — 计算机科学
       const manchCs = uuidv4();
       db.run(`INSERT INTO uni_programs ${pCols} ${pQ}`,
-        [manchCs,'University of Manchester','Computer Science BSc','Department of Computer Science',
+        [manchCs,pUniManch,'University of Manchester','Computer Science BSc','Department of Computer Science',
          'UK','UK-UG',2026,'2026-01-28','18:00','Europe/London',0,
          JSON.stringify([
            { subject:'Mathematics',      min_grade:'A', required:true,  notes:'数学A必须' },

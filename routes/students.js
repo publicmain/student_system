@@ -218,7 +218,26 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
 
   router.delete('/students/:id', requireRole('principal'), (req, res) => {
     const { id } = req.params;
-    db.run('UPDATE students SET status="deleted" WHERE id=?', [id]);
+    // 级联清理：删除该学生的关联数据，防止幽灵记录
+    const cascadeTables = [
+      'applications', 'target_uni_lists', 'mentor_assignments',
+      'milestone_tasks', 'subject_enrollments', 'material_items',
+      'communication_logs', 'feedback', 'essays', 'admission_assessments',
+      'personal_statements', 'exam_sittings'
+    ];
+    for (const tbl of cascadeTables) {
+      try { db.run(`DELETE FROM ${tbl} WHERE student_id=?`, [id]); } catch(e) {}
+    }
+    try { db.run('UPDATE intake_cases SET student_id=NULL WHERE student_id=?', [id]); } catch(e) {}
+    try {
+      const parentLinks = db.all('SELECT parent_id FROM student_parents WHERE student_id=?', [id]);
+      db.run('DELETE FROM student_parents WHERE student_id=?', [id]);
+      for (const pl of parentLinks) {
+        const other = db.get('SELECT 1 FROM student_parents WHERE parent_id=?', [pl.parent_id]);
+        if (!other) db.run('DELETE FROM parent_guardians WHERE id=?', [pl.parent_id]);
+      }
+    } catch(e) {}
+    db.run('DELETE FROM students WHERE id=?', [id]);
     audit(req, 'DELETE', 'students', id, null);
     res.json({ ok: true });
   });

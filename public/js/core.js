@@ -587,8 +587,14 @@ function _doNavigate(page, params = {}) {
     }
     const hashStr = page + (hashParams.toString() ? '?' + hashParams.toString() : '');
     if (window.location.hash.slice(1) !== hashStr) {
-      window.history.pushState(null, '', '#' + hashStr);
+      // 如果是响应浏览器 hashchange/popstate 事件，用 replaceState 避免重复历史条目
+      if (State._hashNavInProgress) {
+        window.history.replaceState(null, '', '#' + hashStr);
+      } else {
+        window.history.pushState(null, '', '#' + hashStr);
+      }
     }
+    State._lastHandledHash = window.location.hash;
   } catch(e) {}
 
   document.querySelectorAll('.sidebar .nav-item[data-page]').forEach(el => {

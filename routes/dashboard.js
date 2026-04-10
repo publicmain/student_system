@@ -13,7 +13,7 @@ module.exports = function({ db, requireAuth, requireRole }) {
       return res.status(403).json({ error: '权限不足' });
     }
     const totalStudents = db.get('SELECT COUNT(*) as cnt FROM students WHERE status="active"').cnt;
-    const totalApplications = db.get('SELECT COUNT(*) as cnt FROM applications').cnt;
+    const totalApplications = (db.get('SELECT COUNT(*) as cnt FROM applications a JOIN students s ON s.id=a.student_id') || {}).cnt || 0;
     const pendingTasks = db.get('SELECT COUNT(*) as cnt FROM milestone_tasks WHERE status IN ("pending","in_progress")').cnt;
     const overdueTasks = db.get(`SELECT COUNT(*) as cnt FROM milestone_tasks WHERE status NOT IN ('done') AND due_date < date('now')`).cnt;
     const totalStaff = db.get('SELECT COUNT(*) as cnt FROM staff').cnt;
@@ -30,8 +30,7 @@ module.exports = function({ db, requireAuth, requireRole }) {
       const offerStatuses = "('offer','conditional_offer','conditional','unconditional','unconditional_offer','firm','enrolled')";
 
       totalOffers = (db.get(`SELECT COUNT(*) as cnt FROM applications a JOIN students s ON s.id=a.student_id WHERE a.status IN ${offerStatuses}`) || {}).cnt || 0;
-      const appliedCount = (db.get(`SELECT COUNT(*) as cnt FROM applications a JOIN students s ON s.id=a.student_id WHERE a.status NOT IN ('pending','draft')`) || {}).cnt || 0;
-      acceptanceRate = appliedCount > 0 ? Math.round(totalOffers / appliedCount * 1000) / 10 : 0;
+      acceptanceRate = totalApplications > 0 ? Math.round(totalOffers / totalApplications * 1000) / 10 : 0;
 
       essayTotal = (db.get('SELECT COUNT(*) as cnt FROM essays') || {}).cnt || 0;
       essayDone = (db.get(`SELECT COUNT(*) as cnt FROM essays WHERE status IN ('final','submitted')`) || {}).cnt || 0;

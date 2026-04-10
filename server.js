@@ -621,16 +621,40 @@ db.init().then(() => {
     if (demoMigrated) console.log('✅ 演示学生数据创建完成');
   } catch(e) { console.error('[migration] 演示学生创建失败:', e.message); }
 
-  // ── 全局孤儿数据清理（在所有 seed/migration 之后执行）──
+  // ── BUG-14 修复：彻底清理孤儿数据（包括已软删除学生的关联记录）──
   try {
-    const beforeApps = db.get('SELECT COUNT(*) as cnt FROM applications WHERE student_id NOT IN (SELECT id FROM students)');
-    const beforeMentors = db.get('SELECT COUNT(*) as cnt FROM mentor_assignments WHERE student_id NOT IN (SELECT id FROM students)');
+    // 1) 先把软删除的学生对应的关联数据也一并清理
+    const deletedStudents = db.all("SELECT id FROM students WHERE status='deleted'");
+    if (deletedStudents.length > 0) {
+      const cascadeTables = [
+        'applications', 'target_uni_lists', 'mentor_assignments',
+        'milestone_tasks', 'subject_enrollments', 'material_items',
+        'communication_logs', 'feedback', 'essays', 'admission_assessments',
+        'personal_statements', 'exam_sittings'
+      ];
+      for (const s of deletedStudents) {
+        for (const tbl of cascadeTables) {
+          try { db.run(`DELETE FROM ${tbl} WHERE student_id=?`, [s.id]); } catch(e) {}
+        }
+        try { db.run('UPDATE intake_cases SET student_id=NULL WHERE student_id=?', [s.id]); } catch(e) {}
+      }
+      // 硬删除已标记为 deleted 的学生
+      db.run("DELETE FROM students WHERE status='deleted'");
+      console.log(`[BUG-14] 清理 ${deletedStudents.length} 名已删除学生及其关联数据`);
+    }
+
+    // 2) 再清理引用了完全不存在学生的孤儿记录
+    const orphanApps = db.get('SELECT COUNT(*) as cnt FROM applications WHERE student_id NOT IN (SELECT id FROM students)');
+    const orphanMentors = db.get('SELECT COUNT(*) as cnt FROM mentor_assignments WHERE student_id NOT IN (SELECT id FROM students)');
     db.run('DELETE FROM applications WHERE student_id NOT IN (SELECT id FROM students)');
     db.run('DELETE FROM mentor_assignments WHERE student_id NOT IN (SELECT id FROM students)');
-    db.run(`UPDATE intake_form_submissions SET imported_student_id=NULL, status='pending' WHERE imported_student_id IS NOT NULL AND imported_student_id NOT IN (SELECT id FROM students)`);
-    if (beforeApps?.cnt) console.log(`[cleanup] Cleaned ${beforeApps.cnt} orphan applications`);
-    if (beforeMentors?.cnt) console.log(`[cleanup] Cleaned ${beforeMentors.cnt} orphan mentor_assignments`);
-  } catch(e) { console.error('[cleanup] orphan cleanup error:', e.message); }
+    db.run('DELETE FROM milestone_tasks WHERE student_id NOT IN (SELECT id FROM students)');
+    db.run('DELETE FROM target_uni_lists WHERE student_id NOT IN (SELECT id FROM students)');
+    db.run('UPDATE intake_cases SET student_id=NULL WHERE student_id IS NOT NULL AND student_id NOT IN (SELECT id FROM students)');
+    try { db.run(`UPDATE intake_form_submissions SET imported_student_id=NULL, status='pending' WHERE imported_student_id IS NOT NULL AND imported_student_id NOT IN (SELECT id FROM students)`); } catch(e) {}
+    if (orphanApps?.cnt) console.log(`[BUG-14] 清理 ${orphanApps.cnt} 条幽灵申请`);
+    if (orphanMentors?.cnt) console.log(`[BUG-14] 清理 ${orphanMentors.cnt} 条幽灵导师分配`);
+  } catch(e) { console.error('[BUG-14] orphan cleanup error:', e.message); }
 
   // 磁盘清理（每次启动时运行）
   try {
@@ -687,21 +711,47 @@ db.init().then(() => {
 
   // ── BUG-11 修复：为入学案例创建演示财务数据 ──
   try {
+    // Step 1: Fix existing invoices that have NULL or invalid case_id
+    const badInvoices = db.all("SELECT fi.id FROM finance_invoices fi WHERE fi.case_id IS NULL OR fi.case_id NOT IN (SELECT id FROM intake_cases)");
+    if (badInvoices.length > 0) {
+      const validCases = db.all("SELECT id FROM intake_cases WHERE status NOT IN ('closed') LIMIT 10");
+      if (validCases.length > 0) {
+        let fixed = 0;
+        for (let i = 0; i < badInvoices.length; i++) {
+          const targetCase = validCases[i % validCases.length];
+          db.run("UPDATE finance_invoices SET case_id=? WHERE id=?", [targetCase.id, badInvoices[i].id]);
+          fixed++;
+        }
+        console.log(`[BUG-11] Fixed ${fixed} invoices with NULL/invalid case_id`);
+      } else {
+        // No valid intake_cases exist — remove orphan invoices to avoid NOT NULL violation
+        for (const inv of badInvoices) {
+          db.run("DELETE FROM finance_invoices WHERE id=?", [inv.id]);
+        }
+        console.log(`[BUG-11] Removed ${badInvoices.length} invoices with no valid intake_cases to link to`);
+      }
+    }
+
+    // Step 2: Create demo invoices if none exist
     const existingInvoices = db.get("SELECT COUNT(*) as cnt FROM finance_invoices");
     if (!existingInvoices || existingInvoices.cnt === 0) {
-      // 为已有入学案例创建演示发票
-      const cases = db.all("SELECT id, student_name, program_name FROM intake_cases WHERE status NOT IN ('closed') LIMIT 3");
+      // Query for real, existing intake_case IDs first
+      const cases = db.all("SELECT id, student_name, program_name FROM intake_cases WHERE id IS NOT NULL AND status NOT IN ('closed') LIMIT 3");
+      let created = 0;
       for (let i = 0; i < cases.length; i++) {
         const c = cases[i];
+        if (!c.id) continue; // skip if id is somehow null
         const invId = uuidv4();
-        const invNo = `INV-2026-${String(i+1).padStart(3,'0')}`;
-        const items = JSON.stringify([{ description: `${c.program_name} 学费`, amount: 15000 + i * 5000 }]);
-        const amount = 15000 + i * 5000;
-        const dueDate = `2026-0${4+i}-15`;
+        const invNo = `INV-2026-${String(created+1).padStart(3,'0')}`;
+        const items = JSON.stringify([{ description: `${c.program_name || 'Program'} 学费`, amount: 15000 + created * 5000 }]);
+        const amount = 15000 + created * 5000;
+        const dueDate = `2026-0${4+created}-15`;
         db.run(`INSERT INTO finance_invoices (id,case_id,invoice_no,currency,amount_total,items_json,status,due_at,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))`,
           [invId, c.id, invNo, 'SGD', amount, items, 'unpaid', dueDate, 'system']);
+        created++;
       }
-      if (cases.length) console.log(`[fix] Created ${cases.length} demo invoices for intake cases`);
+      if (created) console.log(`[BUG-11] Created ${created} demo invoices linked to real intake cases`);
+      else console.log('[BUG-11] No intake_cases found — skipped demo invoice creation');
     }
 
     // 创建演示学费计划

@@ -4220,20 +4220,25 @@ function initApp() {
   if (!restored) navigate(defaultPages[user.role] || 'dashboard');
 
   // ── hash 导航监听：支持浏览器前进/后退 + 直接修改 hash ──
+  State._lastHandledHash = window.location.hash;
   const _handleHashNav = () => {
     try {
-      const hash = window.location.hash.slice(1);
+      const fullHash = window.location.hash;
+      if (fullHash === State._lastHandledHash) return; // 同一 hash 不重复处理
+      State._lastHandledHash = fullHash;
+      const hash = fullHash.slice(1);
       if (!hash || hash.length <= 2) return;
       const qIdx = hash.indexOf('?');
       const hashPage = qIdx >= 0 ? hash.substring(0, qIdx) : hash;
       const hashQuery = qIdx >= 0 ? hash.substring(qIdx + 1) : '';
-      // 只在页面不同时切换，避免无限循环
-      if (hashPage && hashPage !== State.currentPage && PAGES[hashPage] && canAccessPage(hashPage)) {
+      if (hashPage && PAGES[hashPage] && canAccessPage(hashPage)) {
         const params = {};
         if (hashQuery) new URLSearchParams(hashQuery).forEach((v, k) => { params[k] = v; });
+        State._hashNavInProgress = true;
         navigate(hashPage, params);
+        State._hashNavInProgress = false;
       }
-    } catch(e) {}
+    } catch(e) { State._hashNavInProgress = false; }
   };
   window.addEventListener('popstate', _handleHashNav);
   window.addEventListener('hashchange', _handleHashNav);

@@ -709,24 +709,29 @@ db.init().then(() => {
     }
   } catch(e) { console.error('[fix] agent linkage error:', e.message); }
 
-  // ── BUG-11 修复：修复 case_id 无效的发票 ──
+  // ── BUG-11 修复：确保每条发票都关联到真实存在的 intake_case ──
   try {
-    // 删除 case_id 为 NULL 或指向不存在 intake_case 的发票
-    const badInvoices = db.all("SELECT fi.id FROM finance_invoices fi WHERE fi.case_id IS NULL OR fi.case_id NOT IN (SELECT id FROM intake_cases)");
-    if (badInvoices.length > 0) {
-      const validCases = db.all("SELECT id FROM intake_cases WHERE status NOT IN ('closed') LIMIT 10");
-      if (validCases.length > 0) {
-        for (let i = 0; i < badInvoices.length; i++) {
-          db.run("UPDATE finance_invoices SET case_id=? WHERE id=?", [validCases[i % validCases.length].id, badInvoices[i].id]);
-        }
-        console.log(`[BUG-11] 修复 ${badInvoices.length} 条发票的 case_id`);
-      } else {
-        for (const inv of badInvoices) {
+    // 逐条检查所有发票，修复 case_id 为空、空字符串、或指向不存在 intake_case 的记录
+    const allInvoices = db.all("SELECT fi.id, fi.case_id FROM finance_invoices fi");
+    const validCases = db.all("SELECT id, student_name FROM intake_cases WHERE status NOT IN ('closed')");
+    let fixed = 0, deleted = 0;
+    for (const inv of allInvoices) {
+      // 检查 case_id 是否有效
+      const caseIdValid = inv.case_id && inv.case_id.trim() !== '' &&
+        db.get("SELECT id FROM intake_cases WHERE id=?", [inv.case_id]);
+      if (!caseIdValid) {
+        if (validCases.length > 0) {
+          db.run("UPDATE finance_invoices SET case_id=? WHERE id=?", [validCases[fixed % validCases.length].id, inv.id]);
+          fixed++;
+        } else {
           db.run("DELETE FROM finance_invoices WHERE id=?", [inv.id]);
+          deleted++;
         }
-        console.log(`[BUG-11] 删除 ${badInvoices.length} 条无法关联的发票`);
       }
     }
+    if (fixed) console.log(`[BUG-11] 修复 ${fixed} 条发票的 case_id`);
+    if (deleted) console.log(`[BUG-11] 删除 ${deleted} 条无法关联的发票`);
+  } catch(e) { console.error('[BUG-11] invoice fix error:', e.message); }
 
     // 创建演示学费计划
     const existingPlans = db.get("SELECT COUNT(*) as cnt FROM tuition_fee_plans");

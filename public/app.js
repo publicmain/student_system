@@ -1696,7 +1696,7 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-timeline">任务 ${pending.length?`<span class="badge badge-soft-primary ms-1">${pending.length}</span>`:''}</a></li>
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-apps">申请 ${applications.length?`<span class="badge badge-soft-primary ms-1">${applications.length}</span>`:''}</a></li>
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-materials">材料 ${materials.length?`<span class="badge badge-soft-primary ms-1">${materials.length}</span>`:''}</a></li>
-      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-activities"><i class="bi bi-trophy me-1"></i>活动</a></li>
+      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-activities">活动</a></li>
       <li class="nav-item dropdown">
         <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button">更多</a>
         <ul class="dropdown-menu">

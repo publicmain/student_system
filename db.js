@@ -2636,6 +2636,15 @@ function seedData() {
       admP5, admCreatedBy, 'staff', 'Diploma in Accounting', '2026', 'October', 'draft', 1, admNow, admNow
     ]);
 
+    // ── 为入学案例创建演示发票（BUG-11 修复：确保 case_id 指向真实 intake_case）──
+    const invNow = new Date().toISOString();
+    run(`INSERT INTO finance_invoices (id,case_id,invoice_no,currency,amount_total,items_json,status,due_at,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admCase1, 'INV-2026-0001', 'SGD', 15000, JSON.stringify([{description:'Diploma in Business Administration 学费',amount:15000}]), 'unpaid', '2026-04-15', 'system', invNow, invNow]);
+    run(`INSERT INTO finance_invoices (id,case_id,invoice_no,currency,amount_total,items_json,status,due_at,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admCase3, 'INV-2026-0002', 'SGD', 20000, JSON.stringify([{description:'Advanced Diploma in Hospitality Management 学费',amount:20000}]), 'unpaid', '2026-05-15', 'system', invNow, invNow]);
+    run(`INSERT INTO finance_invoices (id,case_id,invoice_no,currency,amount_total,items_json,status,due_at,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [uuidv4(), admCase4, 'INV-2026-0003', 'SGD', 18000, JSON.stringify([{description:'Diploma in Information Technology 学费',amount:18000}]), 'unpaid', '2026-06-15', 'system', invNow, invNow]);
+
     save();
   }
 

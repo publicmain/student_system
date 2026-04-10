@@ -709,49 +709,23 @@ db.init().then(() => {
     }
   } catch(e) { console.error('[fix] agent linkage error:', e.message); }
 
-  // ── BUG-11 修复：为入学案例创建演示财务数据 ──
+  // ── BUG-11 修复：修复 case_id 无效的发票 ──
   try {
-    // Step 1: Fix existing invoices that have NULL or invalid case_id
+    // 删除 case_id 为 NULL 或指向不存在 intake_case 的发票
     const badInvoices = db.all("SELECT fi.id FROM finance_invoices fi WHERE fi.case_id IS NULL OR fi.case_id NOT IN (SELECT id FROM intake_cases)");
     if (badInvoices.length > 0) {
       const validCases = db.all("SELECT id FROM intake_cases WHERE status NOT IN ('closed') LIMIT 10");
       if (validCases.length > 0) {
-        let fixed = 0;
         for (let i = 0; i < badInvoices.length; i++) {
-          const targetCase = validCases[i % validCases.length];
-          db.run("UPDATE finance_invoices SET case_id=? WHERE id=?", [targetCase.id, badInvoices[i].id]);
-          fixed++;
+          db.run("UPDATE finance_invoices SET case_id=? WHERE id=?", [validCases[i % validCases.length].id, badInvoices[i].id]);
         }
-        console.log(`[BUG-11] Fixed ${fixed} invoices with NULL/invalid case_id`);
+        console.log(`[BUG-11] 修复 ${badInvoices.length} 条发票的 case_id`);
       } else {
-        // No valid intake_cases exist — remove orphan invoices to avoid NOT NULL violation
         for (const inv of badInvoices) {
           db.run("DELETE FROM finance_invoices WHERE id=?", [inv.id]);
         }
-        console.log(`[BUG-11] Removed ${badInvoices.length} invoices with no valid intake_cases to link to`);
+        console.log(`[BUG-11] 删除 ${badInvoices.length} 条无法关联的发票`);
       }
-    }
-
-    // Step 2: Create demo invoices if none exist
-    const existingInvoices = db.get("SELECT COUNT(*) as cnt FROM finance_invoices");
-    if (!existingInvoices || existingInvoices.cnt === 0) {
-      // Query for real, existing intake_case IDs first
-      const cases = db.all("SELECT id, student_name, program_name FROM intake_cases WHERE id IS NOT NULL AND status NOT IN ('closed') LIMIT 3");
-      let created = 0;
-      for (let i = 0; i < cases.length; i++) {
-        const c = cases[i];
-        if (!c.id) continue; // skip if id is somehow null
-        const invId = uuidv4();
-        const invNo = `INV-2026-${String(created+1).padStart(3,'0')}`;
-        const items = JSON.stringify([{ description: `${c.program_name || 'Program'} 学费`, amount: 15000 + created * 5000 }]);
-        const amount = 15000 + created * 5000;
-        const dueDate = `2026-0${4+created}-15`;
-        db.run(`INSERT INTO finance_invoices (id,case_id,invoice_no,currency,amount_total,items_json,status,due_at,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))`,
-          [invId, c.id, invNo, 'SGD', amount, items, 'unpaid', dueDate, 'system']);
-        created++;
-      }
-      if (created) console.log(`[BUG-11] Created ${created} demo invoices linked to real intake cases`);
-      else console.log('[BUG-11] No intake_cases found — skipped demo invoice creation');
     }
 
     // 创建演示学费计划

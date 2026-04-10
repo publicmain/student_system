@@ -734,6 +734,7 @@ db.init().then(() => {
   } catch(e) { console.error('[BUG-11] invoice fix error:', e.message); }
 
     // 创建演示学费计划
+  try {
     const existingPlans = db.get("SELECT COUNT(*) as cnt FROM tuition_fee_plans");
     if (!existingPlans || existingPlans.cnt === 0) {
       const stuForPlan = db.get("SELECT id, name FROM students WHERE status='active' LIMIT 1");

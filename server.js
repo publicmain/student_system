@@ -765,37 +765,50 @@ db.init().then(() => {
         }
       }
     }
-    // 修复 parent 用户的 linked_id + parent_guardians + student_parents 全链路
-    const parentUsers = db.all("SELECT id, name, linked_id FROM users WHERE role='parent'");
+    // 修复 parent 用户：验证完整链路 user.linked_id → parent_guardians → student_parents → students
+    const parentUsers = db.all("SELECT id, username, name, linked_id FROM users WHERE role='parent'");
     for (const u of parentUsers) {
       let pgId = u.linked_id;
-      // 1. 确保 parent_guardians 记录存在（migration 可能已删除）
+      console.log(`[BUG-F5] 检查家长 ${u.username}(${u.name}): linked_id=${pgId}`);
+
+      // 1. 确保 parent_guardians 记录存在
       if (!pgId || !db.get("SELECT id FROM parent_guardians WHERE id=?", [pgId])) {
-        // 先按名字查找现有记录
         const pg = db.get("SELECT id FROM parent_guardians WHERE name=?", [u.name]);
         if (pg) {
           pgId = pg.id;
         } else {
-          // parent_guardians 已被删除，重新创建
           pgId = uuidv4();
           db.run("INSERT INTO parent_guardians VALUES (?,?,?,?,?,?,?)",
             [pgId, u.name, '—', '', '', '', new Date().toISOString()]);
-          console.log(`[BUG-F5] 为家长 ${u.name} 重建 parent_guardians 记录 ${pgId}`);
+          console.log(`[BUG-F5]   重建 parent_guardians ${pgId}`);
         }
         db.run("UPDATE users SET linked_id=? WHERE id=?", [pgId, u.id]);
-        console.log(`[BUG-F5] 修复家长用户 ${u.name} 的 linked_id → ${pgId}`);
+        console.log(`[BUG-F5]   更新 linked_id → ${pgId}`);
       }
-      // 2. 确保 student_parents 表有链接记录（家长必须关联到至少一个学生）
-      const hasLink = db.get("SELECT 1 FROM student_parents WHERE parent_id=?", [pgId]);
-      if (!hasLink) {
-        // 按家长姓氏匹配学生，或 fallback 到任意活跃学生
-        const surname = u.name ? u.name.charAt(0) : '';
-        let stu = surname ? db.get("SELECT id FROM students WHERE name LIKE ? AND status='active' LIMIT 1", [surname + '%']) : null;
-        if (!stu) stu = db.get("SELECT id FROM students WHERE status='active' LIMIT 1");
-        if (stu) {
-          db.run("INSERT OR IGNORE INTO student_parents VALUES (?,?)", [stu.id, pgId]);
-          console.log(`[BUG-F5] 为家长 ${u.name} 创建 student_parents 链接 → 学生 ${stu.id}`);
+
+      // 2. 确保 student_parents 链接存在且指向真实学生
+      const link = db.get("SELECT student_id FROM student_parents WHERE parent_id=?", [pgId]);
+      if (link) {
+        const stuExists = db.get("SELECT id FROM students WHERE id=?", [link.student_id]);
+        if (!stuExists) {
+          // student_parents 指向不存在的学生，删除旧记录
+          db.run("DELETE FROM student_parents WHERE parent_id=? AND student_id=?", [pgId, link.student_id]);
+          console.log(`[BUG-F5]   student_parents 指向已删除学生 ${link.student_id}，已清除`);
+        } else {
+          console.log(`[BUG-F5]   链路完整: parent_guardians(${pgId}) → student(${link.student_id}) ✓`);
+          continue; // 链路完整，跳过
         }
+      }
+
+      // 3. 创建 student_parents 链接
+      const surname = u.name ? u.name.charAt(0) : '';
+      let stu = surname ? db.get("SELECT id, name FROM students WHERE name LIKE ? AND status='active' LIMIT 1", [surname + '%']) : null;
+      if (!stu) stu = db.get("SELECT id, name FROM students WHERE status='active' LIMIT 1");
+      if (stu) {
+        db.run("INSERT OR IGNORE INTO student_parents VALUES (?,?)", [stu.id, pgId]);
+        console.log(`[BUG-F5]   创建 student_parents: ${u.name} → 学生 ${stu.name}(${stu.id})`);
+      } else {
+        console.log(`[BUG-F5]   ⚠ 无可用学生，无法创建链接`);
       }
     }
   } catch(e) { console.error('[BUG-F5] linked_id repair error:', e.message); }

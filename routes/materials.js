@@ -57,6 +57,9 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     const { title, status, notes, reviewed_by, version } = req.body;
     // BUG-C2: 合并已有值，防止 undefined 覆盖
     const finalTitle = title !== undefined ? title : existing.title;
+    // 材料状态白名单校验
+    const validMaterialStatuses = ['未开始', '收集中', '已上传', '已审核', '已提交', '需补件'];
+    if (status !== undefined && !validMaterialStatuses.includes(status)) return res.status(400).json({ error: `材料状态必须为 ${validMaterialStatuses.join('/')}` });
     const finalStatus = status !== undefined ? status : existing.status;
     const finalNotes = notes !== undefined ? notes : existing.notes;
     const finalVersion = version !== undefined ? version : existing.version;
@@ -135,7 +138,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     const { application_id, content_json, q1_content, q2_content, q3_content, status } = req.body;
     // BUG-H4: status 白名单校验
     const validPsStatuses = ['未开始', '草稿', '一审中', '需修改', '二审中', '定稿', '已提交'];
-    const finalStatus = status && validPsStatuses.includes(status) ? status : '草稿';
+    if (status && !validPsStatuses.includes(status)) return res.status(400).json({ error: `状态必须为 ${validPsStatuses.join('/')}` });
+    const finalStatus = status || '草稿';
     const answers = Array.isArray(content_json) ? content_json : [q1_content||'', q2_content||'', q3_content||''];
     const c1 = answers[0]||'', c2 = answers[1]||'', c3 = answers[2]||'';
     const combined = answers.join('');

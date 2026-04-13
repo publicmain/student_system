@@ -1740,7 +1740,7 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
                       ${od ? '<span class="badge badge-soft-danger" style="font-size:.65rem">逾期</span>' : '<span class="badge badge-soft-secondary" style="font-size:.65rem">待办</span>'}
                     </div>`;
                   }).join('')}
-              ${pending.length > 6 ? `<div style="padding:.4rem .75rem"><a href="#" onclick="event.preventDefault();var t=document.querySelector('a[href=&quot;#tab-timeline&quot;]');if(t)t.click();" class="small text-primary">查看全部 ${pending.length} 项任务 →</a></div>` : ''}
+              ${pending.length > 6 ? `<div style="padding:.4rem .75rem"><a href="#" class="small text-primary switch-to-tasks-tab">查看全部 ${pending.length} 项任务 →</a></div>` : ''}
             </div>
 
             <!-- Target Universities (always visible) -->
@@ -2052,6 +2052,22 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
 
     // 激活指定标签页（如 tab-timeline）
     activateTab(activeTab);
+
+    // "查看全部任务 →" 链接点击切换到任务 Tab
+    document.querySelectorAll('.switch-to-tasks-tab').forEach(el => {
+      el.addEventListener('click', function(e) {
+        e.preventDefault();
+        const tabEl = document.querySelector('a[href="#tab-timeline"]');
+        if (tabEl) { const tab = new bootstrap.Tab(tabEl); tab.show(); }
+      });
+    });
+
+    // 申请卡片标题点击打开编辑弹窗
+    document.querySelectorAll('.app-title-link').forEach(el => {
+      el.addEventListener('click', function() {
+        openApplicationModal(this.dataset.studentId, this.dataset.appId);
+      });
+    });
 
     // 考试记录 tab：切换时加载
     const examsTabEl = document.querySelector('a[href="#tab-exams"]');
@@ -2625,7 +2641,7 @@ function renderApplicationList(applications, studentId, canEdit) {
       <div class="card border-${a.tier==='冲刺'?'danger':a.tier==='意向'?'primary':'success'}">
         <div class="card-body">
           <div class="d-flex justify-content-between mb-2">
-            <h6 class="fw-bold mb-0"><a href="#" onclick="event.preventDefault();openApplicationModal('${safeId(studentId)}','${safeId(a.id)}')" class="text-decoration-none text-dark" style="cursor:pointer">${escapeHtml(a.uni_name)}</a></h6>
+            <h6 class="fw-bold mb-0 app-title-link" style="cursor:pointer;color:var(--bs-primary)" data-student-id="${safeId(studentId)}" data-app-id="${safeId(a.id)}">${escapeHtml(a.uni_name)}</h6>
             ${tierBadge(a.tier)}
           </div>
           <div class="small text-muted mb-2">${escapeHtml(a.department||'—')} · ${escapeHtml(a.route||'—')} · ${escapeHtml(String(a.cycle_year||'—'))}年入学</div>
@@ -2983,7 +2999,7 @@ function selectFeedbackItem(f, el) {
     <div class="mb-4">
       <div class="d-flex justify-content-between align-items-start mb-3">
         <div>
-          <h5 class="fw-bold mb-1"><a href="#" onclick="event.preventDefault();navigate('student-detail',{studentId:'${f.student_id}'})" class="text-decoration-none text-dark" style="cursor:pointer">${escapeHtml(f.student_name)}</a></h5>
+          <h5 class="fw-bold mb-1"><span class="fb-student-link" style="cursor:pointer;color:var(--bs-primary);text-decoration:underline" data-sid="${escapeHtml(f.student_id)}">${escapeHtml(f.student_name)}</span></h5>
           <div class="d-flex gap-2 align-items-center">
             <span class="badge badge-soft-info">${escapeHtml(f.feedback_type||'')}</span>
             <span class="badge badge-soft-secondary">${roleLabel(f.from_role)}</span>
@@ -3007,6 +3023,13 @@ function selectFeedbackItem(f, el) {
         </button>
       </div>
     </div>`;
+  // 绑定学生姓名点击跳转
+  const studentLink = panel.querySelector('.fb-student-link');
+  if (studentLink) {
+    studentLink.addEventListener('click', function() {
+      navigate('student-detail', { studentId: this.dataset.sid });
+    });
+  }
 }
 
 // ════════════════════════════════════════════════════════

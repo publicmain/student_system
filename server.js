@@ -765,14 +765,31 @@ db.init().then(() => {
         }
       }
     }
-    // 修复 parent 用户的 linked_id
+    // 修复 parent 用户的 linked_id + student_parents 链接
     const parentUsers = db.all("SELECT id, name, linked_id FROM users WHERE role='parent'");
     for (const u of parentUsers) {
-      if (!u.linked_id || !db.get("SELECT id FROM parent_guardians WHERE id=?", [u.linked_id])) {
+      let pgId = u.linked_id;
+      // 1. 确保 linked_id 指向有效的 parent_guardians
+      if (!pgId || !db.get("SELECT id FROM parent_guardians WHERE id=?", [pgId])) {
         const pg = db.get("SELECT id FROM parent_guardians WHERE name=?", [u.name]);
         if (pg) {
-          db.run("UPDATE users SET linked_id=? WHERE id=?", [pg.id, u.id]);
-          console.log(`[BUG-F5] 修复家长用户 ${u.name} 的 linked_id → ${pg.id}`);
+          pgId = pg.id;
+          db.run("UPDATE users SET linked_id=? WHERE id=?", [pgId, u.id]);
+          console.log(`[BUG-F5] 修复家长用户 ${u.name} 的 linked_id → ${pgId}`);
+        }
+      }
+      // 2. 确保 student_parents 表有链接记录（家长必须关联到至少一个学生）
+      if (pgId) {
+        const hasLink = db.get("SELECT 1 FROM student_parents WHERE parent_id=?", [pgId]);
+        if (!hasLink) {
+          // 尝试按家长姓氏匹配学生（如 张父 → 张* 学生）
+          const surname = u.name ? u.name.charAt(0) : '';
+          let stu = surname ? db.get("SELECT id FROM students WHERE name LIKE ? AND status='active' LIMIT 1", [surname + '%']) : null;
+          if (!stu) stu = db.get("SELECT id FROM students WHERE status='active' LIMIT 1");
+          if (stu) {
+            db.run("INSERT OR IGNORE INTO student_parents VALUES (?,?)", [stu.id, pgId]);
+            console.log(`[BUG-F5] 为家长 ${u.name} 创建 student_parents 链接 → 学生 ${stu.id}`);
+          }
         }
       }
     }

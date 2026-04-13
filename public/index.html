@@ -354,7 +354,6 @@
       </div>
       <div class="modal-body">
         <input type="hidden" id="task-student-id">
-        <input type="hidden" id="task-app-id">
         <input type="hidden" id="task-id">
         <div class="mb-2"><label class="form-label">任务标题 *</label><input class="form-control" id="task-title"></div>
         <div class="mb-2"><label class="form-label">说明</label><textarea class="form-control" id="task-desc" rows="2"></textarea></div>
@@ -380,6 +379,18 @@
               <option value="done">已完成</option>
             </select>
           </div>
+          <div class="col-6">
+            <label class="form-label">关联申请</label>
+            <select class="form-select" id="task-app-id">
+              <option value="">不关联</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">指派负责人</label>
+            <select class="form-select" id="task-assigned-to">
+              <option value="">不指派</option>
+            </select>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -401,6 +412,12 @@
       <div class="modal-body">
         <input type="hidden" id="mat-id">
         <input type="hidden" id="mat-student-id">
+        <div class="mb-2">
+          <label class="form-label">关联申请</label>
+          <select class="form-select" id="mat-app-id">
+            <option value="">不关联</option>
+          </select>
+        </div>
         <div class="mb-2">
           <label class="form-label">材料类型</label>
           <select class="form-select" id="mat-type">

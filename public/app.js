@@ -2664,7 +2664,7 @@ function renderMaterialList(materials, canEdit) {
           <td class="small text-muted">${fmtDate(m.updated_at)}</td>
           ${canEdit ? `<td>
             <div class="d-flex gap-1">
-              <button class="btn btn-sm btn-outline-secondary" data-mid="${escapeHtml(m.id)}" data-mtype="${escapeHtml(m.material_type)}" data-mtitle="${escapeHtml(m.title||'')}" data-mstatus="${escapeHtml(m.status)}" data-mnotes="${escapeHtml(m.notes||'')}" data-mver="${escapeHtml(String(m.version))}" onclick="openMaterialEditModal(this.dataset.mid,this.dataset.mtype,this.dataset.mtitle,this.dataset.mstatus,this.dataset.mnotes,this.dataset.mver)">
+              <button class="btn btn-sm btn-outline-secondary" data-mid="${escapeHtml(m.id)}" data-mtype="${escapeHtml(m.material_type)}" data-mtitle="${escapeHtml(m.title||'')}" data-mstatus="${escapeHtml(m.status)}" data-mnotes="${escapeHtml(m.notes||'')}" data-mver="${escapeHtml(String(m.version))}" data-mappid="${escapeHtml(m.application_id||'')}" onclick="openMaterialEditModal(this.dataset.mid,this.dataset.mtype,this.dataset.mtitle,this.dataset.mstatus,this.dataset.mnotes,this.dataset.mver,this.dataset.mappid)">
                 <i class="bi bi-pencil"></i>
               </button>
               ${m.file_path ? `<a class="btn btn-sm btn-outline-primary" href="/api/files/${encodeURIComponent(m.file_path)}" target="_blank" title="下载文件"><i class="bi bi-download"></i></a>` : ''}
@@ -3091,6 +3091,20 @@ async function openTaskModal(studentId, taskId = null) {
   // Populate task categories dynamically
   const catSelect = document.getElementById('task-category');
   catSelect.innerHTML = getTaskCategories().map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  // Populate application dropdown
+  const appSelect = document.getElementById('task-app-id');
+  appSelect.innerHTML = '<option value="">不关联</option>';
+  try {
+    const apps = await GET(`/api/students/${studentId}/applications`);
+    apps.forEach(a => { appSelect.innerHTML += `<option value="${a.id}">${escapeHtml(a.uni_name)} - ${escapeHtml(a.department||'')}</option>`; });
+  } catch(e) { /* ignore */ }
+  // Populate staff dropdown
+  const staffSelect = document.getElementById('task-assigned-to');
+  staffSelect.innerHTML = '<option value="">不指派</option>';
+  try {
+    const staffList = await GET('/api/staff');
+    staffList.forEach(s => { staffSelect.innerHTML += `<option value="${s.id}">${escapeHtml(s.name)} (${escapeHtml(s.role||'')})</option>`; });
+  } catch(e) { /* ignore */ }
 
   if (taskId) {
     try {
@@ -3102,6 +3116,8 @@ async function openTaskModal(studentId, taskId = null) {
       document.getElementById('task-due').value = task.due_date || '';
       document.getElementById('task-priority').value = task.priority || 'normal';
       document.getElementById('task-status').value = task.status || 'pending';
+      appSelect.value = task.application_id || '';
+      staffSelect.value = task.assigned_to || '';
     } catch(e) {
       showError('加载任务详情失败：' + e.message);
       return;
@@ -3113,25 +3129,37 @@ async function openTaskModal(studentId, taskId = null) {
     document.getElementById('task-due').value = '';
     document.getElementById('task-priority').value = 'normal';
     document.getElementById('task-status').value = 'pending';
+    appSelect.value = '';
+    staffSelect.value = '';
   }
   bootstrap.Modal.getOrCreateInstance(document.getElementById('task-modal')).show();
 }
 
-function openMaterialModal(studentId) {
+async function openMaterialModal(studentId) {
   document.getElementById('mat-id').value = '';
   document.getElementById('mat-student-id').value = studentId;
   document.getElementById('mat-title').value = '';
   document.getElementById('mat-notes').value = '';
   document.getElementById('mat-status').value = '未开始';
+  // Populate application dropdown
+  const appSelect = document.getElementById('mat-app-id');
+  appSelect.innerHTML = '<option value="">不关联</option>';
+  try {
+    const apps = await GET(`/api/students/${studentId}/applications`);
+    apps.forEach(a => { appSelect.innerHTML += `<option value="${a.id}">${escapeHtml(a.uni_name)} - ${escapeHtml(a.department||'')}</option>`; });
+  } catch(e) { /* ignore */ }
+  appSelect.value = '';
   bootstrap.Modal.getOrCreateInstance(document.getElementById('material-modal')).show();
 }
 
-function openMaterialEditModal(id, type, title, status, notes, _version) {
+function openMaterialEditModal(id, type, title, status, notes, _version, appId) {
   document.getElementById('mat-id').value = id;
   document.getElementById('mat-type').value = type;
   document.getElementById('mat-title').value = title;
   document.getElementById('mat-status').value = status;
   document.getElementById('mat-notes').value = notes;
+  const appSelect = document.getElementById('mat-app-id');
+  if (appSelect) appSelect.value = appId || '';
   bootstrap.Modal.getOrCreateInstance(document.getElementById('material-modal')).show();
 }
 
@@ -3724,6 +3752,8 @@ async function saveTask() {
     due_date: document.getElementById('task-due').value,
     priority: document.getElementById('task-priority').value,
     status: document.getElementById('task-status').value,
+    application_id: document.getElementById('task-app-id').value || null,
+    assigned_to: document.getElementById('task-assigned-to').value || null,
   };
   if (!body.title) { releaseSubmit('saveTask'); showError('请输入任务标题'); return; }
   try {
@@ -3749,6 +3779,7 @@ async function saveMaterial() {
     title: document.getElementById('mat-title').value,
     status: document.getElementById('mat-status').value,
     notes: document.getElementById('mat-notes').value,
+    application_id: document.getElementById('mat-app-id').value || null,
   };
   try {
     if (id) {

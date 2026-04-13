@@ -1272,11 +1272,18 @@ async function renderParentPortal(params = {}) {
             ${feedback.length === 0 ? emptyStateSm('暂无反馈记录，点击"提交反馈"表达您的意见','chat-heart') :
             feedback.map(f => `<div class="border-bottom p-3">
               <div class="d-flex justify-content-between align-items-center mb-1">
-                <span class="small fw-semibold">${escapeHtml(f.from_name || f.from_role || '家长')}</span>
-                <small class="text-muted">${fmtDatetime(f.created_at)}</small>
+                <div class="d-flex gap-2 align-items-center">
+                  <span class="small fw-semibold">${roleLabel(f.from_role)}</span>
+                  ${f.feedback_type ? `<span class="badge badge-soft-info" style="font-size:10px">${escapeHtml(f.feedback_type)}</span>` : ''}
+                  ${f.rating ? `<span class="text-warning" style="font-size:11px">${'★'.repeat(parseInt(f.rating))}</span>` : ''}
+                </div>
+                <div class="d-flex gap-2 align-items-center">
+                  ${statusBadge(f.status)}
+                  <small class="text-muted">${fmtDatetime(f.created_at)}</small>
+                </div>
               </div>
-              <p class="small mb-0">${escapeHtml(f.content||'')}</p>
-              ${f.reply ? `<div class="bg-light rounded p-2 mt-2 small"><i class="bi bi-reply me-1 text-primary"></i><strong>回复：</strong>${escapeHtml(f.reply)}</div>` : ''}
+              <p class="small mb-1">${escapeHtml(f.content||'')}</p>
+              ${f.response ? `<div class="bg-light rounded p-2 mt-1 small"><i class="bi bi-reply me-1 text-primary"></i><strong>回复：</strong>${escapeHtml(f.response)}</div>` : ''}
             </div>`).join('')}
           </div>
         </div>

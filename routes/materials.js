@@ -171,13 +171,20 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     const { parent_id, channel, summary, follow_up, action_items, comm_date } = req.body;
     // BUG-F2: 摘要非空校验
     if (!summary || !summary.trim()) return res.status(400).json({ error: '沟通摘要不能为空' });
+    if (summary.length > 5000) return res.status(400).json({ error: '沟通摘要不能超过5000字符' });
+    // V3: channel 白名单校验
+    const validChannels = ['微信', '邮件', '电话', '面谈'];
+    if (!channel || !validChannels.includes(channel)) return res.status(400).json({ error: `沟通渠道必须为 ${validChannels.join('/')}` });
+    // V4: comm_date 格式校验
+    if (comm_date && comm_date !== '') {
+      const d = new Date(comm_date);
+      if (isNaN(d.getTime())) return res.status(400).json({ error: '沟通日期格式无效' });
+    }
     const cid = uuidv4();
-    // BUG-F8: intake_staff 也应记录 staff_id
     const staff_id = ['counselor','mentor','principal','intake_staff'].includes(req.session.user.role) ? req.session.user.linked_id : null;
-    // BUG-F7: 同时接受 follow_up 和 action_items
     const items = action_items || follow_up || '';
     db.run(`INSERT INTO communication_logs VALUES (?,?,?,?,?,?,?,?,?)`,
-      [cid, sid, staff_id, parent_id||null, channel, summary, items, comm_date||new Date().toISOString(), new Date().toISOString()]);
+      [cid, sid, staff_id, parent_id||null, channel, summary.trim(), items, comm_date||new Date().toISOString(), new Date().toISOString()]);
     res.json({ id: cid });
   });
 
@@ -206,18 +213,36 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     const { feedback_type, content, rating } = req.body;
     // BUG-F1: 反馈内容非空校验
     if (!content || !content.trim()) return res.status(400).json({ error: '反馈内容不能为空' });
+    // V5: 内容长度限制
+    if (content.length > 5000) return res.status(400).json({ error: '反馈内容不能超过5000字符' });
+    // V2: feedback_type 白名单校验
+    const validTypes = ['疑问', '建议', '满意度', '投诉', '阶段反馈'];
+    if (!feedback_type || !validTypes.includes(feedback_type)) return res.status(400).json({ error: `反馈类型必须为 ${validTypes.join('/')}` });
+    // V1: rating 校验
+    if (rating != null && rating !== '') {
+      const r = Number(rating);
+      if (!Number.isInteger(r) || r < 1 || r > 5) return res.status(400).json({ error: '评分必须为1-5的整数' });
+    }
     const fid = uuidv4();
     const from_role = req.session.user.role;
     const from_id = req.session.user.linked_id;
+    const safeRating = (rating != null && rating !== '') ? Number(rating) : null;
     db.run(`INSERT INTO feedback VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [fid, sid, from_role, from_id, feedback_type, content, rating||null, 'pending', null, null, null, new Date().toISOString()]);
+      [fid, sid, from_role, from_id, feedback_type, content.trim(), safeRating, 'pending', null, null, null, new Date().toISOString()]);
     res.json({ id: fid });
   });
 
   router.put('/feedback/:id', requireRole('principal','counselor'), (req, res) => {
     const { status, response } = req.body;
+    // BUG-S2: status 白名单校验
+    const validStatuses = ['pending', 'reviewed', 'resolved'];
+    if (!status || !validStatuses.includes(status)) return res.status(400).json({ error: `status 必须为 ${validStatuses.join('/')}` });
+    // BUG-S1/S3: response 非空校验
+    if (!response || !response.trim()) return res.status(400).json({ error: '回复内容不能为空' });
+    const existing = db.get('SELECT id FROM feedback WHERE id=?', [req.params.id]);
+    if (!existing) return res.status(404).json({ error: '反馈不存在' });
     db.run('UPDATE feedback SET status=?,response=?,responded_by=?,responded_at=? WHERE id=?',
-      [status, response, req.session.user.id, new Date().toISOString(), req.params.id]);
+      [status, response.trim(), req.session.user.id, new Date().toISOString(), req.params.id]);
     res.json({ ok: true });
   });
 
@@ -297,12 +322,19 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     // BUG-F3: 检查学生是否存在
     const student = db.get('SELECT id FROM students WHERE id=?', [student_id]);
     if (!student) return res.status(404).json({ error: '学生不存在' });
-    // BUG-F1: 反馈内容非空校验
     if (!content || !content.trim()) return res.status(400).json({ error: '反馈内容不能为空' });
+    if (content.length > 5000) return res.status(400).json({ error: '反馈内容不能超过5000字符' });
+    const validTypes = ['疑问', '建议', '满意度', '投诉', '阶段反馈'];
+    if (!feedback_type || !validTypes.includes(feedback_type)) return res.status(400).json({ error: `反馈类型必须为 ${validTypes.join('/')}` });
+    if (rating != null && rating !== '') {
+      const r = Number(rating);
+      if (!Number.isInteger(r) || r < 1 || r > 5) return res.status(400).json({ error: '评分必须为1-5的整数' });
+    }
     const u = req.session.user;
     const fid = uuidv4();
+    const safeRating = (rating != null && rating !== '') ? Number(rating) : null;
     db.run(`INSERT INTO feedback VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [fid, student_id, u.role, u.linked_id, feedback_type, content, rating||null, 'pending', null, null, null, new Date().toISOString()]);
+      [fid, student_id, u.role, u.linked_id, feedback_type, content.trim(), safeRating, 'pending', null, null, null, new Date().toISOString()]);
     res.json({ id: fid });
   });
 

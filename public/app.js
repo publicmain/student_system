@@ -170,7 +170,7 @@ async function renderPrincipalDashboard() {
       <div class="card-body p-0">
         <div style="display:flex;overflow-x:auto;gap:.75rem;padding:.75rem 1rem">
           ${(stats.recentOffers || []).slice(0,6).map(o => {
-            const stMap = {offer:'Offer',conditional_offer:'Con. Offer',conditional:'Conditional',unconditional:'Unconditional',firm:'Firm',enrolled:'已入学'};
+            const stMap = {pending:'待处理',applied:'已提交',offer:'有Offer',conditional_offer:'条件Offer',unconditional_offer:'无条件Offer',conditional:'条件Offer',unconditional:'无条件Offer',firm:'确认选择',enrolled:'已入学',rejected:'已拒绝',withdrawn:'已撤回'};
             return `<div style="min-width:220px;border:1px solid var(--border);border-radius:8px;padding:.75rem;flex-shrink:0;background:var(--bg-primary)">
               <div class="d-flex align-items-center gap-2 mb-2">
                 <div class="avatar-sm" style="background:var(--success);color:#fff">${escapeHtml((o.student_name||'?').charAt(0))}</div>
@@ -269,13 +269,13 @@ async function renderPrincipalDashboard() {
                   } else if (!r.last_comm_date) {
                     tags.push(`<span class="badge badge-soft-secondary">从未沟通</span>`);
                   }
-                  return `<li>
+                  return `<li style="cursor:pointer" onclick="navigate('student-detail',{studentId:'${r.id}'})">
                     <div>
                       <div class="att-name">${escapeHtml(r.name)} <span class="badge badge-soft-info ms-1">${escapeHtml(r.exam_board||'')}</span></div>
                       <div class="att-desc d-flex flex-wrap gap-1">${tags.join('')}</div>
                     </div>
                     <div class="att-action">
-                      <button class="action-icon-btn" title="查看" onclick="navigate('student-detail',{studentId:'${r.id}'})"><i class="bi bi-chevron-right"></i></button>
+                      <i class="bi bi-chevron-right"></i>
                     </div>
                   </li>`;
                 }).join('')}
@@ -499,13 +499,13 @@ async function renderCounselorDashboard() {
                   if (r.pending_feedback > 0) tags.push(`<span class="badge badge-soft-warning">${r.pending_feedback} 条反馈</span>`);
                   if (!r.last_comm_date || new Date(r.last_comm_date) < new Date(Date.now() - 14*86400000))
                     tags.push('<span class="badge badge-soft-secondary">超2周未沟通</span>');
-                  return `<li>
+                  return `<li style="cursor:pointer" onclick="navigate('student-detail',{studentId:'${r.id}'})">
                     <div>
                       <div class="att-name">${escapeHtml(r.name)} <span class="badge badge-soft-info ms-1">${escapeHtml(r.exam_board||'')}</span></div>
                       <div class="att-desc d-flex flex-wrap gap-1">${tags.join('')}</div>
                     </div>
                     <div class="att-action">
-                      <button class="action-icon-btn" title="查看" onclick="navigate('student-detail',{studentId:'${r.id}'})"><i class="bi bi-chevron-right"></i></button>
+                      <i class="bi bi-chevron-right"></i>
                     </div>
                   </li>`;
                 }).join('')}
@@ -1734,13 +1734,13 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
                 ? `<div style="color:var(--text-tertiary);font-size:.82rem;padding:.5rem 0"><i class="bi bi-check-circle text-success me-1"></i>暂无紧急任务</div>`
                 : urgentTasks.map(t => {
                     const od = isOverdue(t.due_date, t.status);
-                    return `<div class="stu-task-row">
+                    return `<div class="stu-task-row" style="cursor:pointer" onclick="navigate('task-detail',{taskId:'${t.id}'})">
                       <div class="stu-task-title ${od?'overdue':''}">${escapeHtml(t.title)}</div>
                       <div class="stu-task-meta">${fmtDate(t.due_date)||'无期限'}</div>
                       ${od ? '<span class="badge badge-soft-danger" style="font-size:.65rem">逾期</span>' : '<span class="badge badge-soft-secondary" style="font-size:.65rem">待办</span>'}
                     </div>`;
                   }).join('')}
-              ${pending.length > 6 ? `<div style="padding:.4rem .75rem"><a href="#" onclick="event.preventDefault();document.querySelector('a[href=\\'#tab-timeline\\']').click()" class="small text-primary">查看全部 ${pending.length} 项任务 →</a></div>` : ''}
+              ${pending.length > 6 ? `<div style="padding:.4rem .75rem"><a href="#" onclick="event.preventDefault();var t=document.querySelector('a[href=&quot;#tab-timeline&quot;]');if(t)t.click();" class="small text-primary">查看全部 ${pending.length} 项任务 →</a></div>` : ''}
             </div>
 
             <!-- Target Universities (always visible) -->
@@ -2625,7 +2625,7 @@ function renderApplicationList(applications, studentId, canEdit) {
       <div class="card border-${a.tier==='冲刺'?'danger':a.tier==='意向'?'primary':'success'}">
         <div class="card-body">
           <div class="d-flex justify-content-between mb-2">
-            <h6 class="fw-bold mb-0">${escapeHtml(a.uni_name)}</h6>
+            <h6 class="fw-bold mb-0"><a href="#" onclick="event.preventDefault();openApplicationModal('${safeId(studentId)}','${safeId(a.id)}')" class="text-decoration-none text-dark" style="cursor:pointer">${escapeHtml(a.uni_name)}</a></h6>
             ${tierBadge(a.tier)}
           </div>
           <div class="small text-muted mb-2">${escapeHtml(a.department||'—')} · ${escapeHtml(a.route||'—')} · ${escapeHtml(String(a.cycle_year||'—'))}年入学</div>
@@ -2655,7 +2655,7 @@ function renderMaterialList(materials, canEdit) {
     <table class="table table-hover">
       <thead class="table-light"><tr><th>类型</th><th>标题</th><th>状态</th><th>版本</th><th>备注</th><th>最后更新</th>${canEdit?'<th>操作</th>':''}</tr></thead>
       <tbody>
-        ${materials.map(m => `<tr>
+        ${materials.map(m => `<tr style="cursor:pointer" data-mid="${escapeHtml(m.id)}" data-mtype="${escapeHtml(m.material_type)}" data-mtitle="${escapeHtml(m.title||'')}" data-mstatus="${escapeHtml(m.status)}" data-mnotes="${escapeHtml(m.notes||'')}" data-mver="${escapeHtml(String(m.version))}" data-mappid="${escapeHtml(m.application_id||'')}" onclick="if(event.target.closest('button,a'))return;openMaterialEditModal(this.dataset.mid,this.dataset.mtype,this.dataset.mtitle,this.dataset.mstatus,this.dataset.mnotes,this.dataset.mver,this.dataset.mappid)">
           <td><span class="badge bg-light text-dark border">${escapeHtml(m.material_type)}</span></td>
           <td>${escapeHtml(m.title||'—')}</td>
           <td>${statusBadge(m.status)}</td>
@@ -2983,7 +2983,7 @@ function selectFeedbackItem(f, el) {
     <div class="mb-4">
       <div class="d-flex justify-content-between align-items-start mb-3">
         <div>
-          <h5 class="fw-bold mb-1">${escapeHtml(f.student_name)}</h5>
+          <h5 class="fw-bold mb-1"><a href="#" onclick="event.preventDefault();navigate('student-detail',{studentId:'${f.student_id}'})" class="text-decoration-none text-dark" style="cursor:pointer">${escapeHtml(f.student_name)}</a></h5>
           <div class="d-flex gap-2 align-items-center">
             <span class="badge badge-soft-info">${escapeHtml(f.feedback_type||'')}</span>
             <span class="badge badge-soft-secondary">${roleLabel(f.from_role)}</span>

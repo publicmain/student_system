@@ -46,7 +46,7 @@ export default function KanbanCard({ app, isDragging = false, health }) {
     if (isBeingDragged) return
     e.stopPropagation()
     if (typeof window.navigate === 'function') {
-      window.navigate('student-detail', { studentId: app.student_id })
+      window.navigate('student-detail', { studentId: app.student_id, activeTab: 'tab-apps' })
     } else {
       window.location.hash = 'student-detail/' + app.student_id
     }
@@ -113,7 +113,7 @@ export default function KanbanCard({ app, isDragging = false, health }) {
         )}
         {health?.eval?.prob_mid != null && (
           <span className="text-[9px] font-medium text-brand-600 dark:text-brand-400 ml-auto">
-            {Math.round(health.eval.prob_mid * 100)}%
+            {Math.round(health.eval.prob_mid)}%
           </span>
         )}
       </div>
@@ -124,7 +124,7 @@ export default function KanbanCard({ app, isDragging = false, health }) {
           <div className="h-full bg-blue-500 transition-all" style={{ width: `${health.ps.score * 4}%` }} title={`文书 ${health.ps.status}`} />
           <div className="h-full bg-emerald-500 transition-all" style={{ width: `${health.materials.score * 4}%` }} title={`材料 ${health.materials.done}/${health.materials.total}`} />
           <div className="h-full bg-purple-500 transition-all" style={{ width: `${health.tasks.score * 4}%` }} title={`任务 ${health.tasks.done}/${health.tasks.total}`} />
-          <div className="h-full bg-amber-500 transition-all" style={{ width: `${health.eval.score * 4}%` }} title={`评估 ${health.eval.prob_mid ? Math.round(health.eval.prob_mid * 100) + '%' : '无'}`} />
+          <div className="h-full bg-amber-500 transition-all" style={{ width: `${health.eval.score * 4}%` }} title={`评估 ${health.eval.prob_mid ? Math.round(health.eval.prob_mid) + '%' : '无'}`} />
         </div>
       )}
 

@@ -144,7 +144,7 @@ export default function DetailDrawer({ app, health, onClose }) {
                     <HealthBar label="文书" score={health.ps?.score} color="blue" detail={health.ps?.status} />
                     <HealthBar label="材料" score={health.materials?.score} color="emerald" detail={`${health.materials?.done || 0}/${health.materials?.total || 0}`} />
                     <HealthBar label="任务" score={health.tasks?.score} color="purple" detail={`${health.tasks?.done || 0}/${health.tasks?.total || 0}`} />
-                    <HealthBar label="评估" score={health.eval?.score} color="amber" detail={health.eval?.prob_mid ? `${Math.round(health.eval.prob_mid * 100)}%` : '无'} />
+                    <HealthBar label="评估" score={health.eval?.score} color="amber" detail={health.eval?.prob_mid ? `${Math.round(health.eval.prob_mid)}%` : '无'} />
                   </div>
                 </div>
               )}

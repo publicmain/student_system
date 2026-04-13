@@ -251,7 +251,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
 
       // 评估分数 (0-25)
       const evalData = evalMap.get(app.id);
-      const evalScore = evalData ? Math.round((evalData.prob_mid || 0) * 25) : 0;
+      // prob_mid is stored as integer 0-99 (e.g. 28 means 28%), normalize to 0-1 for scoring
+      const evalScore = evalData ? Math.round(((evalData.prob_mid || 0) / 100) * 25) : 0;
 
       // 文书风险
       const essays = essayByApp.get(app.id) || [];

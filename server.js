@@ -839,6 +839,26 @@ db.init().then(() => {
     if (linked) console.log(`[fix] Linked ${linked}/${unlinkedApps.length} applications to uni_programs`);
   } catch(e) { console.error('[fix] app-program linkage error:', e.message); }
 
+  // ── 诊断端点：查看家长链路状态 ──
+  app.get('/api/debug/parent-links', requireAuth, (req, res) => {
+    if (req.session.user.role !== 'principal') return res.status(403).json({ error: '仅校长可用' });
+    const parentUsers = db.all("SELECT id, username, name, linked_id FROM users WHERE role='parent'");
+    const result = parentUsers.map(u => {
+      const pg = u.linked_id ? db.get("SELECT id, name FROM parent_guardians WHERE id=?", [u.linked_id]) : null;
+      const links = u.linked_id ? db.all("SELECT sp.student_id, s.name as student_name, s.status as student_status FROM student_parents sp LEFT JOIN students s ON s.id=sp.student_id WHERE sp.parent_id=?", [u.linked_id]) : [];
+      const studentsViaQuery = u.linked_id ? db.all("SELECT s.id, s.name, s.status FROM students s WHERE s.status='active' AND s.id IN (SELECT student_id FROM student_parents WHERE parent_id=?)", [u.linked_id]) : [];
+      return {
+        username: u.username, name: u.name, linked_id: u.linked_id,
+        parent_guardians_exists: !!pg, parent_guardians_name: pg?.name,
+        student_parents_rows: links,
+        students_via_api_query: studentsViaQuery,
+        total_students_in_db: db.get("SELECT COUNT(*) as cnt FROM students WHERE status='active'")?.cnt,
+        total_student_parents: db.get("SELECT COUNT(*) as cnt FROM student_parents")?.cnt,
+      };
+    });
+    res.json(result);
+  });
+
   sessionStore.setDb(db);
   app.listen(PORT, () => {
     console.log(`\n✅ 学生升学与学业规划管理系统已启动`);

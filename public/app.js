@@ -269,7 +269,7 @@ async function renderPrincipalDashboard() {
                   } else if (!r.last_comm_date) {
                     tags.push(`<span class="badge badge-soft-secondary">从未沟通</span>`);
                   }
-                  return `<li style="cursor:pointer" onclick="navigate('student-detail',{studentId:'${r.id}'})">
+                  return `<li class="att-row" style="cursor:pointer" data-sid="${r.id}">
                     <div>
                       <div class="att-name">${escapeHtml(r.name)} <span class="badge badge-soft-info ms-1">${escapeHtml(r.exam_board||'')}</span></div>
                       <div class="att-desc d-flex flex-wrap gap-1">${tags.join('')}</div>
@@ -366,6 +366,10 @@ async function renderPrincipalDashboard() {
       </div>
     </div>` : ''}
     `;
+    // 绑定"需要关注"行点击事件
+    mc.querySelectorAll('.att-row[data-sid]').forEach(el => {
+      el.addEventListener('click', function() { navigate('student-detail', { studentId: this.dataset.sid }); });
+    });
   } catch (e) {
     mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
   }
@@ -499,7 +503,7 @@ async function renderCounselorDashboard() {
                   if (r.pending_feedback > 0) tags.push(`<span class="badge badge-soft-warning">${r.pending_feedback} 条反馈</span>`);
                   if (!r.last_comm_date || new Date(r.last_comm_date) < new Date(Date.now() - 14*86400000))
                     tags.push('<span class="badge badge-soft-secondary">超2周未沟通</span>');
-                  return `<li style="cursor:pointer" onclick="navigate('student-detail',{studentId:'${r.id}'})">
+                  return `<li class="att-row" style="cursor:pointer" data-sid="${r.id}">
                     <div>
                       <div class="att-name">${escapeHtml(r.name)} <span class="badge badge-soft-info ms-1">${escapeHtml(r.exam_board||'')}</span></div>
                       <div class="att-desc d-flex flex-wrap gap-1">${tags.join('')}</div>
@@ -548,6 +552,10 @@ async function renderCounselorDashboard() {
           </div>`}
       </div>
     </div>`;
+    // 绑定"需要关注"行点击事件
+    mc.querySelectorAll('.att-row[data-sid]').forEach(el => {
+      el.addEventListener('click', function() { navigate('student-detail', { studentId: this.dataset.sid }); });
+    });
   } catch (e) {
     mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
   }

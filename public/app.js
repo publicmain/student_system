@@ -2724,6 +2724,10 @@ function renderCommList(comms) {
     </div>`).join('');
 }
 
+// UI-F1: 角色名称中文映射
+const ROLE_LABEL = { principal:'校长', counselor:'升学规划师', mentor:'导师', parent:'家长', student:'学生', agent:'代理', intake_staff:'招生专员', student_admin:'学生管理员', finance:'财务' };
+function roleLabel(r) { return ROLE_LABEL[r] || r || '—'; }
+
 function renderFeedbackItems(feedback, canEdit) {
   if (feedback.length === 0) return emptyStateSm('暂无反馈记录','chat-right-text');
   return feedback.map(f => `
@@ -2732,7 +2736,7 @@ function renderFeedbackItems(feedback, canEdit) {
         <div class="d-flex justify-content-between mb-1">
           <div class="d-flex gap-2">
             <span class="badge bg-secondary">${escapeHtml(f.feedback_type)}</span>
-            <span class="badge bg-light text-dark">${escapeHtml(f.from_role)}</span>
+            <span class="badge bg-light text-dark">${roleLabel(f.from_role)}</span>
             ${f.rating ? `<span>${'⭐'.repeat(parseInt(f.rating))}</span>` : ''}
           </div>
           <div class="d-flex gap-2">
@@ -2897,6 +2901,8 @@ async function renderFeedbackList() {
   try {
     const feedback = await GET('/api/feedback');
     const types = [...new Set(feedback.map(f => f.feedback_type).filter(Boolean))];
+    const statusLabels = { pending: '待处理', reviewed: '已阅/跟进中', resolved: '已解决' };
+    const statuses = [...new Set(feedback.map(f => f.status).filter(Boolean))];
     mc.innerHTML = `
     <div class="page-header">
       <h4><i class="bi bi-chat-dots me-2"></i>反馈管理</h4>
@@ -2906,20 +2912,24 @@ async function renderFeedbackList() {
       <div class="md-list">
         <div class="md-list-header">
           <input class="form-control form-control-sm" id="fb-search" placeholder="搜索内容..." oninput="window._fbFilter()">
-          <div class="filter-chip-group mt-2" style="flex-wrap:wrap">
-            <button class="filter-chip active" data-fb-type="" onclick="window._fbFilterType(this)" style="font-size:11px;padding:2px 8px">全部 <span style="opacity:.5">${feedback.length}</span></button>
+          <div class="filter-chip-group mt-1" style="flex-wrap:wrap">
+            <button class="filter-chip active" data-fb-status="" onclick="window._fbFilterStatus(this)" style="font-size:11px;padding:2px 8px">全部状态 <span style="opacity:.5">${feedback.length}</span></button>
+            ${statuses.map(s => `<button class="filter-chip" data-fb-status="${escapeHtml(s)}" onclick="window._fbFilterStatus(this)" style="font-size:11px;padding:2px 8px">${statusLabels[s]||s} <span style="opacity:.5">${feedback.filter(f=>f.status===s).length}</span></button>`).join('')}
+          </div>
+          <div class="filter-chip-group mt-1" style="flex-wrap:wrap">
+            <button class="filter-chip active" data-fb-type="" onclick="window._fbFilterType(this)" style="font-size:11px;padding:2px 8px">全部类型 <span style="opacity:.5">${feedback.length}</span></button>
             ${types.map(t => `<button class="filter-chip" data-fb-type="${escapeHtml(t)}" onclick="window._fbFilterType(this)" style="font-size:11px;padding:2px 8px">${escapeHtml(t)} <span style="opacity:.5">${feedback.filter(f=>f.feedback_type===t).length}</span></button>`).join('')}
           </div>
         </div>
         <div class="md-list-body" id="fb-list-body">
           ${feedback.length === 0 ? '<div class="text-center text-muted small py-4">暂无反馈</div>' :
           feedback.map(f => `
-          <div class="md-item fb-item" data-fb-type="${escapeHtml(f.feedback_type||'')}" data-fbid="${escapeHtml(f.id)}" onclick="selectFeedbackItem(${JSON.stringify(f).replace(/"/g,'&quot;')},this)">
+          <div class="md-item fb-item" data-fb-type="${escapeHtml(f.feedback_type||'')}" data-fb-status="${escapeHtml(f.status||'')}" data-fbid="${escapeHtml(f.id)}" onclick="selectFeedbackItem(${JSON.stringify(f).replace(/"/g,'&quot;')},this)">
             <div class="d-flex justify-content-between align-items-center">
               <span class="md-item-name">${escapeHtml(f.student_name)}</span>
-              ${f.rating ? `<span class="small text-warning" style="font-size:10px">${'★'.repeat(parseInt(f.rating))}</span>` : ''}
+              <span class="d-flex gap-1 align-items-center">${statusBadge(f.status)} ${f.rating ? `<span class="small text-warning" style="font-size:10px">${'★'.repeat(parseInt(f.rating))}</span>` : ''}</span>
             </div>
-            <div class="md-item-sub">${escapeHtml(f.feedback_type||'—')} · ${escapeHtml(f.content.substring(0,30))}...</div>
+            <div class="md-item-sub">${escapeHtml(f.feedback_type||'—')} · ${escapeHtml((f.content||'').substring(0,30))}${(f.content||'').length>30?'...':''}</div>
           </div>`).join('')}
         </div>
       </div>
@@ -2933,17 +2943,24 @@ async function renderFeedbackList() {
     </div>`;
 
     window._fbFilterType = (btn) => {
-      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      btn.parentElement.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      window._fbFilter();
+    };
+    window._fbFilterStatus = (btn) => {
+      btn.parentElement.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
       btn.classList.add('active');
       window._fbFilter();
     };
     window._fbFilter = () => {
-      const type = document.querySelector('.filter-chip.active')?.dataset.fbType || '';
+      const type = document.querySelector('.filter-chip.active[data-fb-type]')?.dataset.fbType || '';
+      const status = document.querySelector('.filter-chip.active[data-fb-status]')?.dataset.fbStatus || '';
       const search = (document.getElementById('fb-search')?.value||'').toLowerCase();
       document.querySelectorAll('#fb-list-body .fb-item').forEach(el => {
         const matchType = !type || el.dataset.fbType === type;
+        const matchStatus = !status || el.dataset.fbStatus === status;
         const matchSearch = !search || el.textContent.toLowerCase().includes(search);
-        el.style.display = matchType && matchSearch ? '' : 'none';
+        el.style.display = matchType && matchStatus && matchSearch ? '' : 'none';
       });
     };
   } catch(e) {
@@ -2961,8 +2978,8 @@ function selectFeedbackItem(f, el) {
         <div>
           <h5 class="fw-bold mb-1">${escapeHtml(f.student_name)}</h5>
           <div class="d-flex gap-2 align-items-center">
-            <span class="badge badge-soft-info">${escapeHtml(f.feedback_type)}</span>
-            <span class="badge badge-soft-secondary">${escapeHtml(f.from_role)}</span>
+            <span class="badge badge-soft-info">${escapeHtml(f.feedback_type||'')}</span>
+            <span class="badge badge-soft-secondary">${roleLabel(f.from_role)}</span>
             ${f.rating ? `<span class="text-warning">${'★'.repeat(parseInt(f.rating))}${'☆'.repeat(5-parseInt(f.rating))}</span>` : ''}
           </div>
         </div>

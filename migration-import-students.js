@@ -8,11 +8,15 @@ function runMigration(db, uuidv4) {
   const done = db.get("SELECT value FROM settings WHERE key='migration_import_real_students'");
   if (done) return false;
 
-  const KEEP_ID = 'edee7ca2-1101-4306-bccf-1d93e659cd3e'; // 苏瑶
+  const KEEP_IDS = [
+    'edee7ca2-1101-4306-bccf-1d93e659cd3e', // 苏瑶
+    'edee7ca2-2202-4306-bccf-2d93e659cd3e', // 林子轩
+  ];
   const now = new Date().toISOString();
 
-  // ═══ Step 1: 删除除苏瑶外的所有测试学生 ═══
-  const toDelete = db.all('SELECT id, name FROM students WHERE id != ?', [KEEP_ID]);
+  // ═══ Step 1: 删除除苏瑶和林子轩外的所有测试学生 ═══
+  const placeholders = KEEP_IDS.map(() => '?').join(',');
+  const toDelete = db.all(`SELECT id, name FROM students WHERE id NOT IN (${placeholders})`, KEEP_IDS);
   console.log(`[migration] 删除 ${toDelete.length} 名测试学生`);
 
   const relatedTables = [

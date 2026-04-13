@@ -455,6 +455,8 @@ function statusBadge(status) {
     'contract_signed': ['primary', '合同已签'], 'paid': ['success', '已付款'],
     'visa_in_progress': ['warning', '签证办理中'], 'ipa_received': ['success', '已获IPA'],
     'arrived': ['primary', '已到校'], 'oriented': ['success', '已入学'], 'closed': ['secondary', '已关闭'],
+    // Feedback statuses
+    'reviewed': ['info', '已阅/跟进中'], 'resolved': ['success', '已解决'],
     // Audit actions
     'CREATE': ['success', 'CREATE'], 'UPDATE': ['primary', 'UPDATE'],
     'DELETE': ['danger', 'DELETE'], 'VOID': ['warning', 'VOID'],

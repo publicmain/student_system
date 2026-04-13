@@ -47,15 +47,16 @@ function seedDemo(db) {
   // ════════════════════════════════════════════════════════
   //  学生 1: 苏瑶 Sophie Su — CIE G12, 目标: 牛剑生物 + NUS
   // ════════════════════════════════════════════════════════
-  const s1 = uuid();
+  // BUG-F5: 使用固定 UUID，确保与 migration-import-students.js 中 KEEP_ID 一致
+  const s1 = 'edee7ca2-1101-4306-bccf-1d93e659cd3e';
   db.run(`INSERT INTO students (id,name,grade_level,enrol_date,exam_board,status,date_of_birth,notes,created_at,updated_at)
     VALUES (?,?,?,?,?,?,?,?,?,?)`, [
     s1, '苏瑶', 'G12', '2023-09-01', 'CIE', 'active', '2007-03-15',
     '目标剑桥自然科学，学术能力突出，课外活动丰富。英国与新加坡双线申请。', now, now
   ]);
 
-  // 学生用户
-  const s1UserId = uuid();
+  // 学生用户 — 固定 UUID
+  const s1UserId = 'a1b2c3d4-sophie-user-0001-000000000001';
   const bcrypt = require('bcryptjs');
   const hash = (pw) => bcrypt.hashSync(pw, 10);
   db.run("INSERT INTO users (id,username,password,role,linked_id,name,created_at) VALUES (?,?,?,?,?,?,?)", [
@@ -74,8 +75,9 @@ function seedDemo(db) {
     'IGCSE 阶段全 A*，AS 阶段预测 4A，目标剑桥自然科学', now, now
   ]);
 
-  // ── 家长 ─────────────────────────────────────────────────
-  const p1a = uuid(), p1b = uuid();
+  // ── 家长 — 固定 UUID ─────────────────────────────────────
+  const p1a = 'f5e6d7c8-parent-su-0001-000000000001';
+  const p1b = 'f5e6d7c8-parent-su-0002-000000000002';
   db.run("INSERT INTO parent_guardians VALUES (?,?,?,?,?,?,?)", [
     p1a, '苏建国', '父', '13612345678', 'sujg@email.com', 'sujg_wechat', now
   ]);
@@ -85,8 +87,8 @@ function seedDemo(db) {
   db.run("INSERT INTO student_parents VALUES (?,?)", [s1, p1a]);
   db.run("INSERT INTO student_parents VALUES (?,?)", [s1, p1b]);
 
-  // 家长用户
-  const p1UserId = uuid();
+  // 家长用户 — 固定 UUID
+  const p1UserId = 'a1b2c3d4-parent-user-0001-000000000001';
   db.run("INSERT INTO users (id,username,password,role,linked_id,name,created_at) VALUES (?,?,?,?,?,?,?)", [
     p1UserId, 'su_parent', hash('123456'), 'parent', p1a, '苏建国', now
   ]);
@@ -412,15 +414,16 @@ function seedDemo(db) {
   //  学生 2: 林子轩 Jason Lin — Edexcel G12, 申请 UK + US
   //  特点: 有风险、逾期任务多、成绩中等偏上、适合触发AI预警
   // ════════════════════════════════════════════════════════
-  const s2 = uuid();
+  // BUG-F5: 固定 UUID
+  const s2 = 'edee7ca2-2202-4306-bccf-2d93e659cd3e';
   db.run(`INSERT INTO students (id,name,grade_level,enrol_date,exam_board,status,date_of_birth,notes,created_at,updated_at)
     VALUES (?,?,?,?,?,?,?,?,?,?)`, [
     s2, '林子轩', 'G12', '2023-09-01', 'Edexcel', 'active', '2007-08-22',
     '理工方向，计算机科学兴趣浓厚。英美双申，时间管理需要加强。', now, now
   ]);
 
-  // 学生用户
-  const s2UserId = uuid();
+  // 学生用户 — 固定 UUID
+  const s2UserId = 'a1b2c3d4-jason-user-0002-000000000002';
   db.run("INSERT INTO users (id,username,password,role,linked_id,name,created_at) VALUES (?,?,?,?,?,?,?)", [
     s2UserId, 'jason', hash('123456'), 'student', s2, '林子轩', now
   ]);
@@ -437,8 +440,8 @@ function seedDemo(db) {
     '有独立开发的GitHub项目，但学业成绩不够稳定', now, now
   ]);
 
-  // ── 家长 ─────────────────────────────────────────────────
-  const p2a = uuid();
+  // ── 家长 — 固定 UUID ─────────────────────────────────────
+  const p2a = 'f5e6d7c8-parent-lin-001-000000000003';
   db.run("INSERT INTO parent_guardians VALUES (?,?,?,?,?,?,?)", [
     p2a, '林国强', '父', '13898765432', 'lingq@email.com', 'lingq_wx', now
   ]);

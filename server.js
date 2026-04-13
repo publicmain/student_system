@@ -752,6 +752,32 @@ db.init().then(() => {
     }
   } catch(e) { console.error('[fix] finance seed error:', e.message); }
 
+  // ── BUG-F5 修复：修复 user 账号的 linked_id 断链 ──
+  try {
+    // 修复 student 用户的 linked_id
+    const studentUsers = db.all("SELECT id, name, linked_id FROM users WHERE role='student'");
+    for (const u of studentUsers) {
+      if (!u.linked_id || !db.get("SELECT id FROM students WHERE id=?", [u.linked_id])) {
+        const stu = db.get("SELECT id FROM students WHERE name=?", [u.name]);
+        if (stu) {
+          db.run("UPDATE users SET linked_id=? WHERE id=?", [stu.id, u.id]);
+          console.log(`[BUG-F5] 修复学生用户 ${u.name} 的 linked_id → ${stu.id}`);
+        }
+      }
+    }
+    // 修复 parent 用户的 linked_id
+    const parentUsers = db.all("SELECT id, name, linked_id FROM users WHERE role='parent'");
+    for (const u of parentUsers) {
+      if (!u.linked_id || !db.get("SELECT id FROM parent_guardians WHERE id=?", [u.linked_id])) {
+        const pg = db.get("SELECT id FROM parent_guardians WHERE name=?", [u.name]);
+        if (pg) {
+          db.run("UPDATE users SET linked_id=? WHERE id=?", [pg.id, u.id]);
+          console.log(`[BUG-F5] 修复家长用户 ${u.name} 的 linked_id → ${pg.id}`);
+        }
+      }
+    }
+  } catch(e) { console.error('[BUG-F5] linked_id repair error:', e.message); }
+
   // ── BUG-18 修复：将 applications 通过 uni_name 关联到 uni_programs ──
   try {
     const unlinkedApps = db.all("SELECT a.id, a.uni_name, a.department FROM applications a WHERE a.program_id IS NULL AND a.uni_name IS NOT NULL");

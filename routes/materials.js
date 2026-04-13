@@ -164,11 +164,20 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
   });
 
   router.post('/students/:id/communications', requireRole('principal','counselor','mentor','intake_staff'), (req, res) => {
-    const { parent_id, channel, summary, action_items, comm_date } = req.body;
+    const sid = req.params.id;
+    // BUG-F3: 检查学生是否存在
+    const student = db.get('SELECT id FROM students WHERE id=?', [sid]);
+    if (!student) return res.status(404).json({ error: '学生不存在' });
+    const { parent_id, channel, summary, follow_up, action_items, comm_date } = req.body;
+    // BUG-F2: 摘要非空校验
+    if (!summary || !summary.trim()) return res.status(400).json({ error: '沟通摘要不能为空' });
     const cid = uuidv4();
-    const staff_id = ['counselor','mentor','principal'].includes(req.session.user.role) ? req.session.user.linked_id : null;
+    // BUG-F8: intake_staff 也应记录 staff_id
+    const staff_id = ['counselor','mentor','principal','intake_staff'].includes(req.session.user.role) ? req.session.user.linked_id : null;
+    // BUG-F7: 同时接受 follow_up 和 action_items
+    const items = action_items || follow_up || '';
     db.run(`INSERT INTO communication_logs VALUES (?,?,?,?,?,?,?,?,?)`,
-      [cid, req.params.id, staff_id, parent_id||null, channel, summary, action_items||'', comm_date||new Date().toISOString(), new Date().toISOString()]);
+      [cid, sid, staff_id, parent_id||null, channel, summary, items, comm_date||new Date().toISOString(), new Date().toISOString()]);
     res.json({ id: cid });
   });
 
@@ -191,12 +200,17 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
       const sp = db.get('SELECT student_id FROM student_parents WHERE student_id=? AND parent_id=?', [sid, u.linked_id]);
       if (!sp) return res.status(403).json({ error: '无权为该学生提交反馈' });
     }
+    // BUG-F3: 检查学生是否存在
+    const student = db.get('SELECT id FROM students WHERE id=?', [sid]);
+    if (!student) return res.status(404).json({ error: '学生不存在' });
     const { feedback_type, content, rating } = req.body;
+    // BUG-F1: 反馈内容非空校验
+    if (!content || !content.trim()) return res.status(400).json({ error: '反馈内容不能为空' });
     const fid = uuidv4();
     const from_role = req.session.user.role;
     const from_id = req.session.user.linked_id;
     db.run(`INSERT INTO feedback VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [fid, req.params.id, from_role, from_id, feedback_type, content, rating||null, 'pending', null, null, null, new Date().toISOString()]);
+      [fid, sid, from_role, from_id, feedback_type, content, rating||null, 'pending', null, null, null, new Date().toISOString()]);
     res.json({ id: fid });
   });
 
@@ -207,14 +221,33 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     res.json({ ok: true });
   });
 
-  router.get('/feedback', requireAuth, requireRole('principal','counselor'), (req, res) => {
+  // BUG-F9: 删除反馈
+  router.delete('/feedback/:id', requireRole('principal','counselor'), (req, res) => {
+    const existing = db.get('SELECT id FROM feedback WHERE id=?', [req.params.id]);
+    if (!existing) return res.status(404).json({ error: '反馈不存在' });
+    db.run('DELETE FROM feedback WHERE id=?', [req.params.id]);
+    res.json({ ok: true });
+  });
+
+  // BUG-F9: 删除沟通记录
+  router.delete('/students/:id/communications/:commId', requireRole('principal','counselor'), (req, res) => {
+    const existing = db.get('SELECT id FROM communication_logs WHERE id=? AND student_id=?', [req.params.commId, req.params.id]);
+    if (!existing) return res.status(404).json({ error: '沟通记录不存在' });
+    db.run('DELETE FROM communication_logs WHERE id=?', [req.params.commId]);
+    res.json({ ok: true });
+  });
+
+  router.get('/feedback', requireAuth, (req, res) => {
     const u = req.session.user;
-    // principal 和 counselor 可查看全部待处理反馈
+    // BUG-F6: 支持 ?status= 过滤，默认返回全部
+    const statusFilter = req.query.status;
+    const statusClause = statusFilter && statusFilter !== 'all' ? "AND f.status='" + statusFilter.replace(/'/g, '') + "'" : '';
+    // principal 和 counselor 可查看全部反馈
     if (u.role === 'principal' || u.role === 'counselor') {
       const rows = db.all(`
         SELECT f.*, s.name as student_name FROM feedback f
         JOIN students s ON s.id=f.student_id
-        WHERE f.status='pending' ORDER BY f.created_at DESC LIMIT 50`);
+        WHERE 1=1 ${statusClause} ORDER BY f.created_at DESC LIMIT 100`);
       return res.json(rows);
     }
     // mentor 可查看自己提交的反馈
@@ -261,12 +294,12 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
   router.post('/feedback', requireAuth, requireRole('principal','counselor'), (req, res) => {
     const { student_id, feedback_type, content, rating } = req.body;
     if (!student_id) return res.status(400).json({ error: 'student_id 必填' });
+    // BUG-F3: 检查学生是否存在
+    const student = db.get('SELECT id FROM students WHERE id=?', [student_id]);
+    if (!student) return res.status(404).json({ error: '学生不存在' });
+    // BUG-F1: 反馈内容非空校验
+    if (!content || !content.trim()) return res.status(400).json({ error: '反馈内容不能为空' });
     const u = req.session.user;
-    if (u.role === 'student' && u.linked_id !== student_id) return res.status(403).json({ error: '只能为本人提交反馈' });
-    if (u.role === 'parent') {
-      const sp = db.get('SELECT student_id FROM student_parents WHERE student_id=? AND parent_id=?', [student_id, u.linked_id]);
-      if (!sp) return res.status(403).json({ error: '无权为该学生提交反馈' });
-    }
     const fid = uuidv4();
     db.run(`INSERT INTO feedback VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
       [fid, student_id, u.role, u.linked_id, feedback_type, content, rating||null, 'pending', null, null, null, new Date().toISOString()]);

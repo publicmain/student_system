@@ -442,9 +442,11 @@ function statusBadge(status) {
     // Application statuses
     'applied': ['primary', '已提交'], 'offer': ['success', '有Offer'], 'firm': ['success', '已确认'],
     'declined': ['danger', '已拒绝'], 'enrolled': ['success', '已入学'], 'withdrawn': ['secondary', '已撤回'],
+    'deleted': ['secondary', '已删除'],
     'waitlist': ['info', '候补'], 'interview': ['warning', '面试中'],
     'conditional': ['warning', '条件Offer'], 'unconditional': ['success', '无条件Offer'],
     'rejected': ['danger', '拒信'], 'conditional_offer': ['warning', '条件Offer'],
+    'overdue': ['danger', '已逾期'],
     // Student statuses
     'active': ['success', '在读'],
     // Offer types (capitalized)

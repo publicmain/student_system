@@ -2631,7 +2631,7 @@ function renderApplicationList(applications, studentId, canEdit) {
           <div class="small text-muted mb-2">${escapeHtml(a.department||'—')} · ${escapeHtml(a.route||'—')} · ${escapeHtml(String(a.cycle_year||'—'))}年入学</div>
           <div class="d-flex gap-2 flex-wrap mb-2">
             ${statusBadge(a.status)}
-            ${a.offer_type ? statusBadge(a.offer_type) : ''}
+            ${a.offer_type && a.offer_type !== a.status && a.offer_type !== 'Pending' ? statusBadge(a.offer_type) : ''}
           </div>
           <div class="small">
             <span class="text-muted">截止日: </span><span class="${isOverdue(a.submit_deadline, a.status)?'text-danger fw-bold':''}">${fmtDate(a.submit_deadline)}</span>

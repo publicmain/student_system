@@ -28,6 +28,14 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     const student = db.get('SELECT id FROM students WHERE id=?', [sid]);
     if (!student) return res.status(404).json({ error: '学生不存在' });
     if (!material_type) return res.status(400).json({ error: 'material_type 必填' });
+    // BUG-M3: material_type 白名单
+    const validMaterialTypes = ['成绩单', '推荐信', '活动证明', '个人陈述', '语言成绩', '护照', '签证材料', '其他'];
+    if (!validMaterialTypes.includes(material_type)) return res.status(400).json({ error: `材料类型必须为 ${validMaterialTypes.join('/')}` });
+    // BUG-M5: 标题非空校验
+    if (title !== undefined && title !== null && typeof title === 'string' && !title.trim()) return res.status(400).json({ error: '材料标题不能为空字符串' });
+    // BUG-M4: status 白名单
+    const validMaterialStatuses = ['未开始', '收集中', '已上传', '已审核', '已提交', '需补件'];
+    if (status && !validMaterialStatuses.includes(status)) return res.status(400).json({ error: `材料状态必须为 ${validMaterialStatuses.join('/')}` });
     if (application_id) {
       const app = db.get('SELECT id FROM applications WHERE id=? AND student_id=?', [application_id, sid]);
       if (!app) return res.status(400).json({ error: '申请记录不属于该学生' });
@@ -44,17 +52,20 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
   });
 
   router.put('/materials/:id', requireRole('principal','counselor','mentor','intake_staff'), (req, res) => {
-    if (!db.get('SELECT id FROM material_items WHERE id=?', [req.params.id])) {
-      return res.status(404).json({ error: '材料记录不存在' });
-    }
+    const existing = db.get('SELECT * FROM material_items WHERE id=?', [req.params.id]);
+    if (!existing) return res.status(404).json({ error: '材料记录不存在' });
     const { title, status, notes, reviewed_by, version } = req.body;
+    // BUG-C2: 合并已有值，防止 undefined 覆盖
+    const finalTitle = title !== undefined ? title : existing.title;
+    const finalStatus = status !== undefined ? status : existing.status;
+    const finalNotes = notes !== undefined ? notes : existing.notes;
+    const finalVersion = version !== undefined ? version : existing.version;
+    const finalReviewedBy = reviewed_by !== undefined ? reviewed_by : existing.reviewed_by;
     const now = new Date().toISOString();
-    const reviewed_at = reviewed_by ? now : null;
-    const _materialStatuses = _getSetting('material_statuses', ['未提交','已提交','已审核','需补充']);
-    const _submittedStatus = _materialStatuses[1] || '已提交';
-    const submitted_at = status === _submittedStatus ? now : null;
+    const reviewed_at = reviewed_by ? now : existing.reviewed_at;
+    const submitted_at = finalStatus === '已提交' ? (existing.submitted_at || now) : existing.submitted_at;
     db.run(`UPDATE material_items SET title=?,status=?,notes=?,reviewed_by=?,reviewed_at=?,submitted_at=?,version=?,updated_at=? WHERE id=?`,
-      [title, status, notes, reviewed_by||null, reviewed_at, submitted_at, version||1, now, req.params.id]);
+      [finalTitle, finalStatus, finalNotes, finalReviewedBy||null, reviewed_at, submitted_at, finalVersion||1, now, req.params.id]);
     res.json({ ok: true });
   });
 
@@ -118,30 +129,46 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     const u = req.session.user; const sid = req.params.id;
     if (u.role === 'student' && u.linked_id !== sid) return res.status(403).json({ error: '无权访问' });
     if (u.role === 'parent') return res.status(403).json({ error: '无权操作' });
-    const { application_id, content_json, q1_content, q2_content, q3_content } = req.body;
+    // BUG-H5: 检查学生是否存在
+    const student = db.get('SELECT id FROM students WHERE id=?', [sid]);
+    if (!student) return res.status(404).json({ error: '学生不存在' });
+    const { application_id, content_json, q1_content, q2_content, q3_content, status } = req.body;
+    // BUG-H4: status 白名单校验
+    const validPsStatuses = ['未开始', '草稿', '一审中', '需修改', '二审中', '定稿', '已提交'];
+    const finalStatus = status && validPsStatuses.includes(status) ? status : '草稿';
     const answers = Array.isArray(content_json) ? content_json : [q1_content||'', q2_content||'', q3_content||''];
     const c1 = answers[0]||'', c2 = answers[1]||'', c3 = answers[2]||'';
     const combined = answers.join('');
-    const existing = db.get('SELECT MAX(version) as mv FROM personal_statements WHERE student_id=?', [req.params.id]);
+    const existing = db.get('SELECT MAX(version) as mv FROM personal_statements WHERE student_id=?', [sid]);
     const version = (existing?.mv || 0) + 1;
     const id = uuidv4();
     const now = new Date().toISOString();
     db.run(`INSERT INTO personal_statements (id,student_id,application_id,version,status,q1_content,q2_content,q3_content,word_count,char_count,reviewer_id,review_notes,created_at,updated_at,content_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [id, req.params.id, application_id||null, version, '草稿', c1, c2, c3, combined.length, combined.length, null, '', now, now, JSON.stringify(answers)]);
+      [id, sid, application_id||null, version, finalStatus, c1, c2, c3, combined.length, combined.length, null, '', now, now, JSON.stringify(answers)]);
     res.json({ id, version });
   });
 
   router.put('/personal-statements/:id', requireAuth, (req, res) => {
-    const ps = db.get('SELECT student_id FROM personal_statements WHERE id=?', [req.params.id]);
+    const ps = db.get('SELECT * FROM personal_statements WHERE id=?', [req.params.id]);
     if (!ps) return res.status(404).json({ error: '个人陈述不存在' });
     const u = req.session.user;
     if (u.role === 'student' && u.linked_id !== ps.student_id) return res.status(403).json({ error: '无权访问' });
     if (u.role === 'parent') return res.status(403).json({ error: '无权操作' });
     const { content_json, q1_content, q2_content, q3_content, status, reviewer_id, review_notes } = req.body;
-    const answers = Array.isArray(content_json) ? content_json : [q1_content||'', q2_content||'', q3_content||''];
+    // BUG-H4: status 白名单校验
+    const validPsStatuses = ['未开始', '草稿', '一审中', '需修改', '二审中', '定稿', '已提交'];
+    const finalStatus = status !== undefined ? status : ps.status;
+    if (status !== undefined && !validPsStatuses.includes(status)) return res.status(400).json({ error: `状态必须为 ${validPsStatuses.join('/')}` });
+    // BUG-C3: 合并已有值，只更新传入的字段
+    const c1 = q1_content !== undefined ? q1_content : (content_json ? (content_json[0]||'') : ps.q1_content);
+    const c2 = q2_content !== undefined ? q2_content : (content_json ? (content_json[1]||'') : ps.q2_content);
+    const c3 = q3_content !== undefined ? q3_content : (content_json ? (content_json[2]||'') : ps.q3_content);
+    const answers = [c1||'', c2||'', c3||''];
     const combined = answers.join('');
+    const finalReviewNotes = review_notes !== undefined ? review_notes : ps.review_notes;
+    const finalReviewerId = reviewer_id !== undefined ? reviewer_id : ps.reviewer_id;
     db.run(`UPDATE personal_statements SET q1_content=?,q2_content=?,q3_content=?,content_json=?,status=?,char_count=?,reviewer_id=?,review_notes=?,updated_at=? WHERE id=?`,
-      [answers[0]||'', answers[1]||'', answers[2]||'', JSON.stringify(answers), status, combined.length, reviewer_id||null, review_notes||'', new Date().toISOString(), req.params.id]);
+      [answers[0], answers[1], answers[2], JSON.stringify(answers), finalStatus, combined.length, finalReviewerId||null, finalReviewNotes||'', new Date().toISOString(), req.params.id]);
     res.json({ ok: true });
   });
 

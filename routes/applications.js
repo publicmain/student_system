@@ -86,6 +86,12 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   router.post('/applications', requireRole('principal','counselor'), (req, res) => {
     const { student_id, university_id, uni_name, department, tier, cycle_year, route, submit_deadline, grade_type_used } = req.body;
     if (!student_id) return res.status(400).json({ error: 'student_id 必填' });
+    // BUG-C1: 必填字段校验
+    if (!uni_name || !uni_name.trim()) return res.status(400).json({ error: '学校名称必填' });
+    if (!tier || !tier.trim()) return res.status(400).json({ error: '申请层级必填' });
+    if (!cycle_year) return res.status(400).json({ error: '申请年份必填' });
+    if (!department || !department.trim()) return res.status(400).json({ error: '专业/院系必填' });
+    if (!submit_deadline) return res.status(400).json({ error: '截止日期必填' });
     const studentExists = db.get('SELECT id FROM students WHERE id=? AND status != "deleted"', [student_id]);
     if (!studentExists) return res.status(400).json({ error: '学生不存在或已归档' });
     const id = uuidv4();

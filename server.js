@@ -714,8 +714,9 @@ db.init().then(() => {
     _ensureIntakeStaffDemoAccount();
     _ensureStudentAdminDemoAccount();
     _ensureFinanceDemoAccount();
-    _importEsicStaffEmails();
   }
+  // ESIC 教职工导入（生产环境也需要）
+  _importEsicStaffEmails();
 
   // ── BUG-1 修复：为每个 intake_case 创建对应 student 记录并关联 ──
   try {

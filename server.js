@@ -590,6 +590,52 @@ function _ensureFinanceDemoAccount() {
   console.log('✅ 财务账号 finance 已创建（密码: 123456）');
 }
 
+// ── 导入 ESIC 教职工邮箱列表 ──
+function _importEsicStaffEmails() {
+  const esicStaff = [
+    { email: 'chmel_oon@esic.edu.sg', name: 'Chmel Oon' },
+    { email: 'contracts@esic.edu.sg', name: 'Contracts' },
+    { email: 'counsellor@esic.edu.sg', name: 'Counsellor' },
+    { email: 'exam@esic.edu.sg', name: 'Exam' },
+    { email: 'frank_fu@esic.edu.sg', name: 'Frank Fu' },
+    { email: 'info@esic.edu.sg', name: 'Info' },
+    { email: 'janet_jin@esic.edu.sg', name: 'Janet Jin' },
+    { email: 'jiaran_guan@esic.edu.sg', name: 'Jiaran Guan' },
+    { email: 'jin_sun@esic.edu.sg', name: 'Jin Sun' },
+    { email: 'junjie_xu@esic.edu.sg', name: 'Junjie Xu' },
+    { email: 'kexiang_yao@esic.edu.sg', name: 'Kexiang Yao' },
+    { email: 'leelan_chong@esic.edu.sg', name: 'Leelan Chong' },
+    { email: 'lidong_yu@esic.edu.sg', name: 'Lidong Yu' },
+    { email: 'mandy_chong@esic.edu.sg', name: 'Mandy Chong' },
+    { email: 'nancy_nie@esic.edu.sg', name: 'Nancy Nie' },
+    { email: 'nicole_ooi@esic.edu.sg', name: 'Nicole Ooi' },
+    { email: 'stanley_lim@esic.edu.sg', name: 'Stanley Lim' },
+    { email: 'xiaofeng_wen@esic.edu.sg', name: 'Xiaofeng Wen' },
+    { email: 'yanjie_cui@esic.edu.sg', name: 'Yanjie Cui' },
+    { email: 'yu_wen@esic.edu.sg', name: 'Yu Wen' },
+    { email: 'yushi_zheng@esic.edu.sg', name: 'Yushi Zheng' },
+    { email: 'yuxin_gong@esic.edu.sg', name: 'Yuxin Gong' },
+  ];
+  let added = 0;
+  for (const s of esicStaff) {
+    const exists = db.get('SELECT id FROM staff WHERE email=?', [s.email]);
+    if (exists) continue;
+    const staffId = uuidv4();
+    const now = new Date().toISOString();
+    db.run(`INSERT INTO staff VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [staffId, s.name, 'counselor', '[]', '[]', 20, s.email, '', now, now]);
+    // 创建用户账号: 用邮箱前缀作为用户名
+    const username = s.email.split('@')[0];
+    const existsUser = db.get('SELECT id FROM users WHERE username=?', [username]);
+    if (!existsUser) {
+      db.run(`INSERT INTO users (id,username,password,role,linked_id,name,created_at,must_change_password) VALUES (?,?,?,?,?,?,?,1)`,
+        [uuidv4(), username, bcrypt.hashSync('123456', 10), 'counselor', staffId, s.name, now]);
+    }
+    added++;
+  }
+  if (added > 0) console.log(`✅ 导入 ${added} 名 ESIC 教职工`);
+}
+
 // ═══════════════════════════════════════════════════════
 //  启动
 // ═══════════════════════════════════════════════════════
@@ -668,6 +714,7 @@ db.init().then(() => {
     _ensureIntakeStaffDemoAccount();
     _ensureStudentAdminDemoAccount();
     _ensureFinanceDemoAccount();
+    _importEsicStaffEmails();
   }
 
   // ── BUG-1 修复：为每个 intake_case 创建对应 student 记录并关联 ──

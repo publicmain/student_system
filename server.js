@@ -826,6 +826,35 @@ db.init().then(() => {
     }
   } catch(e) { console.error('[startup] principal账号创建失败:', e.message); }
 
+  // ── 清除残留演示学生 v3 ──
+  try {
+    const v3Done = db.get("SELECT value FROM settings WHERE key='demo_cleanup_v3'");
+    if (!v3Done) {
+      const residual = ['刘浩然', '林佳怡', '王雅欣', '赵天宇', '陈美琳'];
+      const cascadeTables = [
+        'applications', 'target_uni_lists', 'mentor_assignments',
+        'milestone_tasks', 'subject_enrollments', 'material_items',
+        'communication_logs', 'feedback', 'essays', 'admission_assessments',
+        'personal_statements', 'exam_sittings', 'admission_evaluations',
+        'benchmark_evaluations', 'student_parents',
+      ];
+      for (const name of residual) {
+        const stu = db.get('SELECT id FROM students WHERE name=?', [name]);
+        if (stu) {
+          for (const tbl of cascadeTables) {
+            try { db.run(`DELETE FROM ${tbl} WHERE student_id=?`, [stu.id]); } catch(e) {}
+          }
+          try { db.run('UPDATE intake_cases SET student_id=NULL WHERE student_id=?', [stu.id]); } catch(e) {}
+          try { db.run("DELETE FROM users WHERE role='student' AND linked_id=?", [stu.id]); } catch(e) {}
+          db.run('DELETE FROM students WHERE id=?', [stu.id]);
+          console.log(`[cleanup-v3] 删除残留演示学生: ${name}`);
+        }
+      }
+      db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('demo_cleanup_v3', '\"true\"')");
+      console.log('[cleanup-v3] ✅ 残留演示学生清除完成');
+    }
+  } catch(e) { console.error('[cleanup-v3] 失败:', e.message); }
+
   // ── BUG-1 修复：为每个 intake_case 创建对应 student 记录并关联 ──
   try {
     const casesNoStudent = db.all("SELECT id, student_name, program_name, intake_year FROM intake_cases WHERE student_id IS NULL AND student_name IS NOT NULL");

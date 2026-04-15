@@ -733,6 +733,16 @@ db.init().then(() => {
     }
   } catch(e) { console.error('[migration] ESIC角色更新失败:', e.message); }
 
+  // ── 确保始终有一个 principal 账号 ──
+  try {
+    const hasPrincipal = db.get("SELECT id FROM users WHERE username='principal'");
+    if (!hasPrincipal) {
+      db.run(`INSERT INTO users (id,username,password,role,name,created_at) VALUES (?,?,?,?,?,datetime('now'))`,
+        [uuidv4(), 'principal', bcrypt.hashSync('123456', 10), 'principal', '管理员']);
+      console.log('[startup] ✅ 创建 principal 账号 (principal / 123456)');
+    }
+  } catch(e) { console.error('[startup] principal账号创建失败:', e.message); }
+
   // ── 清除演示数据，只保留真实学生和 ESIC 教职工 ──
   try {
     const cleanupDone = db.get("SELECT value FROM settings WHERE key='demo_data_cleaned_v2'");

@@ -429,6 +429,14 @@ function createSchema() {
     created_at                 TEXT DEFAULT (datetime('now'))
   )`);
 
+  // ── S1: 每用户通知已读跟踪 ──
+  db.run(`CREATE TABLE IF NOT EXISTS notification_reads (
+    notification_id TEXT NOT NULL,
+    user_id         TEXT NOT NULL,
+    read_at         TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (notification_id, user_id)
+  )`);
+
   // ── ALTER TABLE 渐进式扩展（try/catch 兼容旧库） ───────
   const tryAlter = (sql) => { try { db.run(sql); } catch(e) {} };
   // 学生：出生日期、来源代理

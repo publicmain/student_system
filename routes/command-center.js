@@ -613,9 +613,9 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
         ? `${app.student_name} · ${app.uni_name} 已逾期 ${Math.abs(app.days_left)} 天`
         : `${app.student_name} · ${app.uni_name} 距截止还剩 ${app.days_left} 天`;
 
-      // 避免重复：检查近24h内是否已有同申请的风险通知
+      // S2修复: 统一去重——title 中包含院校名，24h 内不重复
       const existing = db.get(
-        `SELECT id FROM notification_logs WHERE student_id=? AND type=? AND message LIKE ? AND created_at > datetime('now', '-1 day')`,
+        `SELECT id FROM notification_logs WHERE student_id=? AND type=? AND title LIKE ? AND created_at > datetime('now', '-1 day')`,
         [app.student_id, type, `%${app.uni_name}%`]
       );
       if (existing) continue;
@@ -623,7 +623,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiCallA
       db.run(`INSERT INTO notification_logs (id, student_id, type, title, message, target_role, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [uuidv4(), app.student_id, type, title,
-         `申请「${app.uni_name}」截止日：${app.submit_deadline}，当前状态：${app.status}`,
+         `院校：${app.uni_name}，截止日：${app.submit_deadline}`,
          'counselor', now]);
       created++;
     }

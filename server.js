@@ -363,7 +363,8 @@ app.use('/api', require('./routes/materials')(deps));
 app.use('/api', require('./routes/settings')(deps));
 
 // Notifications / Escalation / Audit
-app.use('/api', require('./routes/notifications')(deps));
+const notifRouter = require('./routes/notifications')(deps);
+app.use('/api', notifRouter);
 
 // Analytics + ICS Calendar (overview & calendar only)
 app.use('/api', require('./routes/analytics')(deps));
@@ -1075,60 +1076,17 @@ db.init().then(() => {
     res.json(result);
   });
 
-  // ── N7: 启动时自动生成通知 + 定时每小时刷新 ──
-  function _autoGenerateNotifications() {
+  // ── S2修复: 启动时自动生成通知 + 定时每小时刷新（调用共享函数，不再重复代码） ──
+  try {
+    const created = notifRouter._generateNotifications();
+    if (created > 0) console.log(`[auto-notify] ✅ 启动时自动生成 ${created} 条通知`);
+  } catch(e) { console.error('[auto-notify] 启动生成失败:', e.message); }
+  setInterval(() => {
     try {
-      const now = new Date();
-      const policies = db.all('SELECT * FROM escalation_policies');
-      const tasks = db.all(`SELECT mt.*, s.name as student_name FROM milestone_tasks mt JOIN students s ON s.id=mt.student_id WHERE mt.status NOT IN ('done') AND mt.due_date IS NOT NULL`);
-      let created = 0;
-      for (const task of tasks) {
-        const due = new Date(task.due_date);
-        const diffDays = Math.round((due - now) / (1000 * 60 * 60 * 24));
-        for (const policy of policies) {
-          const triggerDays = JSON.parse(policy.trigger_days || '[]');
-          for (const td of triggerDays) {
-            const shouldTrigger = (td >= 0) ? (diffDays <= td && diffDays >= 0) : (diffDays <= td);
-            if (shouldTrigger) {
-              const existing = db.get('SELECT id FROM notification_logs WHERE task_id=? AND trigger_days=?', [task.id, td]);
-              if (!existing) {
-                const title = td > 0 ? `距截止还有 ${Math.max(diffDays,0)} 天` : (td === 0 ? '今日截止！' : `已逾期 ${Math.abs(diffDays)} 天`);
-                db.run(`INSERT INTO notification_logs (id,student_id,task_id,type,trigger_days,title,message,target_role,created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
-                  [uuidv4(), task.student_id, task.id, diffDays < 0 ? 'overdue' : 'deadline_reminder', td,
-                   `${task.student_name}·${task.title}｜${title}`, `任务"${task.title}"截止日：${task.due_date}，当前状态：${task.status}`,
-                   policy.escalate_to_role, new Date().toISOString()]);
-                created++;
-              }
-            }
-          }
-        }
-      }
-      // 扫描申请截止日
-      try {
-        const apps = db.all(`SELECT a.*, s.name as student_name FROM applications a JOIN students s ON s.id=a.student_id WHERE a.status IN ('pending','in_progress','待提交','已提交','申请中') AND a.submit_deadline IS NOT NULL`);
-        for (const app of apps) {
-          const due = new Date(app.submit_deadline);
-          const diffDays = Math.round((due - now) / (1000 * 60 * 60 * 24));
-          if (diffDays <= 7) {
-            const type = diffDays < 0 ? 'overdue' : 'deadline_reminder';
-            const existing = db.get(`SELECT id FROM notification_logs WHERE student_id=? AND type=? AND message LIKE ? AND created_at > datetime('now', '-1 day')`,
-              [app.student_id, type, `%${app.uni_name || app.id}%`]);
-            if (!existing) {
-              const title = diffDays < 0
-                ? `${app.student_name}·${app.uni_name || '院校'}申请已逾期 ${Math.abs(diffDays)} 天`
-                : `${app.student_name}·${app.uni_name || '院校'}申请距截止还有 ${diffDays} 天`;
-              db.run(`INSERT INTO notification_logs (id,student_id,type,title,message,target_role,created_at) VALUES (?,?,?,?,?,?,?)`,
-                [uuidv4(), app.student_id, type, title, `院校：${app.uni_name || '未知'}，截止日：${app.submit_deadline}`, 'counselor', new Date().toISOString()]);
-              created++;
-            }
-          }
-        }
-      } catch(e) {}
-      if (created > 0) console.log(`[auto-notify] ✅ 自动生成 ${created} 条通知`);
-    } catch(e) { console.error('[auto-notify] 失败:', e.message); }
-  }
-  _autoGenerateNotifications();
-  setInterval(_autoGenerateNotifications, 60 * 60 * 1000); // 每小时自动扫描
+      const created = notifRouter._generateNotifications();
+      if (created > 0) console.log(`[auto-notify] ✅ 定时生成 ${created} 条通知`);
+    } catch(e) { console.error('[auto-notify] 定时生成失败:', e.message); }
+  }, 60 * 60 * 1000);
 
   sessionStore.setDb(db);
   app.listen(PORT, () => {

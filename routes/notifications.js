@@ -17,14 +17,22 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   }
 
   // ── 构建角色过滤 WHERE 子句 ──
+  // N13修复: principal 作为超级管理员可看到所有通知
   function _buildNotifWhere(u) {
     let where = [];
     let params = [];
-    if (u.role === 'student') {
+    if (u.role === 'principal') {
+      // 校长看到所有通知（超管全局可见）
+      where.push('1=1');
+    } else if (u.role === 'student') {
       where.push('n.student_id=?'); params.push(u.linked_id);
     } else if (u.role === 'parent') {
       where.push('n.student_id IN (SELECT student_id FROM student_parents WHERE parent_id=?)');
       params.push(u.linked_id);
+    } else if (u.role === 'counselor') {
+      // 规划师看到：指向自己的、指向 counselor 角色的、全局的、以及有 student_id 的
+      where.push('(n.target_user_id=? OR n.target_role=? OR (n.target_role IS NULL AND n.target_user_id IS NULL) OR n.student_id IS NOT NULL)');
+      params.push(u.id, 'counselor');
     } else if (u.role === 'mentor') {
       where.push('(n.student_id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?) OR n.target_user_id=? OR n.target_role=?)');
       params.push(u.linked_id, u.id, 'mentor');
@@ -35,8 +43,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
       where.push('(n.target_user_id=? OR n.target_role=?)');
       params.push(u.id, 'finance');
     } else {
-      // principal/counselor
-      where.push('(n.target_user_id=? OR n.target_role=? OR (n.target_role IS NULL AND n.target_user_id IS NULL))');
+      // 其他角色：只看到指向自己的
+      where.push('(n.target_user_id=? OR n.target_role=?)');
       params.push(u.id, u.role);
     }
     return { whereStr: `WHERE ${where.join(' AND ')}`, params };

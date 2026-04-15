@@ -2057,8 +2057,9 @@ function seedData() {
     }
   }
 
-  // ── 演示学生（5名，幂等追加，无论是否已有其他数据）──────
-  if (!get("SELECT id FROM students WHERE name='陈美琳'")) {
+  // ── 演示学生（5名，幂等追加）——如已执行过清理则跳过 ──────
+  const _demoCleanedAny = get("SELECT value FROM settings WHERE key='demo_data_cleaned_v2'") || get("SELECT value FROM settings WHERE key='demo_cleanup_v3'");
+  if (!_demoCleanedAny && !get("SELECT id FROM students WHERE name='陈美琳'")) {
     const dnow = new Date().toISOString();
     const { v4: _uuid } = require('uuid');
     const uid = () => _uuid();
@@ -2652,7 +2653,7 @@ function seedData() {
   const existing = get('SELECT COUNT(*) as cnt FROM users');
   if (existing && existing.cnt > 0) {
     // 已有数据 → 跳过演示数据（已切换到仅真实数据模式）
-    const cleaned = get("SELECT value FROM settings WHERE key='demo_data_cleaned'");
+    const cleaned = get("SELECT value FROM settings WHERE key='demo_data_cleaned'") || get("SELECT value FROM settings WHERE key='demo_data_cleaned_v2'") || get("SELECT value FROM settings WHERE key='demo_cleanup_v3'");
     if (!cleaned) {
       try {
         const demo = require('./seed-demo');

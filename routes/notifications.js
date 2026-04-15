@@ -240,9 +240,11 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     const u = req.session.user;
     const { whereStr, params } = _buildNotifWhere(u);
     // 查出当前用户可见且未读的通知 id
+    // N14修复: 加 is_read=0 与 count 端点保持一致（排除旧已读通知）
     const unreadIds = db.all(`SELECT n.id FROM notification_logs n
       ${whereStr}
       AND n.type != 'resolved'
+      AND n.is_read = 0
       AND n.id NOT IN (SELECT notification_id FROM notification_reads WHERE user_id=?)`,
       [...params, u.id]);
 

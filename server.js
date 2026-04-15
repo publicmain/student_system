@@ -718,6 +718,87 @@ db.init().then(() => {
   // ESIC 教职工导入（生产环境也需要）
   _importEsicStaffEmails();
 
+  // ── 清除演示数据，只保留真实学生和 ESIC 教职工 ──
+  try {
+    const cleanupDone = db.get("SELECT value FROM settings WHERE key='demo_data_cleaned'");
+    if (!cleanupDone) {
+      console.log('[cleanup] 开始清除演示数据...');
+
+      // 1. 识别真实学生（从 migration-import-students 导入的，有 migration_source 标记或通过名单匹配）
+      //    真实学生的特征：由 migration-import-students.js 导入，名字在真实名单中
+      const realStudentNames = [
+        'Wang Zhangxin','Liu Sixuan','Hein Htet Naing','Mu Ge','Wang Chenxu','Wang Chenyu',
+        'Kong Fanjin','Yan Jinnuo','Li Mingyang','Lei Zerui','Zhu Zhenhao','Li Chun',
+        'Mao Silin','Wang Yaoxing','Ye Shurui','Tian Chang','Tian Shuo','Niu Xinglin',
+        'Lin Yinjia','Zheng Jingxi','Zheng Xiyu','Fan Enhui','Yu Yaocheng','Yu Xiaoting','Yu Xiaoping',
+        'Yang Tong','Yang Chenshuo','Li Jiayan','Jiang Xinyu','Zhang Yimeng','Su Yiying',
+        'Huang Yutai','Chen Jiaen','Jia Deshi','Zheng Ruishang','Zhong Ruitao','Liu Yijia',
+        'Wang Ziliang','Zhou Siyuan','Lu Xinnan','Zhuang Ziyue','Cai Qingdou','Zhou Zixin',
+        'Liu Yicun','Zhang Yiteng','Wang Qianpeng','Yan Wenhan','Li Yongxuan',
+      ];
+      const placeholders = realStudentNames.map(() => '?').join(',');
+      const demoStudents = db.all(`SELECT id, name FROM students WHERE name NOT IN (${placeholders})`, realStudentNames);
+      console.log(`[cleanup] 发现 ${demoStudents.length} 名演示学生需删除`);
+
+      // 2. 级联删除演示学生的所有关联数据
+      const cascadeTables = [
+        'applications', 'target_uni_lists', 'mentor_assignments',
+        'milestone_tasks', 'subject_enrollments', 'material_items',
+        'communication_logs', 'feedback', 'essays', 'admission_assessments',
+        'personal_statements', 'exam_sittings', 'admission_evaluations',
+        'benchmark_evaluations', 'student_parents',
+      ];
+      for (const s of demoStudents) {
+        for (const tbl of cascadeTables) {
+          try { db.run(`DELETE FROM ${tbl} WHERE student_id=?`, [s.id]); } catch(e) {}
+        }
+        try { db.run('UPDATE intake_cases SET student_id=NULL WHERE student_id=?', [s.id]); } catch(e) {}
+        db.run('DELETE FROM students WHERE id=?', [s.id]);
+        console.log(`[cleanup]   删除演示学生: ${s.name} (${s.id})`);
+      }
+
+      // 3. 删除演示教职工（非 ESIC 邮箱的）
+      const demoStaff = db.all("SELECT id, name, email FROM staff WHERE email NOT LIKE '%@esic.edu.sg'");
+      for (const s of demoStaff) {
+        // 删除关联用户账号
+        db.run('DELETE FROM users WHERE linked_id=?', [s.id]);
+        // 删除导师分配
+        try { db.run('DELETE FROM mentor_assignments WHERE staff_id=?', [s.id]); } catch(e) {}
+        try { db.run('DELETE FROM staff_credentials WHERE staff_id=?', [s.id]); } catch(e) {}
+        db.run('DELETE FROM staff WHERE id=?', [s.id]);
+        console.log(`[cleanup]   删除演示教职工: ${s.name} (${s.email})`);
+      }
+
+      // 4. 删除演示用户（学生、家长等残留账号）
+      const demoUsers = db.all("SELECT id, username, role FROM users WHERE role IN ('student','parent') OR username IN ('student1','parent1','su_parent','sophie','agent01')");
+      for (const u of demoUsers) {
+        db.run('DELETE FROM users WHERE id=?', [u.id]);
+        console.log(`[cleanup]   删除演示用户: ${u.username} (${u.role})`);
+      }
+
+      // 5. 删除孤儿 parent_guardians
+      try { db.run("DELETE FROM parent_guardians WHERE id NOT IN (SELECT DISTINCT parent_id FROM student_parents)"); } catch(e) {}
+
+      // 6. 确保有一个 principal 账号可以登录（提升第一个 ESIC 教职工）
+      const hasPrincipal = db.get("SELECT id FROM users WHERE role='principal'");
+      if (!hasPrincipal) {
+        const firstStaff = db.get("SELECT id, name FROM staff WHERE email LIKE '%@esic.edu.sg' ORDER BY name LIMIT 1");
+        if (firstStaff) {
+          const existingUser = db.get("SELECT id FROM users WHERE linked_id=?", [firstStaff.id]);
+          if (existingUser) {
+            db.run("UPDATE users SET role='principal' WHERE id=?", [existingUser.id]);
+            db.run("UPDATE staff SET role='principal' WHERE id=?", [firstStaff.id]);
+            console.log(`[cleanup]   将 ${firstStaff.name} 提升为 principal`);
+          }
+        }
+      }
+
+      // 7. 标记已清理，不再重复执行
+      db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('demo_data_cleaned', '\"true\"')");
+      console.log('[cleanup] ✅ 演示数据清除完成');
+    }
+  } catch(e) { console.error('[cleanup] 演示数据清除失败:', e.message); }
+
   // ── BUG-1 修复：为每个 intake_case 创建对应 student 记录并关联 ──
   try {
     const casesNoStudent = db.all("SELECT id, student_name, program_name, intake_year FROM intake_cases WHERE student_id IS NULL AND student_name IS NOT NULL");

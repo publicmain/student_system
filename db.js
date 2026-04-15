@@ -2651,12 +2651,15 @@ function seedData() {
   // 检查是否已有数据
   const existing = get('SELECT COUNT(*) as cnt FROM users');
   if (existing && existing.cnt > 0) {
-    // 已有数据 → 只补全演示数据
-    try {
-      const demo = require('./seed-demo');
-      demo.seedDemo({ run, get, all, save });
-      demo.enrichExistingStudents({ run, get, all, save });
-    } catch(e) { console.error('[DB] seed-demo error:', e.message); }
+    // 已有数据 → 跳过演示数据（已切换到仅真实数据模式）
+    const cleaned = get("SELECT value FROM settings WHERE key='demo_data_cleaned'");
+    if (!cleaned) {
+      try {
+        const demo = require('./seed-demo');
+        demo.seedDemo({ run, get, all, save });
+        demo.enrichExistingStudents({ run, get, all, save });
+      } catch(e) { console.error('[DB] seed-demo error:', e.message); }
+    }
     save(); return;
   }
 
@@ -3149,12 +3152,12 @@ function seedData() {
   if (_oaBefore) console.log(`[DB] Cleaned ${_oaBefore} orphan applications`);
   if (_omBefore) console.log(`[DB] Cleaned ${_omBefore} orphan mentor_assignments`);
 
-  // ── 演示用学生数据（苏瑶 + 林子轩 + 补全已有学生）────────
-  try {
-    const demo = require('./seed-demo');
-    demo.seedDemo({ run, get, all, save });
-    demo.enrichExistingStudents({ run, get, all, save });
-  } catch(e) { console.error('[DB] seed-demo error:', e.message); }
+  // ── 演示用学生数据（已禁用 — 仅保留真实数据）────────
+  // try {
+  //   const demo = require('./seed-demo');
+  //   demo.seedDemo({ run, get, all, save });
+  //   demo.enrichExistingStudents({ run, get, all, save });
+  // } catch(e) { console.error('[DB] seed-demo error:', e.message); }
 
   // 确保所有 seedData 写入的数据持久化到磁盘
   save();

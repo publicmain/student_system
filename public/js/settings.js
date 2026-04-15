@@ -1706,17 +1706,24 @@ async function deleteTemplateFromSettings(templateId, name) {
 // ════════════════════════════════════════════════════════
 async function loadNotificationBadge() {
   try {
-    // S5修复: 用轻量 /count 端点替代拉取全部通知
-    const res = await GET('/api/notifications/count');
-    const unread = res.unread || 0;
+    // S5: 优先用轻量 /count 端点，失败则 fallback 到全量列表
+    let unread = 0;
+    try {
+      const res = await GET('/api/notifications/count');
+      unread = res.unread || 0;
+    } catch(e) {
+      // fallback: 拉全量列表计数
+      const notifs = await GET('/api/notifications');
+      unread = notifs.filter(n => !n.is_read).length;
+      // 如果面板已打开，刷新面板内容
+      const panel = document.getElementById('notif-panel');
+      if (panel && panel.style.display !== 'none') renderNotifList(notifs);
+    }
     const badge = document.getElementById('notif-badge');
     if (badge) {
       badge.textContent = unread > 0 ? (unread > 99 ? '99+' : unread) : '';
       badge.style.display = unread > 0 ? '' : 'none';
     }
-    // 如果面板已打开，刷新面板内容
-    const panel = document.getElementById('notif-panel');
-    if (panel && panel.style.display !== 'none') loadNotificationsPanel();
   } catch(e) {}
 }
 

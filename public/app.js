@@ -4221,8 +4221,16 @@ function bindEvents() {
   document.getElementById('save-tpl-item-btn').onclick = saveTemplateItem;
   document.getElementById('save-exam-sitting-btn').onclick = saveExamSitting;
   document.getElementById('notif-bell-btn').onclick = toggleNotifPanel;
-  document.getElementById('notif-generate-btn').onclick = generateNotifications;
   document.getElementById('notif-read-all-btn').onclick = markAllNotificationsRead;
+  // generate 按钮只对 principal/counselor/mentor 可见
+  const _genBtn = document.getElementById('notif-generate-btn');
+  if (_genBtn) {
+    if (['principal','counselor','mentor'].includes(user.role)) {
+      _genBtn.onclick = generateNotifications;
+    } else {
+      _genBtn.style.display = 'none';
+    }
+  }
 
 }
 
@@ -4260,9 +4268,9 @@ function initApp() {
 
   setupNavForRole(user.role);
 
-  // 通知铃（counselor/principal/intake_staff/student_admin 可见）
+  // 通知铃（除 agent 外所有角色可见）
   const bellWrap = document.getElementById('notif-bell-wrap');
-  if (bellWrap && ['principal','counselor','intake_staff','student_admin'].includes(user.role)) {
+  if (bellWrap && !['agent'].includes(user.role)) {
     bellWrap.classList.remove('d-none');
     loadNotificationBadge();
     if (window._notifBadgeTimer) clearInterval(window._notifBadgeTimer);

@@ -17,23 +17,31 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   //  P1.4 NOTIFICATIONS（通知与升级）
   // ═══════════════════════════════════════════════════════
 
-  // 生成通知（按需触发，检查即将到期/已逾期任务）
-  router.post('/notifications/generate', requireRole('principal','counselor'), (req, res) => {
+  // 生成通知（按需触发，检查即将到期/已逾期任务和申请）
+  router.post('/notifications/generate', requireRole('principal','counselor','mentor'), (req, res) => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
     const policies = db.all('SELECT * FROM escalation_policies');
-    const tasks = db.all(`SELECT mt.*, s.name as student_name FROM milestone_tasks mt JOIN students s ON s.id=mt.student_id WHERE mt.status NOT IN ('done') AND mt.due_date IS NOT NULL`);
     let created = 0;
+
+    // ── 1. 扫描 milestone_tasks ──
+    const tasks = db.all(`SELECT mt.*, s.name as student_name FROM milestone_tasks mt JOIN students s ON s.id=mt.student_id WHERE mt.status NOT IN ('done') AND mt.due_date IS NOT NULL`);
     for (const task of tasks) {
       const due = new Date(task.due_date);
       const diffDays = Math.round((due - now) / (1000 * 60 * 60 * 24));
       for (const policy of policies) {
         const triggerDays = JSON.parse(policy.trigger_days || '[]');
         for (const td of triggerDays) {
-          if (diffDays === td) {
+          // N5修复: 用范围匹配替代精确匹配
+          // 正数 trigger (提前提醒): diffDays <= td 且 diffDays > 前一个更小的 trigger
+          // 负数 trigger (逾期提醒): diffDays <= td
+          const shouldTrigger = (td >= 0)
+            ? (diffDays <= td && diffDays >= 0)   // 距截止 td 天内
+            : (diffDays <= td);                    // 已逾期超过 |td| 天
+          if (shouldTrigger) {
             const existing = db.get('SELECT id FROM notification_logs WHERE task_id=? AND trigger_days=?', [task.id, td]);
             if (!existing) {
-              const title = td > 0 ? `距截止还有 ${td} 天` : (td === 0 ? '今日截止！' : `已逾期 ${Math.abs(td)} 天`);
+              const title = td > 0 ? `距截止还有 ${Math.max(diffDays,0)} 天` : (td === 0 ? '今日截止！' : `已逾期 ${Math.abs(diffDays)} 天`);
               db.run(`INSERT INTO notification_logs (id,student_id,task_id,type,trigger_days,title,message,target_role,created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
                 [uuidv4(), task.student_id, task.id,
                  diffDays < 0 ? 'overdue' : 'deadline_reminder', td,
@@ -46,9 +54,36 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
         }
       }
     }
+
+    // ── 2. 扫描 applications 截止日 ──
+    try {
+      const apps = db.all(`SELECT a.*, s.name as student_name FROM applications a JOIN students s ON s.id=a.student_id WHERE a.status IN ('pending','in_progress','待提交','已提交','申请中') AND a.submit_deadline IS NOT NULL`);
+      for (const app of apps) {
+        const due = new Date(app.submit_deadline);
+        const diffDays = Math.round((due - now) / (1000 * 60 * 60 * 24));
+        // 7天内到期或已逾期
+        if (diffDays <= 7) {
+          const type = diffDays < 0 ? 'overdue' : 'deadline_reminder';
+          const existing = db.get(`SELECT id FROM notification_logs WHERE student_id=? AND type=? AND message LIKE ? AND created_at > datetime('now', '-1 day')`,
+            [app.student_id, type, `%${app.uni_name || app.id}%`]);
+          if (!existing) {
+            const title = diffDays < 0
+              ? `${app.student_name}·${app.uni_name || '院校'}申请已逾期 ${Math.abs(diffDays)} 天`
+              : `${app.student_name}·${app.uni_name || '院校'}申请距截止还有 ${diffDays} 天`;
+            db.run(`INSERT INTO notification_logs (id,student_id,type,title,message,target_role,created_at) VALUES (?,?,?,?,?,?,?)`,
+              [uuidv4(), app.student_id, type, title,
+               `院校：${app.uni_name || '未知'}，截止日：${app.submit_deadline}`,
+               'counselor', new Date().toISOString()]);
+            created++;
+          }
+        }
+      }
+    } catch(e) { /* applications table might not have submit_deadline */ }
+
     res.json({ created });
   });
 
+  // ── 获取通知列表 ──
   router.get('/notifications', requireAuth, (req, res) => {
     const u = req.session.user;
     // agent 无权查看系统通知
@@ -61,15 +96,18 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
       where.push('n.student_id IN (SELECT student_id FROM student_parents WHERE parent_id=?)');
       params.push(u.linked_id);
     } else if (u.role === 'mentor') {
-      where.push('n.student_id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?)');
-      params.push(u.linked_id);
+      // N3修复: mentor 看自己管理的学生通知 + 直接点名 + 角色广播
+      where.push('(n.student_id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?) OR n.target_user_id=? OR n.target_role=?)');
+      params.push(u.linked_id, u.id, 'mentor');
     } else if (u.role === 'intake_staff' || u.role === 'student_admin') {
-      // 入学管理角色：只看入学相关通知（target_role 匹配或直接点名）
       where.push('(n.target_user_id=? OR n.target_role=?)');
       params.push(u.id, u.role);
+    } else if (u.role === 'finance') {
+      where.push('(n.target_user_id=? OR n.target_role=?)');
+      params.push(u.id, 'finance');
     } else {
-      // 其他角色(principal/counselor)：看自己被直接点名的通知 OR 按角色广播的通知
-      where.push('(n.target_user_id=? OR (n.target_role=? AND n.target_user_id IS NULL) OR (n.target_role IS NULL AND n.target_user_id IS NULL))');
+      // principal/counselor：自己被直接点名 OR 按角色广播 OR 全局通知(无指定对象)
+      where.push('(n.target_user_id=? OR n.target_role=? OR (n.target_role IS NULL AND n.target_user_id IS NULL))');
       params.push(u.id, u.role);
     }
     const whereStr = `WHERE ${where.join(' AND ')}`;
@@ -77,27 +115,62 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     res.json(notifs);
   });
 
+  // ── N2修复: 标记已读 — 放宽权限，只要能看到就能标记已读 ──
   router.put('/notifications/:id/read', requireAuth, (req, res) => {
     const notification = db.get('SELECT * FROM notification_logs WHERE id=?', [req.params.id]);
     if (!notification) return res.status(404).json({ error: '通知不存在' });
     const u = req.session.user;
-    const ownerById = notification.target_user_id && notification.target_user_id === u.id;
-    const ownerByRole = notification.target_role && notification.target_role === u.role;
-    if (!ownerById && !ownerByRole) {
+
+    // 权限检查：能看到这条通知就能标记已读
+    let canRead = false;
+    if (u.role === 'principal' || u.role === 'counselor') {
+      // principal/counselor 可以看到所有匹配的通知
+      canRead = true;
+    } else if (notification.target_user_id === u.id) {
+      canRead = true;
+    } else if (notification.target_role === u.role) {
+      canRead = true;
+    } else if (u.role === 'student' && notification.student_id === u.linked_id) {
+      canRead = true;
+    } else if (u.role === 'mentor') {
+      const assignment = db.get('SELECT 1 FROM mentor_assignments WHERE staff_id=? AND student_id=?', [u.linked_id, notification.student_id]);
+      if (assignment) canRead = true;
+    } else if (u.role === 'parent') {
+      const link = db.get('SELECT 1 FROM student_parents WHERE parent_id=? AND student_id=?', [u.linked_id, notification.student_id]);
+      if (link) canRead = true;
+    }
+
+    if (!canRead) {
       return res.status(403).json({ error: '无权操作此通知' });
     }
     db.run('UPDATE notification_logs SET is_read=1, read_at=? WHERE id=?', [new Date().toISOString(), req.params.id]);
     res.json({ ok: true });
   });
 
+  // ── N3修复: 全部已读 — 按角色动态构建 WHERE 条件 ──
   router.put('/notifications/read-all', requireAuth, (req, res) => {
     const now = new Date().toISOString();
     const u = req.session.user;
     if (u.role === 'student') {
       db.run('UPDATE notification_logs SET is_read=1, read_at=? WHERE student_id=? AND is_read=0', [now, u.linked_id]);
-    } else {
+    } else if (u.role === 'mentor') {
       db.run(`UPDATE notification_logs SET is_read=1, read_at=? WHERE is_read=0
-        AND (target_user_id=? OR (target_role=? AND target_user_id IS NULL) OR (target_role IS NULL AND target_user_id IS NULL))`,
+        AND (student_id IN (SELECT student_id FROM mentor_assignments WHERE staff_id=?) OR target_user_id=? OR target_role='mentor')`,
+        [now, u.linked_id, u.id]);
+    } else if (u.role === 'parent') {
+      db.run(`UPDATE notification_logs SET is_read=1, read_at=? WHERE is_read=0
+        AND student_id IN (SELECT student_id FROM student_parents WHERE parent_id=?)`,
+        [now, u.linked_id]);
+    } else if (u.role === 'finance') {
+      db.run(`UPDATE notification_logs SET is_read=1, read_at=? WHERE is_read=0
+        AND (target_user_id=? OR target_role='finance')`, [now, u.id]);
+    } else if (u.role === 'intake_staff' || u.role === 'student_admin') {
+      db.run(`UPDATE notification_logs SET is_read=1, read_at=? WHERE is_read=0
+        AND (target_user_id=? OR target_role=?)`, [now, u.id, u.role]);
+    } else {
+      // principal/counselor
+      db.run(`UPDATE notification_logs SET is_read=1, read_at=? WHERE is_read=0
+        AND (target_user_id=? OR target_role=? OR (target_role IS NULL AND target_user_id IS NULL))`,
         [now, u.id, u.role]);
     }
     res.json({ ok: true });

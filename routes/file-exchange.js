@@ -607,10 +607,11 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     db.run(`UPDATE file_exchange_records SET status='replied', replied_at=datetime('now'), updated_at=datetime('now') WHERE id=?`, [rec.id]);
     fxLog(rec.id, rec.case_id, 'student_uploaded_reply', 'student', rec.student_name||'学生', `上传：${req.file.originalname}`, req.ip);
     try {
-      const ic = db.get('SELECT student_name FROM intake_cases WHERE id=?', [rec.case_id]);
+      // N11修复: 取出 student_id，通知关联到学生
+      const ic = db.get('SELECT student_name, student_id FROM intake_cases WHERE id=?', [rec.case_id]);
       db.all(`SELECT id FROM users WHERE role IN ('principal','intake_staff')`).forEach(u => {
         db.run(`INSERT INTO notification_logs(id,student_id,type,title,message,target_user_id,created_at) VALUES(?,?,?,?,?,?,datetime('now'))`,
-          [uuidv4(), null, 'system', '学生已上传回传文件',
+          [uuidv4(), ic?.student_id||null, 'system', '学生已上传回传文件',
            `${ic?.student_name||rec.student_name||'学生'} 已上传文件《${rec.title}》的回传件，请查看。`, u.id]);
       });
     } catch(e) { console.error('回传通知失败:', e.message); }
@@ -641,10 +642,11 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
       [allDone ? 'replied' : 'awaiting_upload', rec.id]);
     fxLog(rec.id, rec.case_id, 'student_uploaded_item', 'student', rec.student_name||'学生', `上传：${itemName} (${req.file.originalname})`, req.ip);
     try {
-      const ic = db.get('SELECT student_name FROM intake_cases WHERE id=?', [rec.case_id]);
+      // N11修复: 取出 student_id，通知关联到学生
+      const ic = db.get('SELECT student_name, student_id FROM intake_cases WHERE id=?', [rec.case_id]);
       db.all(`SELECT id FROM users WHERE role IN ('principal','intake_staff')`).forEach(u => {
         db.run(`INSERT INTO notification_logs(id,student_id,type,title,message,target_user_id,created_at) VALUES(?,?,?,?,?,?,datetime('now'))`,
-          [uuidv4(), null, 'system', '学生已上传文件',
+          [uuidv4(), ic?.student_id||null, 'system', '学生已上传文件',
            `${ic?.student_name||rec.student_name||'学生'} 已上传「${itemName}」(${req.file.originalname})`, u.id]);
       });
     } catch(e) {}
@@ -755,11 +757,12 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
       [fileId, send.case_id, 'signed_contract', `已签合同（${send.student_name||'学生'}）`, req.file.filename, req.file.originalname, req.file.size, 'student', send.student_name||'学生']);
     db.run(`UPDATE case_file_sends SET completed_at=datetime('now'), result_file_id=? WHERE token=?`, [fileId, req.params.token]);
     try {
-      const ic = db.get('SELECT student_name FROM intake_cases WHERE id=?', [send.case_id]);
+      // N11修复: 取出 student_id，通知关联到学生
+      const ic = db.get('SELECT student_name, student_id FROM intake_cases WHERE id=?', [send.case_id]);
       const staffUsers = db.all(`SELECT id FROM users WHERE role IN ('principal','intake_staff')`);
       staffUsers.forEach(u => {
         db.run(`INSERT INTO notification_logs(id,student_id,type,title,message,target_role,target_user_id,created_at) VALUES(?,?,?,?,?,?,?,datetime('now'))`,
-          [uuidv4(), null, 'system', '学生已上传已签合同',
+          [uuidv4(), ic?.student_id||null, 'system', '学生已上传已签合同',
            `${ic?.student_name||send.student_name||'学生'} 已通过链接上传了已签合同，请查看。`,
            u.role || 'intake_staff', u.id]);
       });
@@ -860,11 +863,12 @@ function submitSig() {
       [sigId, send.case_id, send.id, signer_name||send.student_name, signature_data, req.ip]);
     db.run(`UPDATE case_file_sends SET completed_at=datetime('now') WHERE token=?`, [req.params.token]);
     try {
-      const ic = db.get('SELECT student_name FROM intake_cases WHERE id=?', [send.case_id]);
+      // N11修复: 取出 student_id，通知关联到学生
+      const ic = db.get('SELECT student_name, student_id FROM intake_cases WHERE id=?', [send.case_id]);
       const staffUsers = db.all(`SELECT id FROM users WHERE role IN ('principal','intake_staff')`);
       staffUsers.forEach(u => {
         db.run(`INSERT INTO notification_logs(id,student_id,type,title,message,target_role,target_user_id,created_at) VALUES(?,?,?,?,?,?,?,datetime('now'))`,
-          [uuidv4(), null, 'system', '学生已完成签字',
+          [uuidv4(), ic?.student_id||null, 'system', '学生已完成签字',
            `${ic?.student_name||signer_name||'学生'} 已通过链接完成签字。`,
            'intake_staff', u.id]);
       });

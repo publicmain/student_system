@@ -245,7 +245,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
     const { status } = req.body;
     const validStatuses = _getSetting('intake_case_statuses', ['registered','collecting_docs','contract_signed','visa_in_progress','ipa_received','paid','arrived','oriented','closed']);
     if (!validStatuses.includes(status)) return res.status(400).json({ error: '无效状态' });
-    const prev = db.get('SELECT status, student_name FROM intake_cases WHERE id=?', [req.params.id]);
+    // N11修复: 同时取出 student_id，用于通知关联
+    const prev = db.get('SELECT status, student_name, student_id FROM intake_cases WHERE id=?', [req.params.id]);
     if (!prev) return res.status(404).json({ error: 'Case 不存在' });
     // BUG-001: student_admin 仅可操作 arrived/oriented 阶段，与前端一致
     if (req.session.user.role === 'student_admin' && !['arrived','oriented'].includes(status)) {
@@ -301,7 +302,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
         const adminUsers = db.all(`SELECT id FROM users WHERE role='student_admin'`);
         if (adminUsers.length > 0) {
           const vals = adminUsers.map(() => `(?,?,?,?,?,?,?,datetime('now'))`).join(',');
-          const args = adminUsers.flatMap(u => [uuidv4(), null, 'system',
+          // N11修复: 传入 prev.student_id 替代 null
+          const args = adminUsers.flatMap(u => [uuidv4(), prev.student_id||null, 'system',
             '学生已到校', `${studentName} 已到校，请开始跟进 Orientation 流程`, 'student_admin', u.id]);
           db.run(`INSERT INTO notification_logs(id,student_id,type,title,message,target_role,target_user_id,created_at) VALUES ${vals}`, args);
         }
@@ -314,7 +316,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
         const intakeUsers = db.all(`SELECT id FROM users WHERE role='intake_staff'`);
         if (intakeUsers.length > 0) {
           const vals2 = intakeUsers.map(() => `(?,?,?,?,?,?,?,datetime('now'))`).join(',');
-          const args2 = intakeUsers.flatMap(u => [uuidv4(), null, 'system', '案例已顺利移交',
+          // N11修复: 传入 prev.student_id 替代 null
+          const args2 = intakeUsers.flatMap(u => [uuidv4(), prev.student_id||null, 'system', '案例已顺利移交',
             `${studentName} 已完成入学登记，案例已移交学管老师跟进，你的前期工作已完成。`, 'intake_staff', u.id]);
           db.run(`INSERT INTO notification_logs(id,student_id,type,title,message,target_role,target_user_id,created_at) VALUES ${vals2}`, args2);
         }

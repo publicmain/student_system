@@ -162,10 +162,11 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     const u = req.session.user;
     if (u.role === 'agent') return res.json({ unread: 0 });
     const { whereStr, params } = _buildNotifWhere(u);
-    // S1: 用 notification_reads 判断已读
+    // N8修复: 同时考虑旧 is_read=1 和新 notification_reads 表
     const row = db.get(`SELECT COUNT(*) as cnt FROM notification_logs n
       ${whereStr}
       AND n.type != 'resolved'
+      AND n.is_read = 0
       AND n.id NOT IN (SELECT notification_id FROM notification_reads WHERE user_id=?)`,
       [...params, u.id]);
     res.json({ unread: row?.cnt || 0 });
@@ -180,8 +181,9 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     if (u.role === 'agent') return res.status(403).json({ error: '权限不足' });
     const { whereStr, params } = _buildNotifWhere(u);
     // S1: LEFT JOIN notification_reads 来判断当前用户是否已读
+    // N8修复: 兼容旧 is_read=1 标记（迁移前已标记的全局已读）
     const notifs = db.all(`SELECT n.*, s.name as student_name,
-        CASE WHEN nr.user_id IS NOT NULL THEN 1 ELSE 0 END as is_read,
+        CASE WHEN nr.user_id IS NOT NULL OR n.is_read = 1 THEN 1 ELSE 0 END as is_read,
         nr.read_at
       FROM notification_logs n
       LEFT JOIN students s ON s.id=n.student_id

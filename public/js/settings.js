@@ -1738,6 +1738,16 @@ function toggleNotifPanel() {
   }
 }
 
+// N10修复: 点击面板外部自动关闭通知面板
+document.addEventListener('click', function(e) {
+  const panel = document.getElementById('notif-panel');
+  if (!panel || panel.style.display === 'none') return;
+  const bellBtn = document.getElementById('notif-bell-btn');
+  // 点击在面板内部或铃铛按钮上，不关闭
+  if (panel.contains(e.target) || (bellBtn && bellBtn.contains(e.target))) return;
+  panel.style.display = 'none';
+});
+
 async function loadNotificationsPanel() {
   const listEl = document.getElementById('notif-list');
   if (!listEl) return;
@@ -1795,7 +1805,8 @@ async function generateNotifications() {
   } catch(e) { showError(e.message); }
   finally {
     const btn = document.getElementById('notif-generate-btn');
-    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i>'; }
+    // N12修复: 恢复为原始 bi-magic 图标（不是 bi-arrow-clockwise）
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-magic"></i>'; }
   }
 }
 

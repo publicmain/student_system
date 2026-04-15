@@ -260,9 +260,10 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, require
       const ic = db.get(`SELECT * FROM intake_cases WHERE id=?`, [link.case_id]);
       const adminUsers = db.all(`SELECT u.id, s.email FROM users u JOIN staff s ON s.id=u.linked_id WHERE u.role='student_admin'`);
       for (const u of adminUsers) {
+        // N11修复: 传入 student_id，通知关联到学生
         db.run(`INSERT INTO notification_logs(id,student_id,type,title,message,target_role,target_user_id,created_at)
           VALUES(?,?,?,?,?,?,?,datetime('now'))`,
-          [uuidv4(), null, 'system',
+          [uuidv4(), ic?.student_id||null, 'system',
            '满意度调查已提交',
            `${ic?.student_name || '学生'} 已完成满意度调查（${overall_satisfaction}星）`,
            'student_admin', u.id]);

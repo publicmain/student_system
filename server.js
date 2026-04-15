@@ -855,6 +855,20 @@ db.init().then(() => {
     }
   } catch(e) { console.error('[cleanup-v3] 失败:', e.message); }
 
+  // ── 修正 chmel_oon 角色为 mentor（之前被误提升为 principal） ──
+  try {
+    const fixDone = db.get("SELECT value FROM settings WHERE key='fix_chmel_role'");
+    if (!fixDone) {
+      const chmelStaff = db.get("SELECT id FROM staff WHERE email='chmel_oon@esic.edu.sg'");
+      if (chmelStaff) {
+        db.run("UPDATE staff SET role='mentor' WHERE id=?", [chmelStaff.id]);
+        db.run("UPDATE users SET role='mentor' WHERE linked_id=?", [chmelStaff.id]);
+        console.log('[migration] ✅ 修正 chmel_oon 角色为 mentor');
+      }
+      db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('fix_chmel_role', '\"true\"')");
+    }
+  } catch(e) { console.error('[migration] chmel_oon角色修正失败:', e.message); }
+
   // ── BUG-1 修复：为每个 intake_case 创建对应 student 记录并关联 ──
   try {
     const casesNoStudent = db.all("SELECT id, student_name, program_name, intake_year FROM intake_cases WHERE student_id IS NULL AND student_name IS NOT NULL");

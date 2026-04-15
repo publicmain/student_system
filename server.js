@@ -869,6 +869,23 @@ db.init().then(() => {
     }
   } catch(e) { console.error('[migration] chmel_oon角色修正失败:', e.message); }
 
+  // ── 每次启动无条件清除演示学生（防止任何途径重建） ──
+  try {
+    const demoNames = ['陈美琳','刘浩然','王雅欣','赵天宇','林佳怡','苏瑶','林子轩','张三','李四','王五','姚可翔','陈雨桐','张天翔','李思雨','王浩然','刘欣怡','赵明轩','周子涵','吴佳琪','黄子豪','孙悦然'];
+    const ph = demoNames.map(() => '?').join(',');
+    const found = db.all(`SELECT id, name FROM students WHERE name IN (${ph})`, demoNames);
+    if (found.length > 0) {
+      const cascadeTables = ['applications','target_uni_lists','mentor_assignments','milestone_tasks','subject_enrollments','material_items','communication_logs','feedback','essays','admission_assessments','personal_statements','exam_sittings','admission_evaluations','benchmark_evaluations','student_parents'];
+      for (const s of found) {
+        for (const tbl of cascadeTables) { try { db.run(`DELETE FROM ${tbl} WHERE student_id=?`, [s.id]); } catch(e) {} }
+        try { db.run('UPDATE intake_cases SET student_id=NULL WHERE student_id=?', [s.id]); } catch(e) {}
+        try { db.run("DELETE FROM users WHERE role='student' AND linked_id=?", [s.id]); } catch(e) {}
+        db.run('DELETE FROM students WHERE id=?', [s.id]);
+      }
+      console.log(`[startup] ✅ 清除 ${found.length} 名演示学生: ${found.map(s=>s.name).join(', ')}`);
+    }
+  } catch(e) { console.error('[startup] 演示学生清除失败:', e.message); }
+
   // ── BUG-1 修复：为每个 intake_case 创建对应 student 记录并关联 ──
   try {
     const casesNoStudent = db.all("SELECT id, student_name, program_name, intake_year FROM intake_cases WHERE student_id IS NULL AND student_name IS NOT NULL");

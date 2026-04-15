@@ -4225,7 +4225,7 @@ function bindEvents() {
   // generate 按钮只对 principal/counselor/mentor 可见
   const _genBtn = document.getElementById('notif-generate-btn');
   if (_genBtn) {
-    if (['principal','counselor','mentor'].includes(user.role)) {
+    if (['principal','counselor','mentor'].includes(State.user?.role)) {
       _genBtn.onclick = generateNotifications;
     } else {
       _genBtn.style.display = 'none';

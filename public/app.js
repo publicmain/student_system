@@ -81,6 +81,10 @@ function canAccessPage(page) {
 // ════════════════════════════════════════════════════════
 //  仪表盘路由（根据角色分流）
 // ════════════════════════════════════════════════════════
+function exportDashboardPDF() {
+  window.print();
+}
+
 async function renderDashboard() {
   if (State.user?.role === 'counselor') return renderCounselorDashboard();
   return renderPrincipalDashboard();

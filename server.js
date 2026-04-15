@@ -623,13 +623,13 @@ function _importEsicStaffEmails() {
     const staffId = uuidv4();
     const now = new Date().toISOString();
     db.run(`INSERT INTO staff VALUES (?,?,?,?,?,?,?,?,?,?)`,
-      [staffId, s.name, 'counselor', '[]', '[]', 20, s.email, '', now, now]);
+      [staffId, s.name, 'mentor', '[]', '[]', 20, s.email, '', now, now]);
     // 创建用户账号: 用邮箱前缀作为用户名
     const username = s.email.split('@')[0];
     const existsUser = db.get('SELECT id FROM users WHERE username=?', [username]);
     if (!existsUser) {
       db.run(`INSERT INTO users (id,username,password,role,linked_id,name,created_at,must_change_password) VALUES (?,?,?,?,?,?,?,1)`,
-        [uuidv4(), username, bcrypt.hashSync('123456', 10), 'counselor', staffId, s.name, now]);
+        [uuidv4(), username, bcrypt.hashSync('123456', 10), 'mentor', staffId, s.name, now]);
     }
     added++;
   }
@@ -717,6 +717,21 @@ db.init().then(() => {
   }
   // ESIC 教职工导入（生产环境也需要）
   _importEsicStaffEmails();
+
+  // ── 将所有 ESIC 员工角色统一改为 mentor ──
+  try {
+    const migDone = db.get("SELECT value FROM settings WHERE key='esic_role_to_mentor'");
+    if (!migDone) {
+      // 更新 staff 表：所有 ESIC 邮箱员工（除 principal 外）改为 mentor
+      db.run("UPDATE staff SET role='mentor' WHERE email LIKE '%@esic.edu.sg' AND role != 'principal'");
+      // 更新对应 users 表
+      db.run(`UPDATE users SET role='mentor' WHERE linked_id IN (
+        SELECT id FROM staff WHERE email LIKE '%@esic.edu.sg' AND role='mentor'
+      ) AND role != 'principal'`);
+      db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('esic_role_to_mentor', '\"true\"')");
+      console.log('[migration] ✅ 所有 ESIC 员工角色已改为 mentor');
+    }
+  } catch(e) { console.error('[migration] ESIC角色更新失败:', e.message); }
 
   // ── 清除演示数据，只保留真实学生和 ESIC 教职工 ──
   try {

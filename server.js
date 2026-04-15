@@ -733,16 +733,6 @@ db.init().then(() => {
     }
   } catch(e) { console.error('[migration] ESIC角色更新失败:', e.message); }
 
-  // ── 确保始终有一个 principal 账号 ──
-  try {
-    const hasPrincipal = db.get("SELECT id FROM users WHERE username='principal'");
-    if (!hasPrincipal) {
-      db.run(`INSERT INTO users (id,username,password,role,name,created_at) VALUES (?,?,?,?,?,datetime('now'))`,
-        [uuidv4(), 'principal', bcrypt.hashSync('123456', 10), 'principal', '管理员']);
-      console.log('[startup] ✅ 创建 principal 账号 (principal / 123456)');
-    }
-  } catch(e) { console.error('[startup] principal账号创建失败:', e.message); }
-
   // ── 清除演示数据，只保留真实学生和 ESIC 教职工 ──
   try {
     const cleanupDone = db.get("SELECT value FROM settings WHERE key='demo_data_cleaned_v2'");
@@ -791,7 +781,7 @@ db.init().then(() => {
       }
 
       // 4. 删除演示用户账号（学生、家长、已知演示用户名）
-      const demoUsernames = ['student1','parent1','su_parent','sophie','agent01','principal','counselor','mentor','guan','xiaoming','finance'];
+      const demoUsernames = ['student1','parent1','su_parent','sophie','agent01','counselor','mentor','guan','xiaoming','finance'];
       for (const un of demoUsernames) {
         db.run('DELETE FROM users WHERE username=?', [un]);
       }
@@ -825,6 +815,16 @@ db.init().then(() => {
       console.log('[cleanup-v2] ✅ 演示数据清除完成');
     }
   } catch(e) { console.error('[cleanup] 演示数据清除失败:', e.message); }
+
+  // ── 确保始终有一个 principal 账号（放在清理之后，避免被清理删掉） ──
+  try {
+    const hasPrincipal = db.get("SELECT id FROM users WHERE username='principal'");
+    if (!hasPrincipal) {
+      db.run(`INSERT INTO users (id,username,password,role,name,created_at) VALUES (?,?,?,?,?,datetime('now'))`,
+        [uuidv4(), 'principal', bcrypt.hashSync('123456', 10), 'principal', '管理员']);
+      console.log('[startup] ✅ 创建 principal 账号 (principal / 123456)');
+    }
+  } catch(e) { console.error('[startup] principal账号创建失败:', e.message); }
 
   // ── BUG-1 修复：为每个 intake_case 创建对应 student 记录并关联 ──
   try {

@@ -8,32 +8,31 @@
  * 依赖：students 表必须已有（由 migration-import-students.js 保证）。
  * 如找不到匹配学生（按 name 精确匹配），跳过该条 enrollment/sitting 并记录警告。
  *
- * 只执行一次（通过 settings.key='seed_course_matrix_v1' 门槛）。
+ * 幂等：按每张表各自是否达到完整阈值来判断是否需要补。
+ * 不再用总 flag 门槛——这样即使某次部署中途失败，下次启动会继续补。
  */
 'use strict';
 const fs = require('fs');
 const path = require('path');
 
 function runSeed(db, uuidv4) {
-  // 门槛
-  try {
-    const done = db.get("SELECT value FROM settings WHERE key='seed_course_matrix_v1'");
-    if (done) return false;
-  } catch(e) {}
-
   const seedPath = path.join(__dirname, '..', 'data', 'course-matrix-seed.json');
   if (!fs.existsSync(seedPath)) {
     console.log('[seed-cm] 未找到 data/course-matrix-seed.json，跳过');
     return false;
   }
 
-  // 若 courses 已有数据，跳过（防止生产已经手动导入过）
-  const existingCourses = db.get('SELECT COUNT(*) c FROM courses');
-  if (existingCourses && existingCourses.c > 0) {
-    console.log(`[seed-cm] courses 已有 ${existingCourses.c} 条记录，跳过种子`);
-    try { db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('seed_course_matrix_v1', ?)", [new Date().toISOString()]); } catch(e) {}
+  // 每张表独立判断是否需要补：任何一张表空都会触发对应补丁（而非全部靠一个总闸门）
+  const courseCount = (db.get('SELECT COUNT(*) c FROM courses') || {}).c || 0;
+  const ceCount = (db.get('SELECT COUNT(*) c FROM course_enrollments') || {}).c || 0;
+  const seCount = (db.get('SELECT COUNT(*) c FROM subject_enrollments') || {}).c || 0;
+  const esCount = (db.get('SELECT COUNT(*) c FROM exam_sittings') || {}).c || 0;
+  // 所有关键表都"看起来完整"就跳过（避免对已有数据反复 upsert）
+  if (courseCount >= 30 && ceCount >= 150 && seCount >= 150) {
+    console.log(`[seed-cm] 数据已完整 (courses=${courseCount} ce=${ceCount} se=${seCount})，跳过`);
     return false;
   }
+  console.log(`[seed-cm] 启动补种：courses=${courseCount} ce=${ceCount} se=${seCount} es=${esCount}`);
 
   const data = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
   const now = new Date().toISOString();
@@ -167,9 +166,6 @@ function runSeed(db, uuidv4) {
       stats.skipped++;
     }
   }
-
-  // 标记完成
-  db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('seed_course_matrix_v1', ?)", [now]);
 
   console.log(`[seed-cm] ✅ 课程矩阵种子完成:`,
     `classrooms+${stats.classrooms}, teachers+${stats.teachers}, courses+${stats.courses},`,

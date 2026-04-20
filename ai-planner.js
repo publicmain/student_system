@@ -200,27 +200,29 @@ function buildStudentSnapshot(db, studentId, options = {}) {
   // ─── 个人陈述（已完成的最新版摘要） ─────────────────────────
   let personalStatement = null;
   try {
-    const ps = db.get(`SELECT content, updated_at FROM personal_statements WHERE student_id=? ORDER BY updated_at DESC LIMIT 1`, [studentId]);
-    if (ps && ps.content) {
-      const txt = String(ps.content);
-      personalStatement = {
-        word_count: txt.trim().split(/\s+/).length,
-        excerpt: txt.length > 1200 ? txt.slice(0, 1200) + '…' : txt,
-        updated_at: ps.updated_at,
-      };
+    const ps = db.get(`SELECT q1_content, q2_content, q3_content, word_count, updated_at FROM personal_statements WHERE student_id=? ORDER BY updated_at DESC LIMIT 1`, [studentId]);
+    if (ps) {
+      const txt = [ps.q1_content, ps.q2_content, ps.q3_content].filter(Boolean).join('\n\n');
+      if (txt) {
+        personalStatement = {
+          word_count: ps.word_count || txt.trim().split(/\s+/).length,
+          excerpt: txt.length > 1200 ? txt.slice(0, 1200) + '…' : txt,
+          updated_at: ps.updated_at,
+        };
+      }
     }
   } catch(e) {}
 
   // ─── 近期沟通记录（最多 10 条摘要） ─────────────────────────
   let communications = [];
   try {
-    communications = db.all(`SELECT comm_type, topic, summary, created_at FROM communication_logs WHERE student_id=? ORDER BY created_at DESC LIMIT 10`, [studentId]);
+    communications = db.all(`SELECT channel, summary, action_items, COALESCE(comm_date, created_at) AS event_date FROM communication_logs WHERE student_id=? ORDER BY COALESCE(comm_date, created_at) DESC LIMIT 10`, [studentId]);
   } catch(e) {}
 
   // ─── 反馈（学生/家长/导师评价，供识别痛点） ─────────────────
   let feedback = [];
   try {
-    feedback = db.all(`SELECT from_role, category, rating, content, created_at FROM feedback WHERE student_id=? ORDER BY created_at DESC LIMIT 10`, [studentId]);
+    feedback = db.all(`SELECT from_role, feedback_type, rating, content, created_at FROM feedback WHERE student_id=? ORDER BY created_at DESC LIMIT 10`, [studentId]);
   } catch(e) {}
 
   // ─── 扩展档案（兴趣、目标、学习风格） ────────────────────────
@@ -298,12 +300,13 @@ function buildStudentSnapshot(db, studentId, options = {}) {
     } : { personal_statement: null },
     engagement: {
       recent_communications: communications.map(c => ({
-        type: c.comm_type, topic: c.topic ? `[DATA: ${c.topic}]` : null,
+        channel: c.channel,
         summary: c.summary ? `[DATA: ${String(c.summary).slice(0, 250)}]` : null,
-        date: c.created_at,
+        action_items: c.action_items ? `[DATA: ${String(c.action_items).slice(0, 150)}]` : null,
+        date: c.event_date,
       })),
       recent_feedback: feedback.map(f => ({
-        from_role: f.from_role, category: f.category, rating: f.rating,
+        from_role: f.from_role, feedback_type: f.feedback_type, rating: f.rating,
         content: f.content ? `[DATA: ${String(f.content).slice(0, 250)}]` : null,
         date: f.created_at,
       })),

@@ -139,7 +139,7 @@ async function generateCounselorBriefing(db, counselorStaffId, options = {}) {
   // 新收到的反馈
   try {
     events.recent_feedback = db.all(`
-      SELECT f.student_id, s.name AS student_name, f.from_role, f.category, f.rating, f.content, f.created_at
+      SELECT f.student_id, s.name AS student_name, f.from_role, f.feedback_type, f.rating, f.content, f.created_at
       FROM feedback f JOIN students s ON s.id=f.student_id
       WHERE f.student_id IN (${inClause}) AND f.created_at >= ?
       ORDER BY f.created_at DESC LIMIT 10`, [...studentIds, lookbackIso]);

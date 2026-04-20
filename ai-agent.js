@@ -230,7 +230,7 @@ async function executeTool(name, input, ctx) {
     case 'get_exam_sittings': {
       return db.all(`
         SELECT exam_board, subject, component, subject_code, series, year,
-               predicted_grade, actual_grade, sitting_date, session, status
+               predicted_grade, actual_grade, sitting_date, status, is_resit
         FROM exam_sittings WHERE student_id=?
         ORDER BY sitting_date, series`, [studentId]);
     }
@@ -269,24 +269,24 @@ async function executeTool(name, input, ctx) {
       if (_isRestrictedRole(user.role)) throw new Error('该工具仅限工作人员');
       const limit = Math.min(Math.max(parseInt(input.limit || 10), 1), 30);
       return db.all(`
-        SELECT comm_type, topic, summary, created_at
+        SELECT channel, summary, action_items, comm_date, created_at
         FROM communication_logs WHERE student_id=?
-        ORDER BY created_at DESC LIMIT ?`, [studentId, limit]);
+        ORDER BY COALESCE(comm_date, created_at) DESC LIMIT ?`, [studentId, limit]);
     }
     case 'get_feedback': {
       if (_isRestrictedRole(user.role)) throw new Error('该工具仅限工作人员');
       return db.all(`
-        SELECT from_role, category, rating, content, created_at
+        SELECT from_role, feedback_type, rating, content, status, response, created_at
         FROM feedback WHERE student_id=?
         ORDER BY created_at DESC LIMIT 20`, [studentId]);
     }
     case 'get_personal_statement': {
       const ps = db.get(`
-        SELECT content, word_count, version, status, updated_at
+        SELECT q1_content, q2_content, q3_content, word_count, version, status, updated_at
         FROM personal_statements WHERE student_id=?
         ORDER BY version DESC LIMIT 1`, [studentId]);
       if (!ps) return { exists: false };
-      const content = String(ps.content || '');
+      const combined = [ps.q1_content, ps.q2_content, ps.q3_content].filter(Boolean).join('\n\n');
       // 家长/学生只见字数不见内容
       if (_isRestrictedRole(user.role)) {
         return { exists: true, word_count: ps.word_count, version: ps.version, status: ps.status, updated_at: ps.updated_at };
@@ -294,7 +294,8 @@ async function executeTool(name, input, ctx) {
       return {
         exists: true,
         word_count: ps.word_count, version: ps.version, status: ps.status, updated_at: ps.updated_at,
-        content: content.length > 3000 ? content.slice(0, 3000) + '…[截断]' : content,
+        content: combined.length > 3000 ? combined.slice(0, 3000) + '…[截断]' : combined,
+        has_q1: !!ps.q1_content, has_q2: !!ps.q2_content, has_q3: !!ps.q3_content,
       };
     }
     case 'get_latest_ai_plan': {
@@ -349,10 +350,16 @@ async function executeTool(name, input, ctx) {
     case 'add_communication': {
       _requireWriteRole(user.role);
       if (!input.type || !input.topic || !input.summary) throw new Error('type/topic/summary 必填');
+      // 映射 type → channel（schema 里用 channel 字段存渠道）
+      const channelMap = { phone:'电话', meeting:'面谈', email:'邮件', wechat:'微信', other:'其他' };
+      const channel = channelMap[input.type] || input.type;
+      // topic 和 summary 合并到 summary 字段（schema 里没单独 topic 列）
+      const combined = `[${input.topic}] ${input.summary}`;
       const id = uuidv4();
-      db.run(`INSERT INTO communication_logs (id, student_id, comm_type, topic, summary, created_by, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
-        [id, studentId, input.type, input.topic, input.summary, user.id]);
+      const staffId = (user.role === 'counselor' || user.role === 'mentor' || user.role === 'principal') ? user.linked_id : null;
+      db.run(`INSERT INTO communication_logs (id, student_id, staff_id, channel, summary, comm_date, created_at)
+              VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        [id, studentId, staffId, channel, combined]);
       if (audit && req) audit(req, 'AI_AGENT_CREATE', 'communication_logs', id, { topic: input.topic, via: 'ai_agent' });
       return { ok: true, log_id: id, message: `已记录沟通: ${input.topic}` };
     }
@@ -381,9 +388,11 @@ async function executeTool(name, input, ctx) {
       if (!input.note) throw new Error('note 必填');
       // 把批注作为一条新 communication_log 存档（简化：不改 PS 本体；用户可在 UI 手动采纳）
       const id = uuidv4();
-      db.run(`INSERT INTO communication_logs (id, student_id, comm_type, topic, summary, created_by, created_at)
-              VALUES (?, ?, 'other', ?, ?, ?, datetime('now'))`,
-        [id, studentId, '个人陈述批注（AI Agent）', String(input.note).slice(0, 2000), user.id]);
+      const staffId = user.linked_id || null;
+      const summary = `[个人陈述批注（AI Agent）] ${String(input.note).slice(0, 2000)}`;
+      db.run(`INSERT INTO communication_logs (id, student_id, staff_id, channel, summary, comm_date, created_at)
+              VALUES (?, ?, ?, '批注', ?, datetime('now'), datetime('now'))`,
+        [id, studentId, staffId, summary]);
       if (audit && req) audit(req, 'AI_AGENT_CREATE', 'communication_logs', id, { type: 'ps_note', via: 'ai_agent' });
       return { ok: true, note_id: id, message: '批注已保存到沟通记录' };
     }

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-20T04:54:47.362Z",
+  "generated_at": "2026-04-20T05:13:30.785Z",
   "note": "由本地 DB 导出。服务端启动时在空库场景下种入。",
   "classrooms": [
     {
@@ -9489,6 +9489,352 @@
       "is_resit": 0,
       "resit_of": null,
       "notes": null
+    }
+  ],
+  "parents": [
+    {
+      "student_name": "Chen Jiaen",
+      "parent_name": "陈佳恩家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "jchen001A"
+    },
+    {
+      "student_name": "Fan Enhui",
+      "parent_name": "范恩慧家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "efan001A"
+    },
+    {
+      "student_name": "Hein Htet Naing",
+      "parent_name": "Austin家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "austin001A"
+    },
+    {
+      "student_name": "Huang Yutai",
+      "parent_name": "黄裕钛家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "yhuang001A"
+    },
+    {
+      "student_name": "Jiang Xinyu",
+      "parent_name": "蒋昕雨家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "xjiang001A"
+    },
+    {
+      "student_name": "Kong Fanjin",
+      "parent_name": "孔凡今家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "fkong001A"
+    },
+    {
+      "student_name": "Lei Zerui",
+      "parent_name": "雷泽锐家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "zlei001A"
+    },
+    {
+      "student_name": "Li Chun",
+      "parent_name": "李淳家长",
+      "relation": "家长",
+      "phone": "13803138953",
+      "email": "",
+      "wechat": "lichun001A"
+    },
+    {
+      "student_name": "Li Mingyang",
+      "parent_name": "李明阳家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "myli001A"
+    },
+    {
+      "student_name": "Li Yongxuan",
+      "parent_name": "李永轩家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "yli001A"
+    },
+    {
+      "student_name": "Lin Yinjia",
+      "parent_name": "林寅嘉家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "ylin001A"
+    },
+    {
+      "student_name": "Liu Sixuan",
+      "parent_name": "刘思璇家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "sxliu001A"
+    },
+    {
+      "student_name": "Liu Yicun",
+      "parent_name": "刘钇村家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "yliu001A"
+    },
+    {
+      "student_name": "Liu Yijia",
+      "parent_name": "刘亦佳家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "yliu002A"
+    },
+    {
+      "student_name": "Lu Xinnan",
+      "parent_name": "陆鑫楠家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "xlu001A"
+    },
+    {
+      "student_name": "Mao Silin",
+      "parent_name": "毛思琳家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "a123456"
+    },
+    {
+      "student_name": "Mu Ge",
+      "parent_name": "牟歌家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "muge001A"
+    },
+    {
+      "student_name": "Niu Xinglin",
+      "parent_name": "牛星林家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "xniu001A"
+    },
+    {
+      "student_name": "Su Yiying",
+      "parent_name": "苏逸滢家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "ysu001A"
+    },
+    {
+      "student_name": "Tian Chang",
+      "parent_name": "田昌家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "ctian001A"
+    },
+    {
+      "student_name": "Tian Shuo",
+      "parent_name": "田硕家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "stian001A"
+    },
+    {
+      "student_name": "Wang Chenxu",
+      "parent_name": "Wang Chenxu家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "cxwang001A"
+    },
+    {
+      "student_name": "Wang Chenyu",
+      "parent_name": "Wang Chenyu家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "cywang001A"
+    },
+    {
+      "student_name": "Wang Qianpeng",
+      "parent_name": "王芊芃家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "qpwang001A"
+    },
+    {
+      "student_name": "Wang Yaoxing",
+      "parent_name": "王耀星家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "yxwang001A"
+    },
+    {
+      "student_name": "Wang Zhangxin",
+      "parent_name": "王张欣家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "zwang001A"
+    },
+    {
+      "student_name": "Wang Zhangxin",
+      "parent_name": "苏建国",
+      "relation": "父",
+      "phone": "13612345678",
+      "email": "sujg@email.com",
+      "wechat": "sujg_wechat"
+    },
+    {
+      "student_name": "Wang Ziliang",
+      "parent_name": "王子梁家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "zlwang001A"
+    },
+    {
+      "student_name": "Yan Jinnuo",
+      "parent_name": "严锦诺家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "jyan001A"
+    },
+    {
+      "student_name": "Yan Wenhan",
+      "parent_name": "闫雯涵家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "wyan001A"
+    },
+    {
+      "student_name": "Yang Tong",
+      "parent_name": "杨桐家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "tyang001A"
+    },
+    {
+      "student_name": "Ye Shurui",
+      "parent_name": "叶书瑞家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "sye001A"
+    },
+    {
+      "student_name": "Yu Xiaoping",
+      "parent_name": "Xiaoping家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "xiaoping001A"
+    },
+    {
+      "student_name": "Yu Xiaoting",
+      "parent_name": "Yu Xiaoting家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "xiaoting001A"
+    },
+    {
+      "student_name": "Yu Yaocheng",
+      "parent_name": "喻耀程家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "yyu001A"
+    },
+    {
+      "student_name": "Zheng Jingxi",
+      "parent_name": "郑靖稀家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "jzheng001A"
+    },
+    {
+      "student_name": "Zheng Ruishang",
+      "parent_name": "郑瑞尚家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "rzheng001A"
+    },
+    {
+      "student_name": "Zheng Xiyu",
+      "parent_name": "郑稀瑜家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "xzheng001A"
+    },
+    {
+      "student_name": "Zhong Ruitao",
+      "parent_name": "钟睿韬家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "rzhong001A"
+    },
+    {
+      "student_name": "Zhou Siyuan",
+      "parent_name": "周思源家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "szhou001A"
+    },
+    {
+      "student_name": "Zhou Zixin",
+      "parent_name": "周梓昕家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "zzhou001A"
+    },
+    {
+      "student_name": "Zhu Zhenhao",
+      "parent_name": "祝振豪家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "zzhu001A"
+    },
+    {
+      "student_name": "Zhuang Ziyue",
+      "parent_name": "庄梓越家长",
+      "relation": "家长",
+      "phone": "",
+      "email": "",
+      "wechat": "zzhuang001A"
     }
   ]
 }

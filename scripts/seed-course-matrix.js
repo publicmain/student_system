@@ -27,12 +27,13 @@ function runSeed(db, uuidv4) {
   const ceCount = (db.get('SELECT COUNT(*) c FROM course_enrollments') || {}).c || 0;
   const seCount = (db.get('SELECT COUNT(*) c FROM subject_enrollments') || {}).c || 0;
   const esCount = (db.get('SELECT COUNT(*) c FROM exam_sittings') || {}).c || 0;
+  const spCount = (db.get('SELECT COUNT(*) c FROM student_parents') || {}).c || 0;
   // 所有关键表都"看起来完整"就跳过（避免对已有数据反复 upsert）
-  if (courseCount >= 30 && ceCount >= 150 && seCount >= 150) {
-    console.log(`[seed-cm] 数据已完整 (courses=${courseCount} ce=${ceCount} se=${seCount})，跳过`);
+  if (courseCount >= 30 && ceCount >= 150 && seCount >= 150 && spCount >= 40) {
+    console.log(`[seed-cm] 数据已完整 (courses=${courseCount} ce=${ceCount} se=${seCount} sp=${spCount})，跳过`);
     return false;
   }
-  console.log(`[seed-cm] 启动补种：courses=${courseCount} ce=${ceCount} se=${seCount} es=${esCount}`);
+  console.log(`[seed-cm] 启动补种：courses=${courseCount} ce=${ceCount} se=${seCount} es=${esCount} sp=${spCount}`);
 
   const data = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
   const now = new Date().toISOString();
@@ -155,6 +156,37 @@ function runSeed(db, uuidv4) {
     }
   }
 
+  // 5.7) parents (parent_guardians + student_parents)
+  if (Array.isArray(data.parents)) {
+    for (const p of data.parents) {
+      const sid = studentIdByName[p.student_name];
+      if (!sid) { stats.skipped++; continue; }
+      // 去重：同学生 + 同家长名 视为同一条
+      const existing = db.get(`
+        SELECT pg.id FROM parent_guardians pg
+        JOIN student_parents sp ON sp.parent_id=pg.id
+        WHERE sp.student_id=? AND pg.name=?`, [sid, p.parent_name]);
+      if (existing) {
+        tryRun(`UPDATE parent_guardians SET phone=COALESCE(NULLIF(?,''),phone),
+                                            email=COALESCE(NULLIF(?,''),email),
+                                            wechat=COALESCE(NULLIF(?,''),wechat)
+                WHERE id=?`,
+          [p.phone || '', p.email || '', p.wechat || '', existing.id],
+          `parent_upd[${p.parent_name}]`);
+        continue;
+      }
+      const pid = uuidv4();
+      const ok = tryRun(`INSERT INTO parent_guardians (id, name, relation, phone, email, wechat)
+                         VALUES (?,?,?,?,?,?)`,
+        [pid, p.parent_name, p.relation || '家长', p.phone || '', p.email || '', p.wechat || ''],
+        `parents[${p.parent_name}]`);
+      if (!ok) continue;
+      tryRun(`INSERT OR IGNORE INTO student_parents (student_id, parent_id) VALUES (?,?)`,
+        [sid, pid], `student_parents[${p.student_name}]`);
+      stats.parents = (stats.parents || 0) + 1;
+    }
+  }
+
   // 6) exam_sittings
   for (const es of data.exam_sittings) {
     const sid = studentIdByName[es.student_name];
@@ -182,8 +214,8 @@ function runSeed(db, uuidv4) {
   console.log(`[seed-cm] ✅ 课程矩阵种子完成:`,
     `classrooms+${stats.classrooms}, teachers+${stats.teachers}, courses+${stats.courses},`,
     `course_staff+${stats.course_staff}, enrollments+${stats.enrollments},`,
-    `subject_enr+${stats.subject_enr}, sittings+${stats.sittings},`,
-    `skipped=${stats.skipped}, errors=${stats.errors}`);
+    `subject_enr+${stats.subject_enr}, parents+${stats.parents || 0},`,
+    `sittings+${stats.sittings}, skipped=${stats.skipped}, errors=${stats.errors}`);
   if (firstErrors.length > 0) {
     console.log(`[seed-cm] ⚠️ 错误样本 (${firstErrors.length}):`);
     firstErrors.forEach(e => console.log(`  - ${e}`));

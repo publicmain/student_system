@@ -74,10 +74,38 @@ module.exports = function({ db, requireAuth, requireRole }) {
       console.error('[dashboard] extended stats error:', e.message);
     }
 
+    // ── 周度 Δ 趋势 (UX-05) ──────────────────────────────
+    // 计算最近 7 天的净增量：新建学生/申请/offer 数量以及新增逾期任务
+    let weekDelta = { students: 0, applications: 0, offers: 0, overdue: 0 };
+    try {
+      const offerStatuses = "('offer','conditional_offer','conditional','unconditional','unconditional_offer','firm','enrolled')";
+      weekDelta.students = (db.get(
+        `SELECT COUNT(*) as cnt FROM students WHERE status='active' AND created_at >= datetime('now','-7 days')`
+      ) || {}).cnt || 0;
+      weekDelta.applications = (db.get(
+        `SELECT COUNT(*) as cnt FROM applications WHERE created_at >= datetime('now','-7 days')`
+      ) || {}).cnt || 0;
+      weekDelta.offers = (db.get(
+        `SELECT COUNT(*) as cnt FROM applications
+         WHERE status IN ${offerStatuses}
+           AND updated_at >= datetime('now','-7 days')`
+      ) || {}).cnt || 0;
+      // 新增逾期：本周内刚刚 due_date 过期的任务（状态仍未完成）
+      weekDelta.overdue = (db.get(
+        `SELECT COUNT(*) as cnt FROM milestone_tasks
+         WHERE status NOT IN ('done')
+           AND due_date < date('now')
+           AND due_date >= date('now','-7 days')`
+      ) || {}).cnt || 0;
+    } catch(e) {
+      console.error('[dashboard] weekDelta error:', e.message);
+    }
+
     res.json({
       totalStudents, totalApplications, pendingTasks, overdueTasks, totalStaff, pendingMaterials, tierStats,
       totalOffers, acceptanceRate, essayRate, essayTotal, essayDone,
-      gradeDistribution, recentOffers, tierResults, essayProgress
+      gradeDistribution, recentOffers, tierResults, essayProgress,
+      weekDelta
     });
   });
 

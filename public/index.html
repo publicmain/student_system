@@ -49,6 +49,12 @@
       <span class="fw-bold fs-5"><i class="bi bi-mortarboard-fill me-2"></i>升学规划系统</span>
     </div>
     <div class="d-flex align-items-center" style="gap:12px">
+      <!-- Cmd+K 命令面板入口 -->
+      <button class="btn btn-sm d-none d-md-inline-flex align-items-center gap-1" id="cmdk-open-btn" onclick="openCmdk()" aria-label="打开命令面板 Ctrl+K" title="快速跳转 (Ctrl+K)" style="background:rgba(255,255,255,0.08);color:#e2e8f0;border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 10px;font-size:12px">
+        <i class="bi bi-search" aria-hidden="true" style="font-size:12px"></i>
+        <span>快速搜索</span>
+        <kbd style="background:rgba(255,255,255,0.1);border:none;color:#cbd5e1;padding:0 4px;font-size:10px">⌘K</kbd>
+      </button>
       <!-- 通知铃 -->
       <div class="d-none" id="notif-bell-wrap" style="margin-right:10px">
         <button class="btn text-white p-0 border-0" id="notif-bell-btn" title="通知" aria-label="通知" aria-expanded="false" aria-controls="notif-panel" style="font-size:1.15rem;background:none;position:relative;width:32px;height:32px;display:flex;align-items:center;justify-content:center">
@@ -189,6 +195,22 @@
         <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
         <button class="btn btn-primary btn-sm" id="generic-form-ok">确定</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════ Cmd+K 命令面板 ════════════════════ -->
+<div id="cmdk-palette" role="dialog" aria-modal="true" aria-label="命令面板" aria-hidden="true" style="display:none;position:fixed;inset:0;z-index:2000;align-items:flex-start;justify-content:center;padding-top:12vh;background:rgba(15,23,42,0.55);backdrop-filter:blur(4px)">
+  <div class="cmdk-panel card shadow-lg" style="width:min(640px,92vw);max-height:70vh;display:flex;flex-direction:column;overflow:hidden;border-radius:12px">
+    <div class="input-group" style="border-bottom:1px solid var(--border)">
+      <span class="input-group-text border-0 bg-transparent" aria-hidden="true"><i class="bi bi-search"></i></span>
+      <input type="text" id="cmdk-input" class="form-control border-0 shadow-none" placeholder="搜索页面、学生、操作…  (Esc 关闭)" aria-label="搜索" autocomplete="off" style="font-size:15px;padding:14px 8px">
+      <button class="btn btn-link text-secondary" id="cmdk-close" aria-label="关闭" style="padding:0 12px"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div id="cmdk-results" class="list-group list-group-flush" role="listbox" aria-label="搜索结果" style="flex:1;overflow-y:auto;min-height:120px"></div>
+    <div class="px-3 py-2 small text-muted d-flex justify-content-between align-items-center" style="border-top:1px solid var(--border);background:var(--surface-0);flex-shrink:0">
+      <span><kbd>↑</kbd> <kbd>↓</kbd> 选择 · <kbd>Enter</kbd> 确定 · <kbd>Esc</kbd> 关闭</span>
+      <span><kbd>Ctrl</kbd>+<kbd>K</kbd> / <kbd>⌘</kbd>+<kbd>K</kbd></span>
     </div>
   </div>
 </div>

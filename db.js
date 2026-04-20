@@ -202,6 +202,88 @@ function createSchema() {
     enrolled_at  TEXT DEFAULT (datetime('now'))
   )`);
 
+  // ── 教室 ────────────────────────────────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS classrooms (
+    id        TEXT PRIMARY KEY,
+    name      TEXT UNIQUE NOT NULL,    -- "Classroom 1" / "Studio" / "MPR"
+    capacity  INTEGER DEFAULT 20,
+    location  TEXT,
+    notes     TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`);
+
+  // ── 课程 (具体开课单位, e.g. IAL26W_Math/FMath) ────────
+  db.run(`CREATE TABLE IF NOT EXISTS courses (
+    id            TEXT PRIMARY KEY,
+    code          TEXT UNIQUE NOT NULL,   -- "IAL26W_Math/FMath"
+    name          TEXT NOT NULL,
+    subject_id    TEXT,                   -- 关联 subjects 字典
+    classroom_id  TEXT,                   -- 主教室
+    exam_board    TEXT,                   -- Edexcel/CIE/...
+    level         TEXT,                   -- IAL/O-Level/IGCSE/Sec
+    session_label TEXT,                   -- IAL26W / OL26W / SEC27W
+    num_students  INTEGER DEFAULT 0,
+    notes         TEXT,
+    status        TEXT DEFAULT 'active',
+    created_at    TEXT DEFAULT (datetime('now')),
+    updated_at    TEXT DEFAULT (datetime('now'))
+  )`);
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_courses_classroom ON courses(classroom_id)'); } catch(e) {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_courses_subject   ON courses(subject_id)'); } catch(e) {}
+
+  // ── 课程-教师 关联 (支持多教师共同任课) ─────────────
+  db.run(`CREATE TABLE IF NOT EXISTS course_staff (
+    id         TEXT PRIMARY KEY,
+    course_id  TEXT NOT NULL,
+    staff_id   TEXT NOT NULL,
+    role       TEXT DEFAULT 'teacher',  -- teacher/lead/assistant
+    start_date TEXT,
+    end_date   TEXT,
+    notes      TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`);
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_course_staff_course ON course_staff(course_id)'); } catch(e) {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_course_staff_staff  ON course_staff(staff_id)'); } catch(e) {}
+  try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS uq_course_staff  ON course_staff(course_id, staff_id)'); } catch(e) {}
+
+  // ── 学生-课程 选课 ───────────────────────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS course_enrollments (
+    id          TEXT PRIMARY KEY,
+    course_id   TEXT NOT NULL,
+    student_id  TEXT NOT NULL,
+    status      TEXT DEFAULT 'active',  -- active/dropped/completed
+    enrolled_at TEXT DEFAULT (datetime('now')),
+    dropped_at  TEXT,
+    notes       TEXT
+  )`);
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_course_enroll_course  ON course_enrollments(course_id)'); } catch(e) {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_course_enroll_student ON course_enrollments(student_id)'); } catch(e) {}
+  try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS uq_course_enroll  ON course_enrollments(course_id, student_id)'); } catch(e) {}
+
+  // ── 数据导入批次追踪（支持 recall/rollback）──────────
+  db.run(`CREATE TABLE IF NOT EXISTS import_batches (
+    id          TEXT PRIMARY KEY,
+    batch_key   TEXT UNIQUE NOT NULL,   -- 'course-matrix-2026-04-20-v1'
+    label       TEXT NOT NULL,
+    source_file TEXT,
+    item_count  INTEGER DEFAULT 0,
+    status      TEXT DEFAULT 'active',  -- active/rolled_back
+    created_by  TEXT,
+    created_at  TEXT DEFAULT (datetime('now')),
+    rolled_back_at TEXT,
+    notes       TEXT
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS import_batch_items (
+    id         TEXT PRIMARY KEY,
+    batch_id   TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    row_id     TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`);
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_ibi_batch ON import_batch_items(batch_id)'); } catch(e) {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_ibi_table ON import_batch_items(table_name, row_id)'); } catch(e) {}
+
   // ── 目标院校 ─────────────────────────────────────────
   db.run(`CREATE TABLE IF NOT EXISTS universities (
     id      TEXT PRIMARY KEY,
@@ -427,14 +509,6 @@ function createSchema() {
     auto_escalate_overdue_hours INTEGER DEFAULT 24,
     apply_to_categories        TEXT,  -- JSON 或 null=全部
     created_at                 TEXT DEFAULT (datetime('now'))
-  )`);
-
-  // ── S1: 每用户通知已读跟踪 ──
-  db.run(`CREATE TABLE IF NOT EXISTS notification_reads (
-    notification_id TEXT NOT NULL,
-    user_id         TEXT NOT NULL,
-    read_at         TEXT DEFAULT (datetime('now')),
-    PRIMARY KEY (notification_id, user_id)
   )`);
 
   // ── ALTER TABLE 渐进式扩展（try/catch 兼容旧库） ───────
@@ -2065,8 +2139,8 @@ function seedData() {
     }
   }
 
-  // ── 演示学生（已停用，生产环境不需要演示数据）──────
-  if (false) {
+  // ── 演示学生（5名，幂等追加，无论是否已有其他数据）──────
+  if (!get("SELECT id FROM students WHERE name='陈美琳'")) {
     const dnow = new Date().toISOString();
     const { v4: _uuid } = require('uuid');
     const uid = () => _uuid();
@@ -2644,23 +2718,18 @@ function seedData() {
       admP5, admCreatedBy, 'staff', 'Diploma in Accounting', '2026', 'October', 'draft', 1, admNow, admNow
     ]);
 
-    // ── 为入学案例创建演示发票（BUG-11 修复：确保 case_id 指向真实 intake_case）──
-    const invNow = new Date().toISOString();
-    run(`INSERT INTO finance_invoices (id,case_id,invoice_no,currency,amount_total,items_json,status,due_at,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [uuidv4(), admCase1, 'INV-2026-0001', 'SGD', 15000, JSON.stringify([{description:'Diploma in Business Administration 学费',amount:15000}]), 'unpaid', '2026-04-15', 'system', invNow, invNow]);
-    run(`INSERT INTO finance_invoices (id,case_id,invoice_no,currency,amount_total,items_json,status,due_at,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [uuidv4(), admCase3, 'INV-2026-0002', 'SGD', 20000, JSON.stringify([{description:'Advanced Diploma in Hospitality Management 学费',amount:20000}]), 'unpaid', '2026-05-15', 'system', invNow, invNow]);
-    run(`INSERT INTO finance_invoices (id,case_id,invoice_no,currency,amount_total,items_json,status,due_at,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [uuidv4(), admCase4, 'INV-2026-0003', 'SGD', 18000, JSON.stringify([{description:'Diploma in Information Technology 学费',amount:18000}]), 'unpaid', '2026-06-15', 'system', invNow, invNow]);
-
     save();
   }
 
   // 检查是否已有数据
   const existing = get('SELECT COUNT(*) as cnt FROM users');
   if (existing && existing.cnt > 0) {
-    // 已有数据 → 跳过演示数据（已切换到仅真实数据模式）
-    // 演示数据已停用，生产环境不再加载 seed-demo
+    // 已有数据 → 只补全演示数据
+    try {
+      const demo = require('./seed-demo');
+      demo.seedDemo({ run, get, all, save });
+      demo.enrichExistingStudents({ run, get, all, save });
+    } catch(e) { console.error('[DB] seed-demo error:', e.message); }
     save(); return;
   }
 
@@ -3153,12 +3222,12 @@ function seedData() {
   if (_oaBefore) console.log(`[DB] Cleaned ${_oaBefore} orphan applications`);
   if (_omBefore) console.log(`[DB] Cleaned ${_omBefore} orphan mentor_assignments`);
 
-  // ── 演示用学生数据（已禁用 — 仅保留真实数据）────────
-  // try {
-  //   const demo = require('./seed-demo');
-  //   demo.seedDemo({ run, get, all, save });
-  //   demo.enrichExistingStudents({ run, get, all, save });
-  // } catch(e) { console.error('[DB] seed-demo error:', e.message); }
+  // ── 演示用学生数据（苏瑶 + 林子轩 + 补全已有学生）────────
+  try {
+    const demo = require('./seed-demo');
+    demo.seedDemo({ run, get, all, save });
+    demo.enrichExistingStudents({ run, get, all, save });
+  } catch(e) { console.error('[DB] seed-demo error:', e.message); }
 
   // 确保所有 seedData 写入的数据持久化到磁盘
   save();

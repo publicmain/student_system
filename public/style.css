@@ -3117,3 +3117,125 @@ body.dark-mode *:focus-visible {
 body.dark-mode .nav-section-title { color: #94a3b8 !important; }
 body.dark-mode #sidebar .nav-item { color: #cbd5e1; }
 body.dark-mode #sidebar .nav-item.active { color: #93c5fd; }
+
+/* ═══════════════════════════════════════════════════
+   UX-05  仪表盘 KPI Δ 趋势徽章
+   ═══════════════════════════════════════════════════ */
+.kpi-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+  line-height: 1;
+  margin-top: 4px;
+}
+.kpi-delta-good {
+  background: rgba(22, 163, 74, 0.12);
+  color: var(--success);
+}
+.kpi-delta-bad {
+  background: rgba(220, 38, 38, 0.12);
+  color: var(--danger);
+}
+.kpi-delta-flat {
+  background: rgba(100, 116, 139, 0.12);
+  color: var(--text-secondary);
+}
+body.dark-mode .kpi-delta-good { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
+body.dark-mode .kpi-delta-bad  { background: rgba(248, 113, 113, 0.18); color: #f87171; }
+
+/* stat-card 内 Δ 徽章定位：不破坏现有布局 */
+.stat-card .kpi-delta {
+  position: absolute;
+  right: 1rem;
+  bottom: 0.75rem;
+}
+
+/* ═══════════════════════════════════════════════════
+   UX-06  Cmd+K 命令面板
+   ═══════════════════════════════════════════════════ */
+#cmdk-palette[aria-hidden="false"] { display: flex !important; }
+#cmdk-palette.cmdk-open { display: flex !important; animation: fadeIn 0.16s ease both; }
+.cmdk-panel {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  animation: modalEnter 0.22s var(--ease-spring) both;
+}
+#cmdk-input {
+  background: transparent !important;
+  outline: none !important;
+}
+#cmdk-input:focus {
+  box-shadow: none !important;
+  transform: none !important;
+}
+.cmdk-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+  transition: background var(--ease-fast);
+  color: var(--text-primary);
+  text-align: left;
+  width: 100%;
+}
+.cmdk-item:last-child { border-bottom: none; }
+.cmdk-item:hover,
+.cmdk-item.cmdk-active {
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--primary);
+}
+.cmdk-item .cmdk-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+.cmdk-item.cmdk-active .cmdk-icon { background: var(--primary); color: white; }
+.cmdk-item .cmdk-label {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+}
+.cmdk-item .cmdk-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.cmdk-group-title {
+  padding: 6px 14px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  background: var(--surface-0);
+}
+kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  box-shadow: 0 1px 0 var(--border);
+}
+body.dark-mode .cmdk-panel { background: var(--surface-1); }
+body.dark-mode kbd {
+  background: var(--surface-0);
+  border-color: var(--border);
+  color: var(--text-secondary);
+}

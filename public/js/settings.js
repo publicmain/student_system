@@ -1732,12 +1732,28 @@ function toggleNotifPanel() {
   if (!panel) return;
   if (panel.style.display === 'none' || !panel.style.display) {
     panel.style.display = 'block';
+    panel.setAttribute('aria-modal', 'true');
     _updateBellAria(true);
     loadNotificationsPanel();
+    // A11Y-06: 打开时将焦点移到面板内第一个可聚焦元素
+    setTimeout(() => {
+      const first = panel.querySelector('button, a, [tabindex]:not([tabindex="-1"])');
+      if (first) first.focus();
+    }, 40);
   } else {
-    panel.style.display = 'none';
-    _updateBellAria(false);
+    closeNotifPanel();
   }
+}
+
+function closeNotifPanel() {
+  const panel = document.getElementById('notif-panel');
+  if (!panel) return;
+  panel.style.display = 'none';
+  panel.removeAttribute('aria-modal');
+  _updateBellAria(false);
+  // 关闭后把焦点还给铃铛按钮
+  const bellBtn = document.getElementById('notif-bell-btn');
+  if (bellBtn) bellBtn.focus();
 }
 
 // N10修复: 点击面板外部自动关闭通知面板
@@ -1748,7 +1764,34 @@ document.addEventListener('click', function(e) {
   // 点击在面板内部或铃铛按钮上，不关闭
   if (panel.contains(e.target) || (bellBtn && bellBtn.contains(e.target))) return;
   panel.style.display = 'none';
+  panel.removeAttribute('aria-modal');
   _updateBellAria(false);
+});
+
+// A11Y-06: Esc 关闭通知面板 + Tab 焦点陷阱（仅在面板打开时生效）
+document.addEventListener('keydown', function(e) {
+  const panel = document.getElementById('notif-panel');
+  if (!panel || panel.style.display === 'none') return;
+
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closeNotifPanel();
+    return;
+  }
+
+  if (e.key === 'Tab') {
+    const focusables = panel.querySelectorAll('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])');
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
 });
 
 async function loadNotificationsPanel() {

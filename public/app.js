@@ -125,20 +125,23 @@ async function renderPrincipalDashboard() {
           <div class="stat-icon"><i class="bi bi-people-fill" aria-hidden="true"></i></div>
           <div class="stat-value">${stats.totalStudents}</div>
           <div class="stat-label">在读学生</div>
+          ${deltaBadge(stats.weekDelta?.students, { positiveIsGood: true, suffix: '本周新增' })}
         </div>
       </div>
       <div class="col-6 col-md-2">
-        <div class="stat-card accent-info">
+        <div class="stat-card accent-info" role="button" tabindex="0" onclick="navigate('command-center')" aria-label="总申请数 ${stats.totalApplications}">
           <div class="stat-icon"><i class="bi bi-send-fill" aria-hidden="true"></i></div>
           <div class="stat-value">${stats.totalApplications}</div>
           <div class="stat-label">总申请数</div>
+          ${deltaBadge(stats.weekDelta?.applications, { positiveIsGood: true, suffix: '本周新增' })}
         </div>
       </div>
       <div class="col-6 col-md-2">
-        <div class="stat-card accent-success">
+        <div class="stat-card accent-success" role="button" tabindex="0" onclick="navigate('command-center')" aria-label="Offer 数 ${stats.totalOffers || 0}">
           <div class="stat-icon"><i class="bi bi-trophy-fill" aria-hidden="true"></i></div>
           <div class="stat-value">${stats.totalOffers || 0}</div>
           <div class="stat-label">Offer 数</div>
+          ${deltaBadge(stats.weekDelta?.offers, { positiveIsGood: true, suffix: '本周新增' })}
         </div>
       </div>
       <div class="col-6 col-md-2">
@@ -153,6 +156,7 @@ async function renderPrincipalDashboard() {
           <div class="stat-icon"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i></div>
           <div class="stat-value" style="${stats.overdueTasks>0?'color:var(--danger)':''}">${stats.overdueTasks}</div>
           <div class="stat-label">逾期任务</div>
+          ${deltaBadge(stats.weekDelta?.overdue, { positiveIsGood: false, suffix: '本周新增' })}
         </div>
       </div>
       <div class="col-6 col-md-2">
@@ -174,7 +178,6 @@ async function renderPrincipalDashboard() {
       <div class="card-body p-0">
         <div style="display:flex;overflow-x:auto;gap:.75rem;padding:.75rem 1rem">
           ${(stats.recentOffers || []).slice(0,6).map(o => {
-            const stMap = {pending:'待处理',applied:'已提交',offer:'有Offer',conditional_offer:'条件Offer',unconditional_offer:'无条件Offer',conditional:'条件Offer',unconditional:'无条件Offer',firm:'确认选择',enrolled:'已入学',rejected:'已拒绝',withdrawn:'已撤回'};
             return `<div style="min-width:220px;border:1px solid var(--border);border-radius:8px;padding:.75rem;flex-shrink:0;background:var(--bg-primary)">
               <div class="d-flex align-items-center gap-2 mb-2">
                 <div class="avatar-sm" style="background:var(--success);color:#fff">${escapeHtml((o.student_name||'?').charAt(0))}</div>
@@ -186,7 +189,7 @@ async function renderPrincipalDashboard() {
               <div class="small fw-semibold mb-1"><i class="bi bi-building me-1 text-primary"></i>${escapeHtml(o.uni_name)}</div>
               <div class="d-flex justify-content-between align-items-center">
                 <span class="small text-muted">${escapeHtml(o.department||'')}</span>
-                <span class="badge bg-success" style="font-size:.6rem">${stMap[o.status]||o.status}</span>
+                ${statusBadge(o.status)}
               </div>
               <div class="text-muted mt-1" style="font-size:.6rem">${fmtDate(o.updated_at)}</div>
             </div>`;

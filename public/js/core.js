@@ -539,6 +539,27 @@ function actionBadge(action) {
   return statusBadge(action);
 }
 
+// ════════════════════════════════════════════════════════
+//  deltaBadge(value, options)
+//  Δ 趋势徽章 — 仪表盘 KPI 卡片用
+//  value: 数字（正=增长/负=下降/0=持平）
+//  options: { positiveIsGood?: boolean, unit?: string, suffix?: string }
+// ════════════════════════════════════════════════════════
+function deltaBadge(value, options = {}) {
+  if (value === null || value === undefined || isNaN(value)) return '';
+  const n = Number(value);
+  const { positiveIsGood = true, unit = '', suffix = '本周' } = options;
+  if (n === 0) {
+    return `<span class="kpi-delta kpi-delta-flat" title="${escapeHtml(suffix)}持平">— 0${unit}</span>`;
+  }
+  const isUp = n > 0;
+  const isGood = (isUp && positiveIsGood) || (!isUp && !positiveIsGood);
+  const cls = isGood ? 'kpi-delta-good' : 'kpi-delta-bad';
+  const arrow = isUp ? '▲' : '▼';
+  const absN = Math.abs(n);
+  return `<span class="kpi-delta ${cls}" title="${escapeHtml(suffix)}变化">${arrow} ${isUp ? '+' : '-'}${absN}${unit}</span>`;
+}
+
 function priorityIcon(p) {
   if (p === 'high') return '<i class="bi bi-exclamation-circle-fill text-danger me-1"></i>';
   if (p === 'low') return '<i class="bi bi-arrow-down-circle text-muted me-1"></i>';
@@ -727,3 +748,258 @@ function activateTab(tabId) {
     if (link) new bootstrap.Tab(link).show();
   }, 80);
 }
+
+// ════════════════════════════════════════════════════════
+//  Cmd+K 命令面板（UX-06）
+//  - Ctrl/Cmd+K 打开
+//  - 搜索：页面、学生（按姓名/ID）、最近访问
+//  - ↑/↓ 选择 Enter 执行 Esc 关闭
+// ════════════════════════════════════════════════════════
+const CMDK = {
+  open: false,
+  activeIdx: 0,
+  results: [],
+  studentCache: null,
+  studentCacheTime: 0,
+  recentPages: [],
+};
+
+// 所有可搜索页面（从侧边栏推断）
+function _cmdkAllPages() {
+  // 标签 → 页面标签（图标 + 名称）
+  return [
+    { page: 'dashboard',          label: '总览仪表盘',       icon: 'speedometer2',    group: '页面' },
+    { page: 'students',           label: '学生管理',         icon: 'person-vcard',    group: '页面' },
+    { page: 'staff',              label: '师资管理',         icon: 'people',          group: '页面' },
+    { page: 'feedback-list',      label: '反馈管理',         icon: 'chat-dots',       group: '页面' },
+    { page: 'command-center',     label: '申请指挥中心',     icon: 'rocket-takeoff-fill', group: '页面' },
+    { page: 'admission-programs', label: '录取评估库',       icon: 'mortarboard-fill',group: '页面' },
+    { page: 'intake',             label: '入学管理',         icon: 'person-lines-fill',group: '页面' },
+    { page: 'mat-companies',      label: '中介/代理',        icon: 'building',        group: '页面' },
+    { page: 'finance',            label: '财务中心',         icon: 'currency-dollar', group: '页面' },
+    { page: 'analytics',          label: '数据分析',         icon: 'bar-chart-line-fill', group: '页面' },
+    { page: 'accounts',           label: '账号管理',         icon: 'people-fill',     group: '页面' },
+    { page: 'audit',              label: '操作审计',         icon: 'clock-history',   group: '页面' },
+    { page: 'settings',           label: '系统设置',         icon: 'gear',            group: '页面' },
+    { page: 'student-portal',     label: '我的门户',         icon: 'person-fill',     group: '页面' },
+    { page: 'parent-portal',      label: '家长门户',         icon: 'people-fill',     group: '页面' },
+  ].filter(p => canAccessPage(p.page));
+}
+
+function _cmdkRecent() {
+  try {
+    const raw = localStorage.getItem('cmdk_recent_' + (State.user?.id || 'anon'));
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list : [];
+  } catch(e) { return []; }
+}
+function _cmdkPushRecent(item) {
+  try {
+    const key = 'cmdk_recent_' + (State.user?.id || 'anon');
+    const cur = _cmdkRecent();
+    const filtered = cur.filter(r => !(r.type === item.type && r.ref === item.ref));
+    filtered.unshift(item);
+    localStorage.setItem(key, JSON.stringify(filtered.slice(0, 5)));
+  } catch(e) {}
+}
+
+async function _cmdkStudents(query) {
+  // 学生列表缓存 2 分钟
+  if (!CMDK.studentCache || Date.now() - CMDK.studentCacheTime > 120000) {
+    try {
+      const list = await GET('/api/students');
+      CMDK.studentCache = Array.isArray(list) ? list : [];
+      CMDK.studentCacheTime = Date.now();
+    } catch(e) {
+      CMDK.studentCache = [];
+    }
+  }
+  const q = (query || '').toLowerCase().trim();
+  if (!q) return [];
+  return CMDK.studentCache
+    .filter(s => (s.name || '').toLowerCase().includes(q) || (s.id || '').toLowerCase().includes(q))
+    .slice(0, 8)
+    .map(s => ({
+      type: 'student',
+      ref: s.id,
+      label: s.name + (s.exam_board ? `  ·  ${s.exam_board}` : ''),
+      icon: 'person-badge',
+      group: '学生',
+      action: () => navigate('student-detail', { studentId: s.id }),
+    }));
+}
+
+function _cmdkFuzzyMatch(text, query) {
+  if (!query) return true;
+  const t = (text || '').toLowerCase();
+  const q = query.toLowerCase();
+  if (t.includes(q)) return true;
+  // 支持拼音首字母（简化：只匹配连续子序列）
+  let ti = 0;
+  for (const ch of q) {
+    const idx = t.indexOf(ch, ti);
+    if (idx < 0) return false;
+    ti = idx + 1;
+  }
+  return true;
+}
+
+async function _cmdkSearch(query) {
+  const q = (query || '').trim();
+  const role = State.user?.role;
+  const allowed = ['principal','counselor','mentor','intake_staff'].includes(role);
+
+  if (!q) {
+    // 空 query → 显示最近 + 常用页面
+    const recent = _cmdkRecent().map(r => ({
+      ...r,
+      group: '最近使用',
+      action: r.type === 'page'
+        ? () => navigate(r.ref)
+        : () => navigate('student-detail', { studentId: r.ref }),
+    }));
+    const pages = _cmdkAllPages().slice(0, 8);
+    return [...recent, ...pages];
+  }
+
+  const pages = _cmdkAllPages()
+    .filter(p => _cmdkFuzzyMatch(p.label, q) || _cmdkFuzzyMatch(p.page, q))
+    .map(p => ({ ...p, type: 'page', ref: p.page, action: () => navigate(p.page) }));
+
+  const students = allowed ? await _cmdkStudents(q) : [];
+  return [...pages.slice(0, 6), ...students];
+}
+
+function _cmdkRender() {
+  const box = document.getElementById('cmdk-results');
+  if (!box) return;
+  if (CMDK.results.length === 0) {
+    box.innerHTML = '<div class="p-4 text-center text-muted small">未找到匹配结果</div>';
+    return;
+  }
+  // 按 group 分组
+  const groups = {};
+  CMDK.results.forEach((item, idx) => {
+    const g = item.group || '其他';
+    if (!groups[g]) groups[g] = [];
+    groups[g].push({ ...item, _idx: idx });
+  });
+  box.innerHTML = Object.entries(groups).map(([grp, items]) => `
+    <div class="cmdk-group-title">${escapeHtml(grp)}</div>
+    ${items.map(it => `
+      <button class="cmdk-item${it._idx === CMDK.activeIdx ? ' cmdk-active' : ''}" data-idx="${it._idx}" role="option" aria-selected="${it._idx === CMDK.activeIdx}">
+        <span class="cmdk-icon"><i class="bi bi-${escapeHtml(it.icon || 'arrow-right')}" aria-hidden="true"></i></span>
+        <span class="cmdk-label">${escapeHtml(it.label)}</span>
+        <span class="cmdk-hint">${it.type === 'student' ? '学生详情' : it.type === 'page' ? '页面' : ''}</span>
+      </button>
+    `).join('')}
+  `).join('');
+  // 绑定点击
+  box.querySelectorAll('.cmdk-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx, 10);
+      _cmdkExecute(idx);
+    });
+    btn.addEventListener('mouseenter', () => {
+      const idx = parseInt(btn.dataset.idx, 10);
+      CMDK.activeIdx = idx;
+      box.querySelectorAll('.cmdk-item').forEach(b => {
+        b.classList.toggle('cmdk-active', parseInt(b.dataset.idx, 10) === idx);
+      });
+    });
+  });
+  // 滚动到激活项
+  const active = box.querySelector('.cmdk-active');
+  if (active) active.scrollIntoView({ block: 'nearest' });
+}
+
+function _cmdkExecute(idx) {
+  const item = CMDK.results[idx];
+  if (!item || !item.action) return;
+  _cmdkPushRecent({ type: item.type, ref: item.ref, label: item.label, icon: item.icon });
+  closeCmdk();
+  item.action();
+}
+
+function openCmdk() {
+  const box = document.getElementById('cmdk-palette');
+  if (!box) return;
+  CMDK.open = true;
+  CMDK.activeIdx = 0;
+  box.style.display = 'flex';
+  box.setAttribute('aria-hidden', 'false');
+  box.classList.add('cmdk-open');
+  const input = document.getElementById('cmdk-input');
+  if (input) {
+    input.value = '';
+    setTimeout(() => input.focus(), 30);
+  }
+  _cmdkSearch('').then(r => { CMDK.results = r; _cmdkRender(); });
+}
+
+function closeCmdk() {
+  const box = document.getElementById('cmdk-palette');
+  if (!box) return;
+  CMDK.open = false;
+  box.style.display = 'none';
+  box.setAttribute('aria-hidden', 'true');
+  box.classList.remove('cmdk-open');
+}
+
+function _cmdkBind() {
+  // 快捷键打开
+  document.addEventListener('keydown', function(e) {
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+      if (!State.user) return; // 未登录不触发
+      e.preventDefault();
+      CMDK.open ? closeCmdk() : openCmdk();
+      return;
+    }
+    if (!CMDK.open) return;
+    if (e.key === 'Escape') { e.preventDefault(); closeCmdk(); return; }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      CMDK.activeIdx = Math.min(CMDK.activeIdx + 1, CMDK.results.length - 1);
+      _cmdkRender();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      CMDK.activeIdx = Math.max(CMDK.activeIdx - 1, 0);
+      _cmdkRender();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      _cmdkExecute(CMDK.activeIdx);
+    }
+  });
+
+  // 点击背景关闭
+  const box = document.getElementById('cmdk-palette');
+  if (box) {
+    box.addEventListener('click', (e) => {
+      if (e.target === box) closeCmdk();
+    });
+  }
+  const closeBtn = document.getElementById('cmdk-close');
+  if (closeBtn) closeBtn.addEventListener('click', closeCmdk);
+
+  // 输入搜索（防抖 120ms）
+  const input = document.getElementById('cmdk-input');
+  if (input) {
+    let t = null;
+    input.addEventListener('input', function() {
+      clearTimeout(t);
+      const val = input.value;
+      t = setTimeout(async () => {
+        CMDK.results = await _cmdkSearch(val);
+        CMDK.activeIdx = 0;
+        _cmdkRender();
+      }, 120);
+    });
+  }
+}
+
+// 应用启动后绑定
+document.addEventListener('DOMContentLoaded', () => {
+  // 延迟，等 DOM/State 就绪
+  setTimeout(_cmdkBind, 100);
+});

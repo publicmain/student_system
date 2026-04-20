@@ -341,6 +341,9 @@ app.use('/api/auth', require('./routes/auth')(deps));
 // Dashboard
 app.use('/api/dashboard', require('./routes/dashboard')(deps));
 
+// Courses / Classrooms / Course-Staff / Course-Enrollments
+app.use('/api', require('./routes/courses')(deps));
+
 // Students
 app.use('/api', require('./routes/students')(deps));
 

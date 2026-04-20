@@ -2145,14 +2145,14 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
 
       <!-- AI Agent Tab：对话式助手（真正的 agent） -->
       <div class="tab-pane fade" id="tab-ai-agent">
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
           <h6 class="fw-semibold mb-0"><i class="bi bi-robot me-1 text-primary"></i>AI 助手（对话式）</h6>
-          <div class="d-flex gap-2">
-            <select class="form-select form-select-sm" id="agent-session-select" style="max-width:260px">
+          <div class="d-flex gap-2 align-items-center" style="flex-shrink:0">
+            <select class="form-select form-select-sm" id="agent-session-select" style="width:220px;min-width:180px">
               <option value="">— 新对话 —</option>
             </select>
-            <button class="btn btn-sm btn-outline-secondary" onclick="newAgentSession('${id}')"><i class="bi bi-plus-lg me-1"></i>新对话</button>
-            <button class="btn btn-sm btn-outline-danger" onclick="deleteAgentSession('${id}')" title="删除当前对话"><i class="bi bi-trash"></i></button>
+            <button class="btn btn-sm btn-outline-secondary text-nowrap" style="flex-shrink:0" onclick="newAgentSession('${id}')"><i class="bi bi-plus-lg me-1"></i>新对话</button>
+            <button class="btn btn-sm btn-outline-danger" style="flex-shrink:0" onclick="deleteAgentSession('${id}')" title="删除当前对话"><i class="bi bi-trash"></i></button>
           </div>
         </div>
         <div class="alert alert-info py-2 small mb-2"><i class="bi bi-info-circle me-1"></i>这位 AI 助手已绑定到当前学生，可读取/写入该学生的所有数据（权限受你的角色限制）。<strong>工作人员</strong>可让它"创建任务"/"记录沟通"/"加目标院校"等；<strong>家长/学生</strong>仅限只读咨询。对话保留在本会话中，可随时切换。</div>

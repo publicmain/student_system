@@ -681,6 +681,12 @@ db.init().then(() => {
     runCourseSeed(db, uuidv4);
   } catch(e) { console.error('[seed-cm] 课程矩阵种子失败:', e.message); }
 
+  // 一次性种子：AI 测试 demo 学生（李思远_DEMO，含丰富资料）
+  try {
+    const seedDemoStudent = require('./scripts/seed-demo-student');
+    seedDemoStudent(db, uuidv4);
+  } catch(e) { console.error('[seed-demo-student] 失败:', e.message); }
+
   // ── BUG-14 修复：彻底清理孤儿数据（包括已软删除学生的关联记录）──
   try {
     // 1) 先把软删除的学生对应的关联数据也一并清理

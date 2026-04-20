@@ -28,12 +28,13 @@ function runSeed(db, uuidv4) {
   const seCount = (db.get('SELECT COUNT(*) c FROM subject_enrollments') || {}).c || 0;
   const esCount = (db.get('SELECT COUNT(*) c FROM exam_sittings') || {}).c || 0;
   const spCount = (db.get('SELECT COUNT(*) c FROM student_parents') || {}).c || 0;
+  const maCount = (db.get("SELECT COUNT(*) c FROM mentor_assignments WHERE role='学科导师'") || {}).c || 0;
   // 所有关键表都"看起来完整"就跳过（避免对已有数据反复 upsert）
-  if (courseCount >= 30 && ceCount >= 150 && seCount >= 150 && spCount >= 40) {
-    console.log(`[seed-cm] 数据已完整 (courses=${courseCount} ce=${ceCount} se=${seCount} sp=${spCount})，跳过`);
+  if (courseCount >= 30 && ceCount >= 150 && seCount >= 150 && spCount >= 40 && maCount >= 150) {
+    console.log(`[seed-cm] 数据已完整 (courses=${courseCount} ce=${ceCount} se=${seCount} sp=${spCount} ma=${maCount})，跳过`);
     return false;
   }
-  console.log(`[seed-cm] 启动补种：courses=${courseCount} ce=${ceCount} se=${seCount} es=${esCount} sp=${spCount}`);
+  console.log(`[seed-cm] 启动补种：courses=${courseCount} ce=${ceCount} se=${seCount} es=${esCount} sp=${spCount} ma=${maCount}`);
 
   const data = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
   const now = new Date().toISOString();
@@ -187,6 +188,27 @@ function runSeed(db, uuidv4) {
     }
   }
 
+  // 5.8) mentor_assignments（每生的学科导师 = 其任课老师）
+  if (Array.isArray(data.mentor_assignments)) {
+    for (const ma of data.mentor_assignments) {
+      const sid = studentIdByName[ma.student_name];
+      if (!sid) { stats.skipped++; continue; }
+      const staffRow = db.get(`SELECT id FROM staff WHERE name=? AND role='teacher'`, [ma.staff_name]);
+      if (!staffRow) { stats.skipped++; continue; }
+      const role = ma.role || '学科导师';
+      const dup = db.get(
+        `SELECT id FROM mentor_assignments WHERE student_id=? AND staff_id=? AND role=?`,
+        [sid, staffRow.id, role]
+      );
+      if (dup) continue;
+      const ok = tryRun(`INSERT INTO mentor_assignments (id, student_id, staff_id, role, start_date, notes)
+                         VALUES (?,?,?,?,?,?)`,
+        [uuidv4(), sid, staffRow.id, role, ma.start_date || now.slice(0,10), ma.notes || ''],
+        `mentor[${ma.student_name}/${ma.staff_name}]`);
+      if (ok) stats.mentors = (stats.mentors || 0) + 1;
+    }
+  }
+
   // 6) exam_sittings
   for (const es of data.exam_sittings) {
     const sid = studentIdByName[es.student_name];
@@ -215,7 +237,8 @@ function runSeed(db, uuidv4) {
     `classrooms+${stats.classrooms}, teachers+${stats.teachers}, courses+${stats.courses},`,
     `course_staff+${stats.course_staff}, enrollments+${stats.enrollments},`,
     `subject_enr+${stats.subject_enr}, parents+${stats.parents || 0},`,
-    `sittings+${stats.sittings}, skipped=${stats.skipped}, errors=${stats.errors}`);
+    `mentors+${stats.mentors || 0}, sittings+${stats.sittings},`,
+    `skipped=${stats.skipped}, errors=${stats.errors}`);
   if (firstErrors.length > 0) {
     console.log(`[seed-cm] ⚠️ 错误样本 (${firstErrors.length}):`);
     firstErrors.forEach(e => console.log(`  - ${e}`));

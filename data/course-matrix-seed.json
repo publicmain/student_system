@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-20T05:13:30.785Z",
+  "generated_at": "2026-04-20T05:19:18.410Z",
   "note": "由本地 DB 导出。服务端启动时在空库场景下种入。",
   "classrooms": [
     {
@@ -9835,6 +9835,1205 @@
       "phone": "",
       "email": "",
       "wechat": "zzhuang001A"
+    }
+  ],
+  "mentor_assignments": [
+    {
+      "student_name": "Chen Jiaen",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Chen Jiaen",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Fan Enhui",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Fan Enhui",
+      "staff_name": "Keith Ang",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Fan Enhui",
+      "staff_name": "Kelvin Lee",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Fan Enhui",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Fan Enhui",
+      "staff_name": "Stanley",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Hein Htet Naing",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Hein Htet Naing",
+      "staff_name": "Keith Ang",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Hein Htet Naing",
+      "staff_name": "Kelvin Lee",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Hein Htet Naing",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Hein Htet Naing",
+      "staff_name": "Stanley",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Huang Yutai",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Huang Yutai",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Huang Yutai",
+      "staff_name": "Sun Jin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Kong Fanjin",
+      "staff_name": "Chmel Oon",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Kong Fanjin",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Kong Fanjin",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Kong Fanjin",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Kong Fanjin",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Lei Zerui",
+      "staff_name": "Kelvin Lee",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Lei Zerui",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Lei Zerui",
+      "staff_name": "Stanley",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Li Chun",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Li Chun",
+      "staff_name": "Fu Hanqi Frank",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Li Chun",
+      "staff_name": "Sun Jin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Li Chun",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Li Mingyang",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Li Mingyang",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Li Mingyang",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Li Mingyang",
+      "staff_name": "Sun Jin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Li Mingyang",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Li Yongxuan",
+      "staff_name": "Fu Hanqi Frank",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Li Yongxuan",
+      "staff_name": "Stanley",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Li Yongxuan",
+      "staff_name": "Sun Jin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Li Yongxuan",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Li Yongxuan",
+      "staff_name": "Yao Kexiang",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Lin Yinjia",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Lin Yinjia",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Lin Yinjia",
+      "staff_name": "Fu Hanqi Frank",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Lin Yinjia",
+      "staff_name": "Sun Jin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Lin Yinjia",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Liu Sixuan",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Liu Sixuan",
+      "staff_name": "Keith Ang",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Liu Sixuan",
+      "staff_name": "Kelvin Lee",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Liu Sixuan",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Liu Sixuan",
+      "staff_name": "Stanley",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Liu Yicun",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Liu Yicun",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Liu Yicun",
+      "staff_name": "Fu Hanqi Frank",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Liu Yicun",
+      "staff_name": "Sun Jin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Liu Yicun",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Liu Yijia",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Liu Yijia",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Liu Yijia",
+      "staff_name": "Fu Hanqi Frank",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Liu Yijia",
+      "staff_name": "Sun Jin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Liu Yijia",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Lu Xinnan",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Lu Xinnan",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Lu Xinnan",
+      "staff_name": "Fu Hanqi Frank",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Lu Xinnan",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Mao Silin",
+      "staff_name": "Chmel Oon",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Mao Silin",
+      "staff_name": "Fu Hanqi Frank",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Mao Silin",
+      "staff_name": "Stanley",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Mao Silin",
+      "staff_name": "Sun Jin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Mao Silin",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Mu Ge",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Mu Ge",
+      "staff_name": "Keith Ang",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Mu Ge",
+      "staff_name": "Kelvin Lee",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Mu Ge",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Mu Ge",
+      "staff_name": "Stanley",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Niu Xinglin",
+      "staff_name": "Chmel Oon",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Niu Xinglin",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Niu Xinglin",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Niu Xinglin",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Niu Xinglin",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Su Yiying",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Su Yiying",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Su Yiying",
+      "staff_name": "Fu Hanqi Frank",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Su Yiying",
+      "staff_name": "Kelvin Lee",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Su Yiying",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Tian Chang",
+      "staff_name": "Fu Hanqi Frank",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Tian Chang",
+      "staff_name": "Stanley",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Tian Chang",
+      "staff_name": "Sun Jin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Tian Chang",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Tian Shuo",
+      "staff_name": "Fu Hanqi Frank",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Tian Shuo",
+      "staff_name": "Stanley",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Tian Shuo",
+      "staff_name": "Sun Jin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Tian Shuo",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Chenxu",
+      "staff_name": "Kelvin Lee",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Chenxu",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Chenxu",
+      "staff_name": "Stanley",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Chenyu",
+      "staff_name": "Kelvin Lee",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Chenyu",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Chenyu",
+      "staff_name": "Stanley",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Qianpeng",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Qianpeng",
+      "staff_name": "Sun Jin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Qianpeng",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Yaoxing",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Yaoxing",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Yaoxing",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Yaoxing",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Yaoxing",
+      "staff_name": "Yao Kexiang",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Zhangxin",
+      "staff_name": "Kelvin Lee",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Zhangxin",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Zhangxin",
+      "staff_name": "Stanley",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Ziliang",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Wang Ziliang",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Yan Jinnuo",
+      "staff_name": "Chmel Oon",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Yan Jinnuo",
+      "staff_name": "Corrina",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Yan Jinnuo",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Yan Jinnuo",
+      "staff_name": "Jingqi",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Yan Jinnuo",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Yan Wenhan",
+      "staff_name": "Fu Hanqi Frank",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Yan Wenhan",
+      "staff_name": "Stanley",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Yan Wenhan",
+      "staff_name": "Sun Jin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Yan Wenhan",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Yan Wenhan",
+      "staff_name": "Yao Kexiang",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Ye Shurui",
+      "staff_name": "Chmel Oon",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Ye Shurui",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Ye Shurui",
+      "staff_name": "Fu Hanqi Frank",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Ye Shurui",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Yu Xiaoping",
+      "staff_name": "Kelvin Lee",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Yu Xiaoping",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Yu Xiaoping",
+      "staff_name": "Stanley",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Yu Xiaoting",
+      "staff_name": "Kelvin Lee",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Yu Xiaoting",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Yu Xiaoting",
+      "staff_name": "Stanley",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zheng Jingxi",
+      "staff_name": "Chmel Oon",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zheng Jingxi",
+      "staff_name": "Cynthia",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zheng Jingxi",
+      "staff_name": "Stanley",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zheng Jingxi",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zheng Xiyu",
+      "staff_name": "Chmel Oon",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zheng Xiyu",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zheng Xiyu",
+      "staff_name": "Sun Jin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zheng Xiyu",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zhou Zixin",
+      "staff_name": "Chmel Oon",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zhou Zixin",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zhou Zixin",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zhou Zixin",
+      "staff_name": "Fu Hanqi Frank",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zhou Zixin",
+      "staff_name": "Kelvin Lee",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zhou Zixin",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zhu Zhenhao",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zhu Zhenhao",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zhu Zhenhao",
+      "staff_name": "Nie Xin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zhu Zhenhao",
+      "staff_name": "Sun Jin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zhu Zhenhao",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zhuang Ziyue",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zhuang Ziyue",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zhuang Ziyue",
+      "staff_name": "Fu Hanqi Frank",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "Zhuang Ziyue",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "周思源",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "周思源",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "周思源",
+      "staff_name": "Sun Jin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "周思源",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "喻耀程",
+      "staff_name": "Stanley",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "喻耀程",
+      "staff_name": "Yao Kexiang",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "杨桐",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "杨桐",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "蒋昕雨",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "蒋昕雨",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "蒋昕雨",
+      "staff_name": "Sun Jin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "蒋昕雨",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "郑瑞尚",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "郑瑞尚",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "郑瑞尚",
+      "staff_name": "Sun Jin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "郑瑞尚",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "钟睿韬",
+      "staff_name": "Cui Yanjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "钟睿韬",
+      "staff_name": "Daniel",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "钟睿韬",
+      "staff_name": "Sun Jin",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
+    },
+    {
+      "student_name": "钟睿韬",
+      "staff_name": "Xu Junjie",
+      "role": "学科导师",
+      "start_date": "2026-04-20",
+      "notes": "由任课老师自动分配"
     }
   ]
 }

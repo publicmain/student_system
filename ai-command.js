@@ -4,16 +4,16 @@
  */
 'use strict';
 const { OpenAI } = require('openai');
+const { callClaudeJSON, hasAnthropic, hasOpenAI } = require('./ai-client');
 
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 
-function _getClient() {
-  if (!process.env.OPENAI_API_KEY) {
-    const err = new Error('未配置 OPENAI_API_KEY，AI 功能不可用。请在环境变量中设置 API 密钥。');
+function _ensureConfigured() {
+  if (!hasAnthropic() && !hasOpenAI()) {
+    const err = new Error('未配置 ANTHROPIC_API_KEY 或 OPENAI_API_KEY，AI 功能不可用。');
     err.isConfigError = true;
     throw err;
   }
-  return new OpenAI();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -88,20 +88,14 @@ exports.analyzeRisks = async function(db, user) {
     };
   });
 
-  const client = _getClient();
-  const resp = await client.chat.completions.create({
-    model: MODEL,
-    messages: [
-      { role: 'system', content: '你是一位资深升学规划顾问，擅长识别申请流程中的风险。根据提供的申请数据，识别最需要关注的风险项。只基于提供的数据分析，不要臆测。用中文回复。' },
-      { role: 'user', content: JSON.stringify({ task: 'risk_analysis', today: new Date().toISOString().split('T')[0], applications: snapshot }) }
-    ],
-    response_format: { type: 'json_schema', json_schema: { name: 'risk_alerts', strict: true, schema: RISK_SCHEMA } },
-    temperature: 0.3
+  _ensureConfigured();
+  const result = await callClaudeJSON({
+    tier: 'heavy',
+    system: '你是一位资深升学规划顾问，擅长识别申请流程中的风险。根据提供的申请数据，识别最需要关注的风险项。只基于提供的数据分析，不要臆测。用中文回复。',
+    user: JSON.stringify({ task: 'risk_analysis', today: new Date().toISOString().split('T')[0], applications: snapshot }),
+    schema: RISK_SCHEMA,
+    maxTokens: 4000,
   });
-
-  const content = resp.choices?.[0]?.message?.content;
-  if (!content) throw new Error('AI 未返回有效内容');
-  const result = JSON.parse(content);
   // 将匿名 ref 映射回真实 application_id
   if (result.alerts) {
     result.alerts.forEach(a => {
@@ -166,20 +160,14 @@ exports.suggestNextActions = async function(db, user) {
     return { student_id: ref, student_ref: `[学生${i}]`, grade_level: s.grade_level, applications: apps, pending_tasks: pendingTasks };
   });
 
-  const client = _getClient();
-  const resp = await client.chat.completions.create({
-    model: MODEL,
-    messages: [
-      { role: 'system', content: '你是一位资深升学规划顾问。根据每个学生的申请进度和待办任务，为每个学生推荐最紧急的一项行动。只基于提供的数据推荐，用中文回复。student_id 请原样返回。' },
-      { role: 'user', content: JSON.stringify({ task: 'next_best_action', today: new Date().toISOString().split('T')[0], students: snapshot }) }
-    ],
-    response_format: { type: 'json_schema', json_schema: { name: 'next_actions', strict: true, schema: ACTION_SCHEMA } },
-    temperature: 0.3
+  _ensureConfigured();
+  const result = await callClaudeJSON({
+    tier: 'medium',
+    system: '你是一位资深升学规划顾问。根据每个学生的申请进度和待办任务，为每个学生推荐最紧急的一项行动。只基于提供的数据推荐，用中文回复。student_id 请原样返回。',
+    user: JSON.stringify({ task: 'next_best_action', today: new Date().toISOString().split('T')[0], students: snapshot }),
+    schema: ACTION_SCHEMA,
+    maxTokens: 4000,
   });
-
-  const content = resp.choices?.[0]?.message?.content;
-  if (!content) throw new Error('AI 未返回有效内容');
-  const result = JSON.parse(content);
   // 映射匿名 ref 回真实 student_id + 注入姓名
   result.actions.forEach(a => {
     const s = studentIdMap.get(a.student_id);
@@ -216,11 +204,11 @@ const NLQ_SCHEMA = {
 };
 
 exports.parseNLQuery = async function(query) {
-  const client = _getClient();
-  const resp = await client.chat.completions.create({
-    model: MODEL,
-    messages: [
-      { role: 'system', content: `你是一个升学申请查询解析器。将用户的自然语言查询转换为结构化的筛选参数。
+  _ensureConfigured();
+  // Haiku 4.5：NLQ 解析很轻，用便宜快的模型即可
+  return await callClaudeJSON({
+    tier: 'light',
+    system: `你是一个升学申请查询解析器。将用户的自然语言查询转换为结构化的筛选参数。
 已知大学分组：
 - G5: Cambridge, Oxford, Imperial College London, UCL, LSE
 - Russell Group: 包含G5 + King's College London, Edinburgh, Manchester, Bristol, Warwick 等24所
@@ -230,16 +218,11 @@ exports.parseNLQuery = async function(query) {
 梯度: 冲刺, 意向, 保底
 路线: UK-UG, UK-PG, US, SG, HK, AU
 
-不确定的字段设为 null。用中文解释。` },
-      { role: 'user', content: query }
-    ],
-    response_format: { type: 'json_schema', json_schema: { name: 'nlq_parse', strict: true, schema: NLQ_SCHEMA } },
-    temperature: 0.2
+不确定的字段设为 null。用中文解释。`,
+    user: query,
+    schema: NLQ_SCHEMA,
+    maxTokens: 1000,
   });
-
-  const nlqContent = resp.choices?.[0]?.message?.content;
-  if (!nlqContent) throw new Error('AI 未返回有效内容');
-  return JSON.parse(nlqContent);
 };
 
 // ═══════════════════════════════════════════════════════
@@ -281,20 +264,14 @@ exports.evaluateListScore = async function(db, studentId) {
   const apps = db.all('SELECT uni_name, department, tier, route, status, submit_deadline FROM applications WHERE student_id=? AND status NOT IN (\'declined\') ORDER BY tier', [studentId]);
   if (!apps.length) throw new Error('该学生暂无申请记录');
 
-  const client = _getClient();
-  const resp = await client.chat.completions.create({
-    model: MODEL,
-    messages: [
-      { role: 'system', content: '你是一位资深升学规划顾问，擅长评估学生的选校方案。根据学生的申请列表，评估其冲刺/匹配/保底分布是否合理。一般建议至少2个冲刺、3个匹配、2个保底。根据具体申请的院校水平和学生背景给出建议。用中文回复。' },
-      { role: 'user', content: JSON.stringify({ task: 'list_score', student_ref: `[学生${studentId.slice(-4)}]`, grade_level: student.grade_level, exam_board: student.exam_board, applications: apps }) }
-    ],
-    response_format: { type: 'json_schema', json_schema: { name: 'list_score', strict: true, schema: LIST_SCORE_SCHEMA } },
-    temperature: 0.3
+  _ensureConfigured();
+  const result = await callClaudeJSON({
+    tier: 'heavy',
+    system: '你是一位资深升学规划顾问，擅长评估学生的选校方案。根据学生的申请列表，评估其冲刺/匹配/保底分布是否合理。一般建议至少2个冲刺、3个匹配、2个保底。根据具体申请的院校水平和学生背景给出建议。用中文回复。',
+    user: JSON.stringify({ task: 'list_score', student_ref: `[学生${studentId.slice(-4)}]`, grade_level: student.grade_level, exam_board: student.exam_board, applications: apps }),
+    schema: LIST_SCORE_SCHEMA,
+    maxTokens: 3000,
   });
-
-  const lsContent = resp.choices?.[0]?.message?.content;
-  if (!lsContent) throw new Error('AI 未返回有效内容');
-  const result = JSON.parse(lsContent);
   result.student_name = student.name;
   result.total_applications = apps.length;
   return result;

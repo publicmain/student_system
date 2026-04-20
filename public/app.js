@@ -417,6 +417,14 @@ async function renderCounselorDashboard() {
       </div>
     </div>
 
+    <!-- AI 日报（Sonnet 4.6 每天早 8 点推送；这里是登录时即时版本） -->
+    <div class="card mb-4 border-primary" style="border-left-width:4px">
+      <div class="card-body">
+        <h6 class="fw-semibold mb-2"><i class="bi bi-stars me-1 text-primary"></i>AI 今日简报</h6>
+        <div id="dashboard-ai-briefing"><div class="text-center text-muted py-2 small"><div class="spinner-border spinner-border-sm"></div> 生成中...</div></div>
+      </div>
+    </div>
+
     <!-- KPI 指标条：我的数据 -->
     <div class="row g-3 mb-4">
       <div class="col-6 col-md-3">
@@ -567,6 +575,8 @@ async function renderCounselorDashboard() {
     mc.querySelectorAll('.att-row[data-sid]').forEach(el => {
       el.addEventListener('click', function() { navigate('student-detail', { studentId: this.dataset.sid }); });
     });
+    // 异步加载 AI 日报
+    loadDashboardBriefing();
   } catch (e) {
     mc.innerHTML = errorWithRetry(e.message, `navigate('${State.currentPage||"dashboard"}')`);
   }
@@ -1735,6 +1745,8 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
           <li><hr class="dropdown-divider"></li>
           <li><a class="dropdown-item" data-bs-toggle="tab" href="#tab-admission-eval">录取评估</a></li>
           <li><a class="dropdown-item" data-bs-toggle="tab" href="#tab-ai-plan">AI 规划</a></li>
+          <li><a class="dropdown-item" data-bs-toggle="tab" href="#tab-ai-essay"><i class="bi bi-pencil-square me-1"></i>AI 文书批改</a></li>
+          <li><a class="dropdown-item" data-bs-toggle="tab" href="#tab-ai-interview"><i class="bi bi-mic me-1"></i>AI 面试题</a></li>
         </ul>
       </li>
     </ul>
@@ -2076,6 +2088,58 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
           <i class="bi bi-info-circle me-1"></i>AI 规划由模型辅助生成，须经规划师审核批准后方可发布。概率估算来自本系统历史数据，不构成录取承诺。
         </div>
         <div id="ai-plan-tab-container"><div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm"></div> 加载中...</div></div>
+      </div>
+
+      <!-- AI 文书批改 Tab -->
+      <div class="tab-pane fade" id="tab-ai-essay">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="fw-semibold mb-0"><i class="bi bi-pencil-square me-1 text-primary"></i>AI 文书批改</h6>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label small">目标项目（可选）</label>
+            <input type="text" id="ai-essay-target" class="form-control form-control-sm mb-2" placeholder="例：Cambridge Mathematics Tripos">
+            <label class="form-label small">文书类型</label>
+            <select id="ai-essay-type" class="form-select form-select-sm mb-2">
+              <option value="UK-UG">UK UCAS Personal Statement</option>
+              <option value="US-UG">US Common App Essay</option>
+              <option value="Cambridge">Cambridge 专业陈述</option>
+              <option value="Oxford">Oxford 专业陈述</option>
+              <option value="other">其他</option>
+            </select>
+            <label class="form-label small">文书原文</label>
+            <textarea id="ai-essay-text" class="form-control" rows="14" placeholder="粘贴文书内容（至少 100 字符）..."></textarea>
+            <button class="btn btn-primary mt-2" onclick="runEssayCritique('${id}')"><i class="bi bi-magic me-1"></i>开始批改</button>
+          </div>
+          <div class="col-md-6">
+            <div id="ai-essay-result"><div class="text-muted text-center py-5 small">批改结果将显示在此处。Opus 4.7 会给出评分、具体改句建议、陈词滥调标记、段落重组方案。</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI 面试题 Tab -->
+      <div class="tab-pane fade" id="tab-ai-interview">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="fw-semibold mb-0"><i class="bi bi-mic me-1 text-success"></i>AI 牛剑面试题生成器</h6>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label small">目标专业（必填）</label>
+            <input type="text" id="ai-itv-program" class="form-control form-control-sm mb-2" placeholder="Mathematics / Physics / Economics ...">
+            <label class="form-label small">院校（可选）</label>
+            <select id="ai-itv-uni" class="form-select form-select-sm mb-2">
+              <option value="">通用（不限院校）</option>
+              <option>Cambridge</option><option>Oxford</option>
+              <option>Imperial</option><option>LSE</option><option>UCL</option>
+              <option>MIT</option><option>Stanford</option><option>Harvard</option>
+            </select>
+            <button class="btn btn-success mt-2" onclick="runInterviewGen('${id}')"><i class="bi bi-stars me-1"></i>生成 10 道题</button>
+            <div class="alert alert-info py-2 small mt-3"><i class="bi bi-info-circle me-1"></i>题库基于学生选课 + 成绩 + 目标专业定制。Sonnet 4.6 生成，约 15 秒。</div>
+          </div>
+          <div class="col-md-8">
+            <div id="ai-itv-result"><div class="text-muted text-center py-5 small">题目将显示在此处。每道题包含：中英双语 / 难度 / 考察目的 / 优秀答题框架 / 常见陷阱 / 追问方向。</div></div>
+          </div>
+        </div>
       </div>
     </div>`;
 
@@ -7121,6 +7185,122 @@ async function archiveAIPlan(planId, studentId) {
       loadAIPlanTab(studentId);
     } catch (e) { showError(e.message); }
   });
+}
+
+// ════════════════════════════════════════════════════════
+//  AI 文书批改 / 面试题 / 日报（B/C/D）
+// ════════════════════════════════════════════════════════
+async function runEssayCritique(studentId) {
+  const text = document.getElementById('ai-essay-text')?.value.trim();
+  const target = document.getElementById('ai-essay-target')?.value.trim();
+  const type = document.getElementById('ai-essay-type')?.value;
+  if (!text) return showError('请先粘贴文书内容');
+  if (text.length < 100) return showError('文书内容过短，至少 100 字符');
+  const result = document.getElementById('ai-essay-result');
+  result.innerHTML = `<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-3 text-muted small">Opus 4.7 正在深度批改，约 30-60 秒...</p></div>`;
+  try {
+    const r = await POST(`/api/students/${studentId}/ai-essay/critique`, { essay_text: text, target_program: target, program_type: type });
+    const c = r.critique;
+    const s = c.scores;
+    const scoreColor = (n) => n>=4 ? 'success' : n>=3 ? 'warning' : 'danger';
+    const scoreBadge = (label, v) => `<div class="col-6 col-md-4"><div class="p-2 bg-light rounded border"><div class="small text-muted">${label}</div><div class="h4 mb-0 text-${scoreColor(v)}">${v}/5</div></div></div>`;
+    result.innerHTML = `
+      <div class="row g-2 mb-3">
+        ${scoreBadge('Hook 开场', s.hook)}
+        ${scoreBadge('Structure 结构', s.structure)}
+        ${scoreBadge('Evidence 细节', s.evidence)}
+        ${scoreBadge('Fit 契合度', s.fit_to_program)}
+        ${scoreBadge('综合', s.overall)}
+      </div>
+      <div class="card mb-3"><div class="card-body p-3"><h6 class="fw-semibold"><i class="bi bi-file-text me-1"></i>总评</h6><p class="small mb-0">${escapeHtml(c.overall_summary || '')}</p></div></div>
+      <div class="card mb-3 border-success"><div class="card-body p-3"><h6 class="fw-semibold text-success"><i class="bi bi-check-circle me-1"></i>优点</h6><ul class="small mb-0">${(c.strengths||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div></div>
+      <div class="card mb-3 border-danger"><div class="card-body p-3"><h6 class="fw-semibold text-danger"><i class="bi bi-exclamation-triangle me-1"></i>关键问题</h6><ul class="small mb-0">${(c.critical_issues||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div></div>
+      <div class="card mb-3"><div class="card-body p-3"><h6 class="fw-semibold"><i class="bi bi-pencil me-1"></i>具体改句建议（${(c.line_edits||[]).length} 条）</h6>
+        ${(c.line_edits||[]).map((e,i)=>`<div class="border-start border-primary border-3 ps-2 mb-2">
+          <div class="small text-muted">#${i+1} · ${escapeHtml(e.reason)}</div>
+          <div class="small text-decoration-line-through text-danger">${escapeHtml(e.original)}</div>
+          <div class="small text-success"><i class="bi bi-arrow-right"></i> ${escapeHtml(e.suggested)}</div>
+        </div>`).join('')}
+      </div></div>
+      ${c.structure_suggestion ? `<div class="card mb-3"><div class="card-body p-3"><h6 class="fw-semibold"><i class="bi bi-diagram-3 me-1"></i>结构调整建议</h6><p class="small mb-0">${escapeHtml(c.structure_suggestion)}</p></div></div>` : ''}
+      <div class="card mb-3"><div class="card-body p-3"><h6 class="fw-semibold"><i class="bi bi-bullseye me-1"></i>专业契合度（${c.fit_assessment?.score||'—'}/5）</h6>
+        ${(c.fit_assessment?.gaps||[]).length ? `<div class="small mb-1 text-muted">差距：</div><ul class="small">${c.fit_assessment.gaps.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul>` : ''}
+        ${(c.fit_assessment?.recommendations||[]).length ? `<div class="small mb-1 text-muted">建议：</div><ul class="small mb-0">${c.fit_assessment.recommendations.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul>` : ''}
+      </div></div>
+      ${(c.cliche_flags||[]).length ? `<div class="card mb-3 border-warning"><div class="card-body p-3"><h6 class="fw-semibold text-warning"><i class="bi bi-flag me-1"></i>陈词滥调标记</h6>${c.cliche_flags.map(x=>`<div class="small mb-1"><span class="fw-semibold">"${escapeHtml(x.phrase)}"</span> — <span class="text-muted">${escapeHtml(x.why)}</span></div>`).join('')}</div></div>` : ''}
+      <div class="small text-muted"><i class="bi bi-info-circle me-1"></i>字数：${c.word_stats?.word_count||'—'} · 平均句长：${c.word_stats?.avg_sentence_length||'—'} · 阅读时间：${c.word_stats?.estimated_reading_time_minutes||'—'} 分钟</div>
+    `;
+  } catch(e) {
+    result.innerHTML = `<div class="alert alert-danger small">批改失败：${escapeHtml(e.message || '')}</div>`;
+  }
+}
+
+async function runInterviewGen(studentId) {
+  const program = document.getElementById('ai-itv-program')?.value.trim();
+  const uni = document.getElementById('ai-itv-uni')?.value.trim();
+  if (!program) return showError('请先填写目标专业');
+  const result = document.getElementById('ai-itv-result');
+  result.innerHTML = `<div class="text-center py-5"><div class="spinner-border text-success"></div><p class="mt-3 text-muted small">Sonnet 4.6 正在出题，约 15-30 秒...</p></div>`;
+  try {
+    const r = await POST(`/api/students/${studentId}/ai-interview/generate`, { target_program: program, university: uni });
+    const q = r.questions;
+    const diffBadge = (d) => `<span class="badge bg-${d==='hard'?'danger':d==='medium'?'warning':'success'}-subtle text-${d==='hard'?'danger':d==='medium'?'warning':'success'}-emphasis border">${d}</span>`;
+    result.innerHTML = `
+      ${q.profile_summary ? `<div class="alert alert-info py-2 small mb-3"><i class="bi bi-person me-1"></i>${escapeHtml(q.profile_summary)}</div>` : ''}
+      <div class="accordion" id="itv-accordion">
+        ${(q.questions||[]).map((it,i) => `
+          <div class="accordion-item">
+            <h2 class="accordion-header"><button class="accordion-button ${i===0?'':'collapsed'}" type="button" data-bs-toggle="collapse" data-bs-target="#itv-${i}">
+              <span class="me-2 text-muted small">Q${i+1}</span>
+              <span class="me-2">${diffBadge(it.difficulty)}</span>
+              <span class="fw-semibold">${escapeHtml(it.question_zh)}</span>
+            </button></h2>
+            <div id="itv-${i}" class="accordion-collapse collapse ${i===0?'show':''}" data-bs-parent="#itv-accordion">
+              <div class="accordion-body small">
+                <div class="fst-italic text-muted mb-2">${escapeHtml(it.question_en)}</div>
+                <div class="mb-2"><strong>主题：</strong>${escapeHtml(it.topic)}</div>
+                <div class="mb-2"><strong>考察：</strong>${escapeHtml(it.purpose)}</div>
+                <div class="mb-2"><strong><i class="bi bi-lightbulb text-warning"></i> 答题框架：</strong><br><span class="text-muted">${escapeHtml(it.ideal_answer_framework)}</span></div>
+                ${(it.common_pitfalls||[]).length?`<div class="mb-2"><strong><i class="bi bi-exclamation-triangle text-danger"></i> 常见陷阱：</strong><ul class="mb-0">${it.common_pitfalls.map(p=>`<li>${escapeHtml(p)}</li>`).join('')}</ul></div>`:''}
+                ${(it.followup_prompts||[]).length?`<div><strong><i class="bi bi-arrow-return-right"></i> 追问方向：</strong><ol class="mb-0">${it.followup_prompts.map(p=>`<li>${escapeHtml(p)}</li>`).join('')}</ol></div>`:''}
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      ${(q.preparation_tips||[]).length ? `<div class="card mt-3"><div class="card-body p-3"><h6 class="fw-semibold"><i class="bi bi-check2-square me-1"></i>备考建议</h6><ul class="small mb-0">${q.preparation_tips.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div></div>` : ''}
+    `;
+  } catch(e) {
+    result.innerHTML = `<div class="alert alert-danger small">生成失败：${escapeHtml(e.message || '')}</div>`;
+  }
+}
+
+async function loadDashboardBriefing() {
+  const el = document.getElementById('dashboard-ai-briefing');
+  if (!el) return;
+  try {
+    const r = await GET('/api/ai-briefing/me');
+    if (r.skipped) {
+      el.innerHTML = `<div class="text-muted small">${r.reason==='no_caseload' ? '你尚未负责任何学生。' : '暂无可推送事项。'}</div>`;
+      return;
+    }
+    const b = r.data;
+    const urgBadge = (u) => `<span class="badge bg-${u==='critical'?'danger':u==='high'?'warning':u==='medium'?'info':'secondary'}-subtle text-${u==='critical'?'danger':u==='high'?'warning':u==='medium'?'info':'secondary'}-emphasis">${u}</span>`;
+    el.innerHTML = `
+      <div class="fw-semibold mb-2">${escapeHtml(b.headline || '')}</div>
+      ${(b.items||[]).map(i => `
+        <div class="d-flex gap-2 mb-2 small">
+          <div class="text-nowrap">${urgBadge(i.urgency)}</div>
+          <div>
+            <div><strong>${escapeHtml(i.student_name)}</strong> — ${escapeHtml(i.event)}</div>
+            <div class="text-muted"><i class="bi bi-arrow-right"></i> ${escapeHtml(i.recommended_action)}</div>
+          </div>
+        </div>`).join('') || '<div class="text-muted small">今日无紧急关注事项。</div>'}
+      ${b.encouragement ? `<div class="small text-muted fst-italic mt-2 pt-2 border-top">${escapeHtml(b.encouragement)}</div>` : ''}
+    `;
+  } catch(e) {
+    el.innerHTML = `<div class="text-muted small">日报加载失败：${escapeHtml(e.message || '')}</div>`;
+  }
 }
 
 // ════════════════════════════════════════════════════════

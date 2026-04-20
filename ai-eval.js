@@ -5,6 +5,7 @@
  */
 'use strict';
 const { OpenAI } = require('openai');
+const { callClaudeJSON, hasAnthropic, hasOpenAI } = require('./ai-client');
 
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 
@@ -67,8 +68,7 @@ function buildEvalPrompt(studentInfo, programInfo, systemEval) {
  * @returns {object} AI result object
  */
 async function enhanceEval(ev, student, program, examSittings, assessments) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY 未配置，请在服务器环境变量中设置后重试。');
+  if (!hasAnthropic() && !hasOpenAI()) throw new Error('未配置 AI Key。');
 
   const studentInfo = {
     grade_level: student.grade_level,
@@ -108,29 +108,13 @@ async function enhanceEval(ev, student, program, examSittings, assessments) {
     historical_applicants: program.hist_applicants || 0
   };
 
-  const client = new OpenAI({ apiKey });
-
-  const completion = await client.chat.completions.create({
-    model: MODEL,
-    temperature: 0.2,
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user',   content: buildEvalPrompt(studentInfo, programInfo, ev) }
-    ],
-    response_format: {
-      type: 'json_schema',
-      json_schema: {
-        name: 'admission_probability_estimate',
-        strict: true,
-        schema: AI_EVAL_SCHEMA
-      }
-    }
+  const result = await callClaudeJSON({
+    tier: 'heavy',
+    system: SYSTEM_PROMPT,
+    user: buildEvalPrompt(studentInfo, programInfo, ev),
+    schema: AI_EVAL_SCHEMA,
+    maxTokens: 4000,
   });
-
-  const raw = completion.choices[0]?.message?.content;
-  if (!raw) throw new Error('AI 返回内容为空，请稍后重试。');
-
-  const result = JSON.parse(raw);
 
   // Validate ranges
   result.prob_low  = Math.max(0, Math.min(99, result.prob_low));

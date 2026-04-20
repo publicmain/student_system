@@ -380,6 +380,9 @@ app.use('/api', require('./routes/evaluations')(deps));
 
 // AI Plans
 app.use('/api', require('./routes/ai-plans')(deps));
+app.use('/api', require('./routes/ai-essay')(deps));
+app.use('/api', require('./routes/ai-interview')(deps));
+app.use('/api', require('./routes/ai-briefing')(deps));
 
 // Material Requests (中介材料收集系统) — mount first to get shared helpers
 const matRequestsRouter = require('./routes/mat-requests')(deps);
@@ -1110,6 +1113,42 @@ db.init().then(() => {
       if (created > 0) console.log(`[auto-notify] ✅ 定时生成 ${created} 条通知`);
     } catch(e) { console.error('[auto-notify] 定时生成失败:', e.message); }
   }, 60 * 60 * 1000);
+
+  // ── 规划师日报：每天早 8:00 跑一次（容差 ±15 分钟） ─────────
+  let _lastBriefingDate = '';
+  const tryRunBriefings = async () => {
+    try {
+      const now = new Date();
+      const h = now.getHours();
+      const today = now.toISOString().slice(0, 10);
+      if (today === _lastBriefingDate) return;
+      if (h !== 8) return; // 只在 8 点窗口
+      _lastBriefingDate = today;
+      const aiBriefing = require('./ai-briefing');
+      const { sendMail } = require('./mailer');
+      const results = await aiBriefing.generateAllBriefings(db);
+      for (const r of results) {
+        if (!r.staff_email || !r.briefing) continue;
+        const b = r.briefing;
+        const body = [
+          `你好 ${r.staff_name}，`,
+          ``,
+          b.headline || '',
+          ``,
+          ...(b.items || []).map(i => `[${i.urgency.toUpperCase()}] ${i.student_name} — ${i.event}\n  → ${i.recommended_action}`),
+          ``,
+          b.encouragement || '',
+          ``,
+          `—— 升学系统 Daily Briefing (${today})`,
+        ].join('\n');
+        try {
+          await sendMail({ to: r.staff_email, subject: `[升学日报] ${today} — ${(b.items||[]).length} 项关注事项`, text: body });
+        } catch(e) { console.error('[ai-briefing] 邮件发送失败:', e.message); }
+      }
+      console.log(`[ai-briefing] ✅ 日报已发给 ${results.length} 位规划师`);
+    } catch(e) { console.error('[ai-briefing] 定时任务失败:', e.message); }
+  };
+  setInterval(tryRunBriefings, 30 * 60 * 1000); // 每 30 分钟检查一次
 
   sessionStore.setDb(db);
   app.listen(PORT, () => {

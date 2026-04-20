@@ -6,8 +6,9 @@
 'use strict';
 const { OpenAI } = require('openai');
 const { v4: uuidv4 } = require('uuid');
+const { callClaudeJSON, hasAnthropic, hasOpenAI, MODELS } = require('./ai-client');
 
-const PROMPT_VERSION = '1.1';
+const PROMPT_VERSION = '1.2';
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 
 // JSON Schema for structured output (strict mode compatible)
@@ -152,7 +153,7 @@ const SYSTEM_PROMPT = `你是一名专业的国际升学规划助手，为国际
  * Does NOT include: name, DOB, phone, email, wechat, parent contacts.
  */
 function buildStudentSnapshot(db, studentId, options = {}) {
-  const student = db.get('SELECT id, grade_level, exam_board, status FROM students WHERE id=?', [studentId]);
+  const student = db.get('SELECT id, grade_level, exam_board, status, target_countries, target_major, current_school FROM students WHERE id=?', [studentId]);
   if (!student) throw new Error('学生不存在');
 
   const subjects = db.all(
@@ -167,13 +168,64 @@ function buildStudentSnapshot(db, studentId, options = {}) {
   );
 
   const sittings = db.all(
-    `SELECT exam_board, series, year, subject, predicted_grade, actual_grade, status
+    `SELECT exam_board, series, year, subject, subject_code, predicted_grade, actual_grade, status, sitting_date
      FROM exam_sittings WHERE student_id=? ORDER BY year DESC, series`, [studentId]
   );
 
   const targets = db.all(
     `SELECT uni_name, tier, department FROM target_uni_lists WHERE student_id=?`, [studentId]
   );
+
+  // ─── 选课 + 任课教师（通过 course_enrollments ⋈ course_staff）─────
+  let courses = [];
+  try {
+    courses = db.all(`
+      SELECT c.code, c.name AS course_name, c.exam_board, c.level, c.session_label,
+             c.periods_per_week, cr.name AS classroom_name,
+             (SELECT GROUP_CONCAT(st.name, ', ') FROM course_staff cs
+                JOIN staff st ON st.id=cs.staff_id WHERE cs.course_id=c.id) AS teachers
+      FROM course_enrollments ce
+      JOIN courses c ON c.id = ce.course_id
+      LEFT JOIN classrooms cr ON cr.id = c.classroom_id
+      WHERE ce.student_id=? AND ce.status='active'
+      ORDER BY c.code`, [studentId]);
+  } catch(e) { courses = []; }
+
+  // ─── 课外活动 / 奖项 / 荣誉 ─────────────────────────────────
+  let activities = [], awards = [], honors = [];
+  try { activities = db.all(`SELECT activity_type, title, organization, role, start_date, end_date, hours_per_week, description FROM student_activities WHERE student_id=? ORDER BY start_date DESC LIMIT 20`, [studentId]); } catch(e) {}
+  try { awards = db.all(`SELECT title, level, issuer, award_date, description FROM student_awards WHERE student_id=? ORDER BY award_date DESC LIMIT 20`, [studentId]); } catch(e) {}
+  try { honors = db.all(`SELECT title, level, issuer, award_date FROM student_honors WHERE student_id=? ORDER BY award_date DESC LIMIT 20`, [studentId]); } catch(e) {}
+
+  // ─── 个人陈述（已完成的最新版摘要） ─────────────────────────
+  let personalStatement = null;
+  try {
+    const ps = db.get(`SELECT content, updated_at FROM personal_statements WHERE student_id=? ORDER BY updated_at DESC LIMIT 1`, [studentId]);
+    if (ps && ps.content) {
+      const txt = String(ps.content);
+      personalStatement = {
+        word_count: txt.trim().split(/\s+/).length,
+        excerpt: txt.length > 1200 ? txt.slice(0, 1200) + '…' : txt,
+        updated_at: ps.updated_at,
+      };
+    }
+  } catch(e) {}
+
+  // ─── 近期沟通记录（最多 10 条摘要） ─────────────────────────
+  let communications = [];
+  try {
+    communications = db.all(`SELECT comm_type, topic, summary, created_at FROM communication_logs WHERE student_id=? ORDER BY created_at DESC LIMIT 10`, [studentId]);
+  } catch(e) {}
+
+  // ─── 反馈（学生/家长/导师评价，供识别痛点） ─────────────────
+  let feedback = [];
+  try {
+    feedback = db.all(`SELECT from_role, category, rating, content, created_at FROM feedback WHERE student_id=? ORDER BY created_at DESC LIMIT 10`, [studentId]);
+  } catch(e) {}
+
+  // ─── 扩展档案（兴趣、目标、学习风格） ────────────────────────
+  let profileExt = null;
+  try { profileExt = db.get(`SELECT * FROM student_profiles_ext WHERE student_id=?`, [studentId]); } catch(e) {}
 
   // Candidate programs from uni_programs catalogue
   const programs = db.all(
@@ -198,11 +250,19 @@ function buildStudentSnapshot(db, studentId, options = {}) {
       student_id: student.id,
       grade_level: student.grade_level,
       exam_board: student.exam_board,
-      status: student.status
+      status: student.status,
+      current_school: student.current_school ? `[DATA: ${student.current_school}]` : null,
+      target_countries: student.target_countries ? `[DATA: ${student.target_countries}]` : null,
+      target_major: student.target_major ? `[DATA: ${student.target_major}]` : null,
     },
     route_focus: options.route_focus || ['UK-UG'],
     academics: {
       subject_enrollments: subjects.map(s => ({ subject_code: s.code, subject_name: `[DATA: ${s.subject_name}]`, level: s.level, exam_board: s.sub_board })),
+      courses_current_semester: courses.map(c => ({
+        code: c.code, subject: c.course_name, exam_board: c.exam_board, level: c.level,
+        session: c.session_label, periods_per_week: c.periods_per_week,
+        classroom: c.classroom_name, teachers: c.teachers ? `[DATA: ${c.teachers}]` : null,
+      })),
       assessments_recent: assessments.slice(0, 10).map(a => ({
         type: a.assess_type, date: a.assess_date,
         score: a.score, max_score: a.max_score
@@ -210,9 +270,49 @@ function buildStudentSnapshot(db, studentId, options = {}) {
       exam_sittings_summary: sittings.map(s => ({
         exam_board: s.exam_board, series: s.series, year: s.year,
         subject: `[DATA: ${s.subject}]`,
+        subject_code: s.subject_code,
         predicted_grade: s.predicted_grade, actual_grade: s.actual_grade,
-        status: s.status
+        status: s.status, sitting_date: s.sitting_date,
       }))
+    },
+    extracurricular: {
+      activities: activities.map(a => ({
+        type: a.activity_type, title: `[DATA: ${a.title}]`,
+        organization: a.organization ? `[DATA: ${a.organization}]` : null,
+        role: a.role ? `[DATA: ${a.role}]` : null,
+        start_date: a.start_date, end_date: a.end_date, hours_per_week: a.hours_per_week,
+        description: a.description ? `[DATA: ${String(a.description).slice(0, 200)}]` : null,
+      })),
+      awards: awards.map(a => ({
+        title: `[DATA: ${a.title}]`, level: a.level,
+        issuer: a.issuer ? `[DATA: ${a.issuer}]` : null, award_date: a.award_date,
+      })),
+      honors: honors.map(h => ({ title: `[DATA: ${h.title}]`, level: h.level, issuer: h.issuer ? `[DATA: ${h.issuer}]` : null, award_date: h.award_date })),
+    },
+    writing: personalStatement ? {
+      personal_statement: {
+        word_count: personalStatement.word_count,
+        excerpt: `[DATA: ${personalStatement.excerpt}]`,
+        updated_at: personalStatement.updated_at,
+      }
+    } : { personal_statement: null },
+    engagement: {
+      recent_communications: communications.map(c => ({
+        type: c.comm_type, topic: c.topic ? `[DATA: ${c.topic}]` : null,
+        summary: c.summary ? `[DATA: ${String(c.summary).slice(0, 250)}]` : null,
+        date: c.created_at,
+      })),
+      recent_feedback: feedback.map(f => ({
+        from_role: f.from_role, category: f.category, rating: f.rating,
+        content: f.content ? `[DATA: ${String(f.content).slice(0, 250)}]` : null,
+        date: f.created_at,
+      })),
+      profile_ext: profileExt ? {
+        interests: profileExt.interests || null,
+        career_goal: profileExt.career_goal ? `[DATA: ${profileExt.career_goal}]` : null,
+        learning_style: profileExt.learning_style || null,
+        notes: profileExt.notes ? `[DATA: ${String(profileExt.notes).slice(0, 300)}]` : null,
+      } : null,
     },
     preferences: {
       existing_targets: targets.map(t => ({ uni_name: `[DATA: ${t.uni_name}]`, tier: t.tier, department: `[DATA: ${t.department}]` })),
@@ -271,8 +371,9 @@ function validatePlanBusinessRules(db, plan) {
  * Returns { plan_id, status, plan } or throws.
  */
 async function generatePlan(db, studentId, createdBy, options = {}) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY 未配置，请在服务器环境变量中设置后重试。');
+  if (!hasAnthropic() && !hasOpenAI()) {
+    throw new Error('未配置 ANTHROPIC_API_KEY 或 OPENAI_API_KEY。');
+  }
 
   // Consent gate
   const consent = db.get(
@@ -294,34 +395,15 @@ async function generatePlan(db, studentId, createdBy, options = {}) {
     throw new Error('学生数据不足：至少需要录入选科记录或考试场次后才能生成 AI 规划。');
   }
 
-  const client = new OpenAI({ apiKey });
-
-  const completion = await client.chat.completions.create({
-    model: MODEL,
-    temperature: 0.3,
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: JSON.stringify(snapshot, null, 2) }
-    ],
-    response_format: {
-      type: 'json_schema',
-      json_schema: {
-        name: 'student_roadmap_plan',
-        strict: true,
-        schema: PLAN_SCHEMA
-      }
-    }
+  // 调用 AI（heavy tier：Opus 4.7 + 自适应思考 + 流式；OpenAI 回退走 gpt-4o strict schema）
+  const plan = await callClaudeJSON({
+    tier: 'heavy',
+    system: SYSTEM_PROMPT,
+    user: JSON.stringify(snapshot, null, 2),
+    schema: PLAN_SCHEMA,
+    maxTokens: 16000,
+    stream: true,
   });
-
-  const raw = completion.choices[0]?.message?.content;
-  if (!raw) throw new Error('AI 返回内容为空，请稍后重试。');
-
-  let plan;
-  try {
-    plan = JSON.parse(raw);
-  } catch (e) {
-    throw new Error('AI 返回格式无效，无法解析 JSON：' + e.message);
-  }
 
   // Business rule validation
   const valErrors = validatePlanBusinessRules(db, plan);
@@ -329,13 +411,14 @@ async function generatePlan(db, studentId, createdBy, options = {}) {
     throw new Error('AI 返回内容包含无效引用：' + valErrors.join('; '));
   }
 
+  const modelUsed = hasAnthropic() ? MODELS.heavy : MODEL;
   const planId = uuidv4();
   const now = new Date().toISOString();
   db.run(
     `INSERT INTO ai_student_plans
        (id, student_id, status, plan_json, input_snapshot_json, model, prompt_version, created_by, created_at, updated_at)
      VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?)`,
-    [planId, studentId, JSON.stringify(plan), JSON.stringify(snapshot), MODEL, PROMPT_VERSION, createdBy, now, now]
+    [planId, studentId, JSON.stringify(plan), JSON.stringify(snapshot), modelUsed, PROMPT_VERSION, createdBy, now, now]
   );
 
   return { plan_id: planId, status: 'draft', plan };

@@ -850,6 +850,17 @@ function createSchema() {
     applied_at   TEXT DEFAULT (datetime('now'))
   )`);
 
+  // ── AI 通用调用日志（速率限制 / 审计） ─────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS ai_call_logs (
+    id           TEXT PRIMARY KEY,
+    user_id      TEXT NOT NULL,
+    action       TEXT NOT NULL,     -- essay_critique / interview_gen / plan_gen ...
+    student_id   TEXT,
+    tokens_used  INTEGER DEFAULT 0,
+    created_at   TEXT DEFAULT (datetime('now'))
+  )`);
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_ai_call_user_time ON ai_call_logs(user_id, created_at)'); } catch(e) {}
+
   // ── 入学管理 ─────────────────────────────────────────
   db.run(`CREATE TABLE IF NOT EXISTS intake_cases (
     id                   TEXT PRIMARY KEY,

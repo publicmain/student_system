@@ -390,18 +390,32 @@ function confirmAction(msg, callback, opts = {}) {
   } else {
     bodyEl.textContent = msg;
   }
-  const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('confirm-modal'));
-  modal.show();
+  const modalEl = document.getElementById('confirm-modal');
+  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
   const okBtn = document.getElementById('confirm-ok');
-  // Apply danger style for destructive operations
   okBtn.className = opts.danger ? 'btn btn-danger' : 'btn btn-primary';
   okBtn.textContent = opts.okLabel || '确认';
+  // 先禁用 OK，等 modal 完全 shown 后再启用；否则 show transition 期间点 OK
+  // 会触发 Bootstrap "hide during showing" 的 bug（hide 静默失效，modal 卡死）
+  okBtn.disabled = true;
+  const onShown = () => {
+    modalEl.removeEventListener('shown.bs.modal', onShown);
+    okBtn.disabled = false;
+  };
+  modalEl.addEventListener('shown.bs.modal', onShown);
   okBtn.onclick = () => {
     if (okBtn.disabled) return;
     okBtn.disabled = true;
+    // 等 confirm modal 完全 hidden 后再执行 callback，避免 callback 内若 hide 其他 modal
+    // 干扰 Bootstrap 的 modal 栈清理（导致 backdrop 残留 / 页面锁死）
+    const onHidden = () => {
+      modalEl.removeEventListener('hidden.bs.modal', onHidden);
+      try { callback(); } finally { setTimeout(() => { okBtn.disabled = false; }, 500); }
+    };
+    modalEl.addEventListener('hidden.bs.modal', onHidden);
     modal.hide();
-    try { callback(); } finally { setTimeout(() => { okBtn.disabled = false; }, 500); }
   };
+  modal.show();
 }
 
 // 通用表单弹窗 — 用于需要用户填写信息的操作

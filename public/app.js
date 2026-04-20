@@ -7063,14 +7063,14 @@ async function openAIPlanModal(planId, studentId) {
 const escHtml = escapeHtml;
 
 async function approveAIPlan(planId, studentId, fromModal = false) {
-  confirmAction('确认批准此 AI 规划草稿？批准后规划师可将其发布给家长/学生查看。', async () => {
+  const doIt = () => confirmAction('确认批准此 AI 规划草稿？批准后规划师可将其发布给家长/学生查看。', async () => {
     try {
       await PUT(`/api/ai-plans/${planId}/approve`, {});
       showSuccess('规划已批准！');
-      if (fromModal) { bootstrap.Modal.getInstance(document.getElementById('ai-plan-modal'))?.hide(); }
       loadAIPlanTab(studentId);
     } catch (e) { showError(e.message); }
   });
+  if (fromModal) _closeAndThen('ai-plan-modal', doIt); else doIt();
 }
 
 async function applyAIPlan(planId, studentId) {
@@ -7078,25 +7078,39 @@ async function applyAIPlan(planId, studentId) {
   const checked = document.querySelectorAll('.ai-apply-check:checked');
   const selected = [...new Set([...checked].map(c => c.dataset.section))];
   if (selected.length === 0) { showError('请至少选择一项要应用的内容'); return; }
-  confirmAction(`确定将选中的 ${selected.length} 类内容写入系统？此操作不可撤销，请确认 AI 规划内容准确后再应用。`, async () => {
-    try {
-      const r = await POST(`/api/ai-plans/${planId}/apply`, { selected_sections: selected });
-      showSuccess(`已应用：目标院校 ${r.counts.targets} 所 / 模板任务 ${r.counts.templates} 条 / 自定义任务 ${r.counts.tasks} 条 / 申请草稿 ${r.counts.applications} 条`);
-      bootstrap.Modal.getInstance(document.getElementById('ai-plan-modal'))?.hide();
-      loadAIPlanTab(studentId);
-    } catch (e) { showError(e.message); }
-  }, { danger: true });
+  const doConfirm = () => {
+    confirmAction(`确定将选中的 ${selected.length} 类内容写入系统？此操作不可撤销，请确认 AI 规划内容准确后再应用。`, async () => {
+      try {
+        const r = await POST(`/api/ai-plans/${planId}/apply`, { selected_sections: selected });
+        showSuccess(`已应用：目标院校 ${r.counts.targets} 所 / 模板任务 ${r.counts.templates} 条 / 自定义任务 ${r.counts.tasks} 条 / 申请草稿 ${r.counts.applications} 条`);
+        loadAIPlanTab(studentId);
+      } catch (e) { showError(e.message); }
+    }, { danger: true });
+  };
+  // 先关掉 AI 规划 modal，等它完全 hidden 后再弹确认框；否则两个 modal 叠加会
+  // 触发 Bootstrap backdrop 清理失败，导致页面锁死。
+  _closeAndThen('ai-plan-modal', doConfirm);
+}
+
+// 通用：hide 目标 modal，等 hidden.bs.modal 后调 then()。目标已关闭或不存在则立即调用。
+function _closeAndThen(modalElId, then) {
+  const el = document.getElementById(modalElId);
+  const inst = el ? bootstrap.Modal.getInstance(el) : null;
+  if (!inst || !el.classList.contains('show')) { then(); return; }
+  const onHidden = () => { el.removeEventListener('hidden.bs.modal', onHidden); then(); };
+  el.addEventListener('hidden.bs.modal', onHidden);
+  inst.hide();
 }
 
 async function publishAIPlan(planId, studentId, fromModal = false) {
-  confirmAction('确认发布规划给家长/学生查看？发布后家长将可见此规划内容。', async () => {
+  const doIt = () => confirmAction('确认发布规划给家长/学生查看？发布后家长将可见此规划内容。', async () => {
     try {
       await PUT(`/api/ai-plans/${planId}/publish`, {});
       showSuccess('规划已发布！');
-      if (fromModal) { bootstrap.Modal.getInstance(document.getElementById('ai-plan-modal'))?.hide(); }
       loadAIPlanTab(studentId);
     } catch (e) { showError(e.message); }
   });
+  if (fromModal) _closeAndThen('ai-plan-modal', doIt); else doIt();
 }
 
 async function archiveAIPlan(planId, studentId) {

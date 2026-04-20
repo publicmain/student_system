@@ -713,6 +713,12 @@ db.init().then(() => {
       db.run(`DELETE FROM mat_request_items WHERE request_id IN (SELECT id FROM mat_requests WHERE student_id IS NOT NULL AND student_id NOT IN (SELECT id FROM students))`);
       db.run(`DELETE FROM mat_requests WHERE student_id IS NOT NULL AND student_id NOT IN (SELECT id FROM students)`);
     } catch(e) { console.error('[BUG-14] mat_requests 孤儿清理失败:', e.message); }
+    // notification_logs 孤儿（学生被硬删后通知仍显示在通知中心）
+    const orphanNotifs = db.get('SELECT COUNT(*) as cnt FROM notification_logs WHERE student_id IS NOT NULL AND student_id NOT IN (SELECT id FROM students)');
+    try {
+      db.run(`DELETE FROM notification_logs WHERE student_id IS NOT NULL AND student_id NOT IN (SELECT id FROM students)`);
+    } catch(e) { console.error('[BUG-14] notification_logs 孤儿清理失败:', e.message); }
+    if (orphanNotifs?.cnt) console.log(`[BUG-14] 清理 ${orphanNotifs.cnt} 条幽灵通知`);
     db.run('UPDATE intake_cases SET student_id=NULL WHERE student_id IS NOT NULL AND student_id NOT IN (SELECT id FROM students)');
     try { db.run(`UPDATE intake_form_submissions SET imported_student_id=NULL, status='pending' WHERE imported_student_id IS NOT NULL AND imported_student_id NOT IN (SELECT id FROM students)`); } catch(e) {}
     if (orphanApps?.cnt) console.log(`[BUG-14] 清理 ${orphanApps.cnt} 条幽灵申请`);

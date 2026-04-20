@@ -234,6 +234,8 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
       db.run(`DELETE FROM mat_request_items WHERE request_id IN (SELECT id FROM mat_requests WHERE student_id=?)`, [id]);
       db.run(`DELETE FROM mat_requests WHERE student_id=?`, [id]);
     } catch(e) {}
+    // 通知中心级联（避免学生删后通知仍留存 1 小时）
+    try { db.run('DELETE FROM notification_logs WHERE student_id=?', [id]); } catch(e) {}
     // 课程选课级联
     try { db.run('DELETE FROM course_enrollments WHERE student_id=?', [id]); } catch(e) {}
     try { db.run('UPDATE intake_cases SET student_id=NULL WHERE student_id=?', [id]); } catch(e) {}

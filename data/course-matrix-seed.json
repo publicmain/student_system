@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-20T04:41:51.994Z",
+  "generated_at": "2026-04-20T04:54:47.362Z",
   "note": "由本地 DB 导出。服务端启动时在空库场景下种入。",
   "classrooms": [
     {
@@ -1535,6 +1535,1028 @@
       "course_code": "Zhou_Econ",
       "student_name": "Zhou Zixin",
       "status": "active"
+    }
+  ],
+  "subject_enrollments": [
+    {
+      "student_name": "Chen Jiaen",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Chen Jiaen",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Fan Enhui",
+      "subject_code": "amath",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Fan Enhui",
+      "subject_code": "chemistry",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Fan Enhui",
+      "subject_code": "english",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Fan Enhui",
+      "subject_code": "math",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Fan Enhui",
+      "subject_code": "physics",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Hein Htet Naing",
+      "subject_code": "amath",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Hein Htet Naing",
+      "subject_code": "chemistry",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Hein Htet Naing",
+      "subject_code": "english",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Hein Htet Naing",
+      "subject_code": "math",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Hein Htet Naing",
+      "subject_code": "physics",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Huang Yutai",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Huang Yutai",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Huang Yutai",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Kong Fanjin",
+      "subject_code": "economics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Kong Fanjin",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Kong Fanjin",
+      "subject_code": "fmath",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Kong Fanjin",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Kong Fanjin",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Lei Zerui",
+      "subject_code": "combined_sci",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "Lei Zerui",
+      "subject_code": "english",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "Lei Zerui",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Lei Zerui",
+      "subject_code": "math",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "Li Chun",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Li Chun",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Li Chun",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Li Chun",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Li Mingyang",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Li Mingyang",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Li Mingyang",
+      "subject_code": "fmath",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Li Mingyang",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Li Mingyang",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Li Yongxuan",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Li Yongxuan",
+      "subject_code": "computer_science",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Li Yongxuan",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Li Yongxuan",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Li Yongxuan",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Lin Yinjia",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Lin Yinjia",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Lin Yinjia",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Lin Yinjia",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Liu Sixuan",
+      "subject_code": "amath",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Liu Sixuan",
+      "subject_code": "chemistry",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Liu Sixuan",
+      "subject_code": "english",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Liu Sixuan",
+      "subject_code": "math",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Liu Sixuan",
+      "subject_code": "physics",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Liu Yicun",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Liu Yicun",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Liu Yicun",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Liu Yicun",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Liu Yijia",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Liu Yijia",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Liu Yijia",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Liu Yijia",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Lu Xinnan",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Lu Xinnan",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Lu Xinnan",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Mao Silin",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Mao Silin",
+      "subject_code": "economics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Mao Silin",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Mao Silin",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Mao Silin",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Mu Ge",
+      "subject_code": "amath",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Mu Ge",
+      "subject_code": "chemistry",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Mu Ge",
+      "subject_code": "english",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Mu Ge",
+      "subject_code": "math",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Mu Ge",
+      "subject_code": "physics",
+      "level": "OL",
+      "exam_board": "CIE O-Level"
+    },
+    {
+      "student_name": "Niu Xinglin",
+      "subject_code": "economics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Niu Xinglin",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Niu Xinglin",
+      "subject_code": "fmath",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Niu Xinglin",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Niu Xinglin",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Su Yiying",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Su Yiying",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Su Yiying",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Su Yiying",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Tian Chang",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Tian Chang",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Tian Chang",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Tian Chang",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Tian Shuo",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Tian Shuo",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Tian Shuo",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Tian Shuo",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Wang Chenxu",
+      "subject_code": "combined_sci",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "Wang Chenxu",
+      "subject_code": "english",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "Wang Chenxu",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Wang Chenxu",
+      "subject_code": "math",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "Wang Chenyu",
+      "subject_code": "combined_sci",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "Wang Chenyu",
+      "subject_code": "english",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "Wang Chenyu",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Wang Chenyu",
+      "subject_code": "math",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "Wang Qianpeng",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Wang Qianpeng",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Wang Qianpeng",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Wang Yaoxing",
+      "subject_code": "computer_science",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Wang Yaoxing",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Wang Yaoxing",
+      "subject_code": "fmath",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Wang Yaoxing",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Wang Yaoxing",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Wang Zhangxin",
+      "subject_code": "combined_sci",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "Wang Zhangxin",
+      "subject_code": "english",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "Wang Zhangxin",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Wang Zhangxin",
+      "subject_code": "math",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "Wang Ziliang",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Wang Ziliang",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Yan Jinnuo",
+      "subject_code": "art",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Yan Jinnuo",
+      "subject_code": "economics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Yan Jinnuo",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Yan Jinnuo",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Yan Wenhan",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Yan Wenhan",
+      "subject_code": "computer_science",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Yan Wenhan",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Yan Wenhan",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Yan Wenhan",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Ye Shurui",
+      "subject_code": "economics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Ye Shurui",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Ye Shurui",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Ye Shurui",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Yu Xiaoping",
+      "subject_code": "combined_sci",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "Yu Xiaoping",
+      "subject_code": "english",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "Yu Xiaoping",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Yu Xiaoping",
+      "subject_code": "math",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "Yu Xiaoting",
+      "subject_code": "combined_sci",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "Yu Xiaoting",
+      "subject_code": "english",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "Yu Xiaoting",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Yu Xiaoting",
+      "subject_code": "math",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "Zheng Jingxi",
+      "subject_code": "accounting",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zheng Jingxi",
+      "subject_code": "economics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zheng Jingxi",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zheng Jingxi",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zheng Xiyu",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zheng Xiyu",
+      "subject_code": "economics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zheng Xiyu",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zheng Xiyu",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zhou Zixin",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zhou Zixin",
+      "subject_code": "economics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zhou Zixin",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zhou Zixin",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zhou Zixin",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zhu Zhenhao",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zhu Zhenhao",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zhu Zhenhao",
+      "subject_code": "fmath",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zhu Zhenhao",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zhu Zhenhao",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zhuang Ziyue",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zhuang Ziyue",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "Zhuang Ziyue",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "周思源",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "周思源",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "周思源",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "周思源",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "喻耀程",
+      "subject_code": "english",
+      "level": "IGCSE",
+      "exam_board": "CIE IGCSE"
+    },
+    {
+      "student_name": "喻耀程",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "喻耀程",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "杨桐",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "杨桐",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "蒋昕雨",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "蒋昕雨",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "蒋昕雨",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "蒋昕雨",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "郑瑞尚",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "郑瑞尚",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "郑瑞尚",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "郑瑞尚",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "钟睿韬",
+      "subject_code": "chemistry",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "钟睿韬",
+      "subject_code": "english",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "钟睿韬",
+      "subject_code": "math",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
+    },
+    {
+      "student_name": "钟睿韬",
+      "subject_code": "physics",
+      "level": "A2",
+      "exam_board": "Edexcel IAL"
     }
   ],
   "exam_sittings": [

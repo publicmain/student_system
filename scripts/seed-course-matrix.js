@@ -37,7 +37,16 @@ function runSeed(db, uuidv4) {
 
   const data = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
   const now = new Date().toISOString();
-  let stats = { classrooms: 0, teachers: 0, courses: 0, course_staff: 0, enrollments: 0, sittings: 0, skipped: 0 };
+  let stats = { classrooms: 0, teachers: 0, courses: 0, course_staff: 0, enrollments: 0, subject_enr: 0, sittings: 0, skipped: 0, errors: 0 };
+  const firstErrors = [];
+  const tryRun = (sql, params, tag) => {
+    try { db.run(sql, params); return true; }
+    catch (e) {
+      stats.errors++;
+      if (firstErrors.length < 5) firstErrors.push(`${tag}: ${e.message}`);
+      return false;
+    }
+  };
 
   // 1) classrooms
   const classroomId = {};
@@ -75,11 +84,13 @@ function runSeed(db, uuidv4) {
     let row = db.get('SELECT id FROM courses WHERE code=?', [c.code]);
     if (!row) {
       const id = uuidv4();
-      db.run(`INSERT INTO courses (id, code, name, subject_id, classroom_id, exam_board, level, session_label,
+      const ok = tryRun(`INSERT INTO courses (id, code, name, subject_id, classroom_id, exam_board, level, session_label,
               num_students, periods_per_week, notes, status, created_at, updated_at)
               VALUES (?,?,?,?,?,?,?,?,?,?, '', 'active', ?,?)`,
         [id, c.code, c.name, subjectIdByCode[c.subject_code] || null, classroomId[c.classroom_name] || null,
-         c.exam_board || '', c.level || '', c.session_label || '', c.num_students || 0, c.periods_per_week || 0, now, now]);
+         c.exam_board || '', c.level || '', c.session_label || '', c.num_students || 0, c.periods_per_week || 0, now, now],
+        `courses[${c.code}]`);
+      if (!ok) continue;
       row = { id };
       stats.courses++;
     }
@@ -117,6 +128,22 @@ function runSeed(db, uuidv4) {
   // refresh courses.num_students
   db.run(`UPDATE courses SET num_students = (SELECT COUNT(*) FROM course_enrollments WHERE course_id=courses.id AND status='active')`);
 
+  // 5.5) subject_enrollments (学生档案右侧"选科"面板数据源)
+  if (Array.isArray(data.subject_enrollments)) {
+    for (const se of data.subject_enrollments) {
+      const sid = studentIdByName[se.student_name];
+      const subId = subjectIdByCode[se.subject_code];
+      if (!sid || !subId) { stats.skipped++; continue; }
+      const dup = db.get('SELECT id FROM subject_enrollments WHERE student_id=? AND subject_id=? AND exam_board=?',
+        [sid, subId, se.exam_board || '']);
+      if (dup) continue;
+      const ok = tryRun(`INSERT INTO subject_enrollments (id, student_id, subject_id, level, exam_board) VALUES (?,?,?,?,?)`,
+        [uuidv4(), sid, subId, se.level || '', se.exam_board || ''],
+        `subject_enr[${se.student_name}/${se.subject_code}]`);
+      if (ok) stats.subject_enr++;
+    }
+  }
+
   // 6) exam_sittings
   for (const es of data.exam_sittings) {
     const sid = studentIdByName[es.student_name];
@@ -147,7 +174,12 @@ function runSeed(db, uuidv4) {
   console.log(`[seed-cm] ✅ 课程矩阵种子完成:`,
     `classrooms+${stats.classrooms}, teachers+${stats.teachers}, courses+${stats.courses},`,
     `course_staff+${stats.course_staff}, enrollments+${stats.enrollments},`,
-    `sittings+${stats.sittings}, skipped=${stats.skipped}`);
+    `subject_enr+${stats.subject_enr}, sittings+${stats.sittings},`,
+    `skipped=${stats.skipped}, errors=${stats.errors}`);
+  if (firstErrors.length > 0) {
+    console.log(`[seed-cm] ⚠️ 错误样本 (${firstErrors.length}):`);
+    firstErrors.forEach(e => console.log(`  - ${e}`));
+  }
   if (warnMissing.size > 0) {
     console.log(`[seed-cm] ⚠️ 以下学生未在 students 表中（跳过其选课/考试）: ${[...warnMissing].slice(0,10).join(', ')}${warnMissing.size>10?'...':''}`);
   }

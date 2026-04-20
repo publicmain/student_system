@@ -214,20 +214,28 @@ function createSchema() {
 
   // ── 课程 (具体开课单位, e.g. IAL26W_Math/FMath) ────────
   db.run(`CREATE TABLE IF NOT EXISTS courses (
-    id            TEXT PRIMARY KEY,
-    code          TEXT UNIQUE NOT NULL,   -- "IAL26W_Math/FMath"
-    name          TEXT NOT NULL,
-    subject_id    TEXT,                   -- 关联 subjects 字典
-    classroom_id  TEXT,                   -- 主教室
-    exam_board    TEXT,                   -- Edexcel/CIE/...
-    level         TEXT,                   -- IAL/O-Level/IGCSE/Sec
-    session_label TEXT,                   -- IAL26W / OL26W / SEC27W
-    num_students  INTEGER DEFAULT 0,
-    notes         TEXT,
-    status        TEXT DEFAULT 'active',
-    created_at    TEXT DEFAULT (datetime('now')),
-    updated_at    TEXT DEFAULT (datetime('now'))
+    id               TEXT PRIMARY KEY,
+    code             TEXT UNIQUE NOT NULL,   -- "IAL26W_Math/FMath"
+    name             TEXT NOT NULL,
+    subject_id       TEXT,                   -- 关联 subjects 字典
+    classroom_id     TEXT,                   -- 主教室
+    exam_board       TEXT,                   -- Edexcel/CIE/...
+    level            TEXT,                   -- IAL/O-Level/IGCSE/Sec
+    session_label    TEXT,                   -- IAL26W / OL26W / SEC27W
+    num_students     INTEGER DEFAULT 0,
+    periods_per_week INTEGER DEFAULT 0,      -- 每周课时
+    notes            TEXT,
+    status           TEXT DEFAULT 'active',
+    created_at       TEXT DEFAULT (datetime('now')),
+    updated_at       TEXT DEFAULT (datetime('now'))
   )`);
+  // 为已有 DB 补齐 periods_per_week 列（CREATE TABLE IF NOT EXISTS 不会改已存在的表）
+  try {
+    const cols = db.exec("PRAGMA table_info(courses)")[0]?.values.map(v => v[1]) || [];
+    if (!cols.includes('periods_per_week')) {
+      db.run('ALTER TABLE courses ADD COLUMN periods_per_week INTEGER DEFAULT 0');
+    }
+  } catch(e) {}
   try { db.run('CREATE INDEX IF NOT EXISTS idx_courses_classroom ON courses(classroom_id)'); } catch(e) {}
   try { db.run('CREATE INDEX IF NOT EXISTS idx_courses_subject   ON courses(subject_id)'); } catch(e) {}
 

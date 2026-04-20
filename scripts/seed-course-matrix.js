@@ -77,8 +77,20 @@ function runSeed(db, uuidv4) {
 
   // 3) courses
   const courseId = {};
+  // 子科目字典：JSON 里用的是小写 code（math/physics/...），但 db.js 默认建的是大写（MATH/PHYS/...）
+  // 先确保 JSON 里用到的所有 code 都存在；不存在就按 JSON 提供的 subject_name 建一条。
   const subjectIdByCode = {};
   for (const row of db.all('SELECT id, code FROM subjects')) subjectIdByCode[row.code] = row.id;
+  const neededSubjects = new Map(); // code → name
+  for (const c of data.courses) { if (c.subject_code) neededSubjects.set(c.subject_code, c.subject_name || c.subject_code); }
+  for (const se of (data.subject_enrollments || [])) { if (se.subject_code && !neededSubjects.has(se.subject_code)) neededSubjects.set(se.subject_code, se.subject_code); }
+  for (const [code, name] of neededSubjects) {
+    if (subjectIdByCode[code]) continue;
+    const id = uuidv4();
+    const ok = tryRun(`INSERT INTO subjects (id, code, name, category) VALUES (?,?,?,?)`,
+      [id, code, name, 'Other'], `subjects[${code}]`);
+    if (ok) { subjectIdByCode[code] = id; }
+  }
   for (const c of data.courses) {
     let row = db.get('SELECT id FROM courses WHERE code=?', [c.code]);
     if (!row) {

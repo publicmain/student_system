@@ -671,6 +671,12 @@ db.init().then(() => {
     if (demoMigrated) console.log('✅ 演示学生数据创建完成');
   } catch(e) { console.error('[migration] 演示学生创建失败:', e.message); }
 
+  // 一次性种子：课程矩阵（教室/课程/任课/选课/考试场次，从 data/course-matrix-seed.json）
+  try {
+    const runCourseSeed = require('./scripts/seed-course-matrix');
+    runCourseSeed(db, uuidv4);
+  } catch(e) { console.error('[seed-cm] 课程矩阵种子失败:', e.message); }
+
   // ── BUG-14 修复：彻底清理孤儿数据（包括已软删除学生的关联记录）──
   try {
     // 1) 先把软删除的学生对应的关联数据也一并清理

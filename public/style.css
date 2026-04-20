@@ -3239,3 +3239,25 @@ body.dark-mode kbd {
   border-color: var(--border);
   color: var(--text-secondary);
 }
+
+/* ═══ Stat Card Small (课程/选课页) ═══ */
+.stat-card-sm {
+  background: var(--surface-1, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  padding: .6rem .85rem;
+  height: 100%;
+}
+.stat-card-sm .stat-label-sm {
+  font-size: .7rem;
+  color: var(--text-tertiary, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  margin-bottom: .2rem;
+}
+.stat-card-sm .stat-value-sm {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+}
+body.dark-mode .stat-card-sm { background: var(--surface-1); border-color: var(--border); }

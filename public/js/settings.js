@@ -1321,6 +1321,54 @@ async function loadExamSittings(studentId) {
   }
 }
 
+async function loadStudentCoursesTab(studentId) {
+  const container = document.getElementById('student-courses-container');
+  if (!container) return;
+  try {
+    const rows = await GET(`/api/students/${studentId}/courses`);
+    if (!rows.length) {
+      container.innerHTML = `<div class="empty-state-block py-4"><i class="bi bi-book"></i><p>暂无选课记录</p></div>`;
+      return;
+    }
+    const totalPeriods = rows.reduce((s, r) => s + (r.periods_per_week || 0), 0);
+    container.innerHTML = `
+      <div class="row g-2 mb-3">
+        <div class="col-sm-4"><div class="stat-card-sm"><div class="stat-label-sm">选课门数</div><div class="stat-value-sm">${rows.length}</div></div></div>
+        <div class="col-sm-4"><div class="stat-card-sm"><div class="stat-label-sm">每周总课时</div><div class="stat-value-sm">${totalPeriods}</div></div></div>
+        <div class="col-sm-4"><div class="stat-card-sm"><div class="stat-label-sm">考试委员会</div><div class="stat-value-sm" style="font-size:1rem">${escapeHtml([...new Set(rows.map(r=>r.exam_board).filter(Boolean))].join(' / ') || '—')}</div></div></div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>课号</th>
+              <th>学科</th>
+              <th>任课教师</th>
+              <th>教室</th>
+              <th class="text-center">课时/周</th>
+              <th>届别</th>
+              <th class="text-center">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td><span class="font-monospace fw-semibold">${escapeHtml(r.code)}</span></td>
+                <td>${escapeHtml(r.subject_name || r.course_name || '—')}</td>
+                <td>${r.teacher_names ? escapeHtml(r.teacher_names) : '<span class="text-muted">未分配</span>'}</td>
+                <td>${escapeHtml(r.classroom_name || '—')}</td>
+                <td class="text-center">${r.periods_per_week || '—'}</td>
+                <td class="text-muted small">${escapeHtml(r.session_label || '—')}</td>
+                <td class="text-center"><button class="action-icon-btn" title="查看课程" onclick="navigate('course-detail',{courseId:'${escapeHtml(r.course_id)}'})"><i class="bi bi-box-arrow-up-right"></i></button></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  } catch(e) {
+    container.innerHTML = `<p class="text-danger small">${escapeHtml(e.message || String(e))}</p>`;
+  }
+}
+
 async function openExamSittingModal(studentId, sittingId = '') {
   document.getElementById('es-id').value = sittingId;
   document.getElementById('es-student-id').value = studentId;

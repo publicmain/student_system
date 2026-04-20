@@ -324,10 +324,30 @@ async function main() {
   let newStu = 0, reuseStu = 0, enr = 0, se = 0, sit = 0;
   const sessionToBoard = (sk) => sk.startsWith('IAL') ? 'Edexcel IAL' : (sk.startsWith('OL') ? 'CIE O-Level' : (sk.startsWith('SEC') ? 'CIE IGCSE' : ''));
 
+  // 中文名 → 英文名映射（兼容 migration-import-students.js 用英文名建的学生档案）
+  const CN_TO_EN_NAME = {
+    '黄裕钛':'Huang Yutai', '苏逸滢':'Su Yiying', '陈佳恩':'Chen Jiaen', '周梓昕':'Zhou Zixin', '王子梁':'Wang Ziliang',
+    '刘亦佳':'Liu Yijia', '刘钇村':'Liu Yicun', '庄梓越':'Zhuang Ziyue', '陆鑫楠':'Lu Xinnan', '林寅嘉':'Lin Yinjia', '王芊芃':'Wang Qianpeng',
+    '孔凡今':'Kong Fanjin', '牛星林':'Niu Xinglin', '祝振豪':'Zhu Zhenhao', '王耀星':'Wang Yaoxing', '李明阳':'Li Mingyang',
+    '闫雯涵':'Yan Wenhan', '严锦诺':'Yan Jinnuo', '郑靖稀':'Zheng Jingxi', '李淳':'Li Chun', '田硕':'Tian Shuo', '田昌':'Tian Chang',
+    '毛思琳':'Mao Silin', '郑稀瑜':'Zheng Xiyu', '叶书瑞':'Ye Shurui', '李永轩':'Li Yongxuan',
+    '范恩慧':'Fan Enhui', '牟歌':'Mu Ge', '刘思璇':'Liu Sixuan', 'HEIN HTET NAING':'Hein Htet Naing',
+    '王张欣':'Wang Zhangxin', '雷泽锐':'Lei Zerui',
+  };
+  const resolveName = (raw) => {
+    const n = (raw || '').trim();
+    return CN_TO_EN_NAME[n] || n;
+  };
+
   for (const sess of sessions) {
     const board = sessionToBoard(sess.sessionKey);
     for (const stu of sess.students) {
-      let srow = db.get('SELECT id FROM students WHERE TRIM(name)=? AND status=?', [stu.name, 'active']);
+      const stuName = resolveName(stu.name);
+      let srow = db.get('SELECT id FROM students WHERE TRIM(name)=? AND status=?', [stuName, 'active']);
+      if (!srow) {
+        // 回退：直接用原始名字再查一次
+        srow = db.get('SELECT id FROM students WHERE TRIM(name)=? AND status=?', [stu.name.trim(), 'active']);
+      }
       let sid;
       if (srow) {
         sid = srow.id; reuseStu++;
@@ -338,7 +358,7 @@ async function main() {
         const now = new Date().toISOString();
         if (!DRY_RUN) db.run(`INSERT INTO students (id, name, grade_level, exam_board, status, notes, created_at, updated_at)
           VALUES (?,?,?,?, 'active', ?,?,?)`,
-          [sid, stu.name, sess.sessionKey, board, `行政班: ${sess.label}`, now, now]);
+          [sid, stuName, sess.sessionKey, board, `行政班: ${sess.label}（原名: ${stu.name}）`, now, now]);
         newStu++;
         trackItem('students', sid);
       }

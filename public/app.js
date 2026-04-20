@@ -13,6 +13,8 @@ const PAGES = {
   students:             (p) => renderStudentList(p),
   'student-detail':     (p) => renderStudentDetail(p),
   staff:                (p) => renderStaffList(p),
+  courses:              (p) => renderCoursesList(p),
+  'course-detail':      (p) => renderCourseDetail(p),
   materials:            (p) => renderMaterialsBoard(p),
   'feedback-list':      (p) => renderFeedbackList(p),
   'templates':          (p) => renderTemplates(p),
@@ -47,6 +49,8 @@ const PAGE_ROLES = {
   'students':           ['principal', 'counselor', 'mentor', 'intake_staff'],
   'student-detail':     ['principal', 'counselor', 'mentor', 'student', 'parent'],
   'staff':              ['principal', 'counselor'],
+  'courses':            ['principal', 'counselor', 'mentor', 'intake_staff'],
+  'course-detail':      ['principal', 'counselor', 'mentor', 'intake_staff'],
   'materials':          ['principal', 'counselor', 'mentor'],
   'feedback-list':      ['principal', 'counselor'],
   'templates':          ['principal', 'counselor'],
@@ -1718,6 +1722,7 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-timeline">任务 ${pending.length?`<span class="badge badge-soft-primary ms-1">${pending.length}</span>`:''}</a></li>
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-apps">申请 ${applications.length?`<span class="badge badge-soft-primary ms-1">${applications.length}</span>`:''}</a></li>
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-materials">材料 ${materials.length?`<span class="badge badge-soft-primary ms-1">${materials.length}</span>`:''}</a></li>
+      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-courses" data-load-courses="1">选课</a></li>
       <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-activities">活动</a></li>
       <li class="nav-item dropdown">
         <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button">更多</a>
@@ -2002,6 +2007,15 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
         ${renderFeedbackItems(feedback, canEdit)}
       </div>
 
+      <!-- 选课 tab -->
+      <div class="tab-pane fade" id="tab-courses">
+        <div class="d-flex justify-content-between mb-3">
+          <h6 class="fw-semibold mb-0"><i class="bi bi-book me-1"></i>本学期选课</h6>
+          <a class="btn btn-outline-primary btn-sm" href="#" onclick="event.preventDefault();navigate('courses')"><i class="bi bi-grid-3x3-gap me-1"></i>课程总览</a>
+        </div>
+        <div id="student-courses-container"><div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm"></div> 加载中...</div></div>
+      </div>
+
       <!-- 考试记录 tab -->
       <div class="tab-pane fade" id="tab-exams">
         <div class="d-flex justify-content-between mb-3">
@@ -2089,6 +2103,13 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
     if (examsTabEl) {
       examsTabEl.addEventListener('shown.bs.tab', () => loadExamSittings(id));
       if (activeTab === 'tab-exams') loadExamSittings(id);
+    }
+
+    // 选课 tab：切换时加载
+    const coursesTabEl = document.querySelector('a[href="#tab-courses"]');
+    if (coursesTabEl) {
+      coursesTabEl.addEventListener('shown.bs.tab', () => loadStudentCoursesTab(id));
+      if (activeTab === 'tab-courses') loadStudentCoursesTab(id);
     }
 
     // 录取评估 tab：切换时加载
@@ -2878,6 +2899,173 @@ async function renderStaffList() {
       }
     }
   );
+}
+
+// ════════════════════════════════════════════════════════
+//  课程 / 选课
+// ════════════════════════════════════════════════════════
+async function renderCoursesList() {
+  await renderPage(
+    () => GET('/api/courses'),
+    (courses) => {
+      const sessions = [...new Set(courses.map(c => c.session_label).filter(Boolean))].sort();
+      const boards = [...new Set(courses.map(c => c.exam_board).filter(Boolean))].sort();
+      const totalStudents = courses.reduce((s, c) => s + (c.enrolled_count || 0), 0);
+      const missingTeacher = courses.filter(c => !c.teacher_names).length;
+      return `
+      <div class="page-header">
+        <h4><i class="bi bi-book me-2"></i>课程 / 选课</h4>
+        <div class="page-header-actions">
+          <span class="badge badge-soft-primary me-2">${courses.length} 门课</span>
+          <span class="badge badge-soft-info me-2">${totalStudents} 人次选课</span>
+          ${missingTeacher > 0 ? `<span class="badge badge-soft-warning">${missingTeacher} 门缺任课</span>` : ''}
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <div class="filter-chip-group">
+          <button class="filter-chip active" data-chip="session" data-value="">全部 <span class="text-muted">${courses.length}</span></button>
+          ${sessions.map(s => `<button class="filter-chip" data-chip="session" data-value="${escapeHtml(s)}">${escapeHtml(s)} <span class="text-muted">${courses.filter(c=>c.session_label===s).length}</span></button>`).join('')}
+        </div>
+        <div class="ms-auto d-flex gap-2">
+          <select class="form-select form-select-sm" id="coursesBoardFilter" style="width:150px">
+            <option value="">所有考试委员会</option>
+            ${boards.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('')}
+          </select>
+          <input class="form-control form-control-sm" id="coursesSearch" placeholder="搜索课号/学科..." style="width:200px">
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th style="min-width:160px">课号</th>
+                  <th>学科</th>
+                  <th>任课教师</th>
+                  <th>教室</th>
+                  <th class="text-center">课时/周</th>
+                  <th class="text-center">学生数</th>
+                  <th>考试委员会</th>
+                  <th class="text-center">操作</th>
+                </tr>
+              </thead>
+              <tbody id="coursesTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+    },
+    {
+      afterRender: (courses) => {
+        window._coursesFilter = { session: '', board: '', kw: '' };
+        const render = () => {
+          const { session, board, kw } = window._coursesFilter;
+          const filtered = courses.filter(c => {
+            if (session && c.session_label !== session) return false;
+            if (board && c.exam_board !== board) return false;
+            if (kw) {
+              const hay = `${c.code} ${c.name} ${c.subject_name||''} ${c.teacher_names||''}`.toLowerCase();
+              if (!hay.includes(kw)) return false;
+            }
+            return true;
+          });
+          const tbody = document.getElementById('coursesTbody');
+          if (!tbody) return;
+          tbody.innerHTML = filtered.length ? filtered.map(c => `
+            <tr role="button" tabindex="0" style="cursor:pointer" onclick="navigate('course-detail',{courseId:'${escapeHtml(c.id)}'})">
+              <td><span class="fw-semibold font-monospace">${escapeHtml(c.code)}</span></td>
+              <td>${escapeHtml(c.subject_name || c.name || '—')}</td>
+              <td>${c.teacher_names ? escapeHtml(c.teacher_names) : '<span class="text-muted">未分配</span>'}</td>
+              <td>${escapeHtml(c.classroom_name || '—')}</td>
+              <td class="text-center">${c.periods_per_week || '—'}</td>
+              <td class="text-center"><span class="badge badge-soft-primary">${c.enrolled_count || 0}</span></td>
+              <td><span class="text-muted small">${escapeHtml(c.exam_board || '—')} · ${escapeHtml(c.level || '')}</span></td>
+              <td class="text-center" onclick="event.stopPropagation()">
+                <button class="action-icon-btn" title="查看详情" onclick="navigate('course-detail',{courseId:'${escapeHtml(c.id)}'})"><i class="bi bi-eye"></i></button>
+              </td>
+            </tr>`).join('') : '<tr><td colspan="8"><div class="empty-state-block"><i class="bi bi-book"></i><p>暂无匹配的课程</p></div></td></tr>';
+        };
+        document.querySelectorAll('.filter-chip[data-chip="session"]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('.filter-chip[data-chip="session"]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            window._coursesFilter.session = btn.dataset.value;
+            render();
+          });
+        });
+        document.getElementById('coursesBoardFilter')?.addEventListener('change', e => {
+          window._coursesFilter.board = e.target.value;
+          render();
+        });
+        document.getElementById('coursesSearch')?.addEventListener('input', e => {
+          window._coursesFilter.kw = e.target.value.trim().toLowerCase();
+          render();
+        });
+        render();
+      }
+    }
+  );
+}
+
+async function renderCourseDetail(params) {
+  const courseId = params?.courseId;
+  if (!courseId) { navigate('courses'); return; }
+  const mc = document.getElementById('main-content');
+  mc.innerHTML = `<div class="page-loading"><div class="spinner-border text-primary"></div></div>`;
+  try {
+    const c = await GET(`/api/courses/${courseId}`);
+    mc.innerHTML = `
+      <div class="page-header">
+        <div>
+          <button class="btn btn-sm btn-link text-decoration-none ps-0" onclick="navigate('courses')"><i class="bi bi-arrow-left me-1"></i>返回课程列表</button>
+          <h4 class="mb-1"><i class="bi bi-book me-2"></i>${escapeHtml(c.code)} · ${escapeHtml(c.subject_name || c.name)}</h4>
+        </div>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-3"><div class="stat-card-sm"><div class="stat-label-sm">教室</div><div class="stat-value-sm">${escapeHtml(c.classroom_name || '—')}</div></div></div>
+        <div class="col-md-3"><div class="stat-card-sm"><div class="stat-label-sm">课时/周</div><div class="stat-value-sm">${c.periods_per_week || '—'}</div></div></div>
+        <div class="col-md-3"><div class="stat-card-sm"><div class="stat-label-sm">考试委员会</div><div class="stat-value-sm">${escapeHtml(c.exam_board || '—')}</div></div></div>
+        <div class="col-md-3"><div class="stat-card-sm"><div class="stat-label-sm">届别</div><div class="stat-value-sm">${escapeHtml(c.session_label || '—')}</div></div></div>
+      </div>
+      <div class="row g-3">
+        <div class="col-lg-4">
+          <div class="card h-100">
+            <div class="card-header d-flex align-items-center justify-content-between">
+              <span class="fw-semibold"><i class="bi bi-person-workspace me-1"></i>任课教师</span>
+              <span class="badge badge-soft-primary">${c.teachers.length}</span>
+            </div>
+            <div class="card-body p-0">
+              ${c.teachers.length ? `<ul class="list-group list-group-flush">${c.teachers.map(t => `
+                <li class="list-group-item d-flex align-items-center justify-content-between">
+                  <span><i class="bi bi-person-circle me-2 text-primary"></i>${escapeHtml(t.staff_name)}</span>
+                  <span class="text-muted small">${escapeHtml(t.notes || t.role)}</span>
+                </li>`).join('')}</ul>` : '<div class="empty-state-block p-3"><i class="bi bi-person-x"></i><p>尚未分配任课教师</p></div>'}
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-8">
+          <div class="card h-100">
+            <div class="card-header d-flex align-items-center justify-content-between">
+              <span class="fw-semibold"><i class="bi bi-people me-1"></i>选课学生</span>
+              <span class="badge badge-soft-info">${c.students.length} 人</span>
+            </div>
+            <div class="card-body p-0">
+              ${c.students.length ? `<div class="table-responsive"><table class="table table-hover mb-0"><thead class="table-light"><tr><th>学生姓名</th><th>年级</th><th>考试委员会</th><th class="text-center">操作</th></tr></thead><tbody>
+                ${c.students.map(s => `<tr>
+                  <td><span class="fw-semibold">${escapeHtml(s.student_name)}</span></td>
+                  <td class="text-muted">${escapeHtml(s.grade_level || '—')}</td>
+                  <td class="text-muted small">${escapeHtml(s.exam_board || '—')}</td>
+                  <td class="text-center"><button class="btn btn-sm btn-outline-primary" onclick="navigate('student-detail',{studentId:'${escapeHtml(s.student_id)}'})"><i class="bi bi-box-arrow-up-right"></i></button></td>
+                </tr>`).join('')}
+              </tbody></table></div>` : '<div class="empty-state-block p-3"><i class="bi bi-people"></i><p>暂无选课学生</p></div>'}
+            </div>
+          </div>
+        </div>
+      </div>`;
+  } catch(e) {
+    mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message || String(e))}</div>`;
+  }
 }
 
 // ════════════════════════════════════════════════════════

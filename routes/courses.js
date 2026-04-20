@@ -168,7 +168,7 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
   // 某学生所有选课
   router.get('/students/:id/courses', requireAuth, (req, res) => {
     const rows = db.all(`
-      SELECT ce.*, c.code, c.name as course_name, c.exam_board, c.level, c.session_label,
+      SELECT ce.*, c.code, c.name as course_name, c.exam_board, c.level, c.session_label, c.periods_per_week,
         cr.name as classroom_name, s.name as subject_name,
         (SELECT GROUP_CONCAT(st.name, ', ') FROM course_staff cs JOIN staff st ON st.id=cs.staff_id WHERE cs.course_id=c.id) as teacher_names
       FROM course_enrollments ce

@@ -228,6 +228,14 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole }) {
     for (const tbl of cascadeTables) {
       try { db.run(`DELETE FROM ${tbl} WHERE student_id=?`, [id]); } catch(e) {}
     }
+    // 材料请求级联（避免学生删后仍触发"逾期催件"邮件）
+    try {
+      db.run(`DELETE FROM mat_reminder_logs WHERE request_id IN (SELECT id FROM mat_requests WHERE student_id=?)`, [id]);
+      db.run(`DELETE FROM mat_request_items WHERE request_id IN (SELECT id FROM mat_requests WHERE student_id=?)`, [id]);
+      db.run(`DELETE FROM mat_requests WHERE student_id=?`, [id]);
+    } catch(e) {}
+    // 课程选课级联
+    try { db.run('DELETE FROM course_enrollments WHERE student_id=?', [id]); } catch(e) {}
     try { db.run('UPDATE intake_cases SET student_id=NULL WHERE student_id=?', [id]); } catch(e) {}
     try {
       const parentLinks = db.all('SELECT parent_id FROM student_parents WHERE student_id=?', [id]);

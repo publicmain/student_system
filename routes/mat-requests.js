@@ -805,9 +805,14 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
     if (today === _matLastReminderDate) return;
     _matLastReminderDate = today;
     try {
-      const activeRequests = db.all(`SELECT mr.*,ct.name as contact_name,ct.email as contact_email
-        FROM mat_requests mr JOIN mat_contacts ct ON mr.contact_id=ct.id
-        WHERE mr.status IN ('PENDING','IN_PROGRESS') AND mr.auto_remind_paused=0`);
+      // 左连接 students：如果 mr.student_id 非空，学生必须存在且 active；
+      // student_id 为空的请求（非学生绑定，如机构整体请求）允许保留
+      const activeRequests = db.all(`SELECT mr.*, ct.name as contact_name, ct.email as contact_email
+        FROM mat_requests mr
+        JOIN mat_contacts ct ON mr.contact_id = ct.id
+        LEFT JOIN students s ON s.id = mr.student_id
+        WHERE mr.status IN ('PENDING','IN_PROGRESS') AND mr.auto_remind_paused = 0
+          AND (mr.student_id IS NULL OR (s.id IS NOT NULL AND s.status = 'active'))`);
 
       for (const r of activeRequests) {
         const contact = { name: r.contact_name, email: r.contact_email };

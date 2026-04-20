@@ -702,14 +702,22 @@ db.init().then(() => {
     // 2) 再清理引用了完全不存在学生的孤儿记录
     const orphanApps = db.get('SELECT COUNT(*) as cnt FROM applications WHERE student_id NOT IN (SELECT id FROM students)');
     const orphanMentors = db.get('SELECT COUNT(*) as cnt FROM mentor_assignments WHERE student_id NOT IN (SELECT id FROM students)');
+    const orphanMatReqs = db.get('SELECT COUNT(*) as cnt FROM mat_requests WHERE student_id IS NOT NULL AND student_id NOT IN (SELECT id FROM students)');
     db.run('DELETE FROM applications WHERE student_id NOT IN (SELECT id FROM students)');
     db.run('DELETE FROM mentor_assignments WHERE student_id NOT IN (SELECT id FROM students)');
     db.run('DELETE FROM milestone_tasks WHERE student_id NOT IN (SELECT id FROM students)');
     db.run('DELETE FROM target_uni_lists WHERE student_id NOT IN (SELECT id FROM students)');
+    // mat_requests 孤儿（学生被硬删后遗留的材料请求，会每天触发"逾期催件"邮件）
+    try {
+      db.run(`DELETE FROM mat_reminder_logs WHERE request_id IN (SELECT id FROM mat_requests WHERE student_id IS NOT NULL AND student_id NOT IN (SELECT id FROM students))`);
+      db.run(`DELETE FROM mat_request_items WHERE request_id IN (SELECT id FROM mat_requests WHERE student_id IS NOT NULL AND student_id NOT IN (SELECT id FROM students))`);
+      db.run(`DELETE FROM mat_requests WHERE student_id IS NOT NULL AND student_id NOT IN (SELECT id FROM students)`);
+    } catch(e) { console.error('[BUG-14] mat_requests 孤儿清理失败:', e.message); }
     db.run('UPDATE intake_cases SET student_id=NULL WHERE student_id IS NOT NULL AND student_id NOT IN (SELECT id FROM students)');
     try { db.run(`UPDATE intake_form_submissions SET imported_student_id=NULL, status='pending' WHERE imported_student_id IS NOT NULL AND imported_student_id NOT IN (SELECT id FROM students)`); } catch(e) {}
     if (orphanApps?.cnt) console.log(`[BUG-14] 清理 ${orphanApps.cnt} 条幽灵申请`);
     if (orphanMentors?.cnt) console.log(`[BUG-14] 清理 ${orphanMentors.cnt} 条幽灵导师分配`);
+    if (orphanMatReqs?.cnt) console.log(`[BUG-14] 清理 ${orphanMatReqs.cnt} 条幽灵材料请求（停止其逾期邮件）`);
   } catch(e) { console.error('[BUG-14] orphan cleanup error:', e.message); }
 
   // 磁盘清理（每次启动时运行）

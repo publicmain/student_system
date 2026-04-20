@@ -861,6 +861,27 @@ function createSchema() {
   )`);
   try { db.run('CREATE INDEX IF NOT EXISTS idx_ai_call_user_time ON ai_call_logs(user_id, created_at)'); } catch(e) {}
 
+  // ── AI Agent 会话（学生专属对话） ─────────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS ai_agent_sessions (
+    id              TEXT PRIMARY KEY,
+    student_id      TEXT NOT NULL,
+    user_id         TEXT NOT NULL,
+    title           TEXT,
+    last_active_at  TEXT DEFAULT (datetime('now')),
+    created_at      TEXT DEFAULT (datetime('now'))
+  )`);
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_ai_agent_sess_student ON ai_agent_sessions(student_id, last_active_at)'); } catch(e) {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_ai_agent_sess_user ON ai_agent_sessions(user_id, last_active_at)'); } catch(e) {}
+
+  db.run(`CREATE TABLE IF NOT EXISTS ai_agent_messages (
+    id            TEXT PRIMARY KEY,
+    session_id    TEXT NOT NULL,
+    role          TEXT NOT NULL,    -- user / assistant
+    content_json  TEXT NOT NULL,    -- stringified content (string or array of blocks)
+    created_at    TEXT DEFAULT (datetime('now'))
+  )`);
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_ai_agent_msg_session ON ai_agent_messages(session_id, created_at)'); } catch(e) {}
+
   // ── 入学管理 ─────────────────────────────────────────
   db.run(`CREATE TABLE IF NOT EXISTS intake_cases (
     id                   TEXT PRIMARY KEY,

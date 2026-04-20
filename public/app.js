@@ -1747,6 +1747,7 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
           <li><a class="dropdown-item" data-bs-toggle="tab" href="#tab-ai-plan">AI 规划</a></li>
           <li><a class="dropdown-item" data-bs-toggle="tab" href="#tab-ai-essay"><i class="bi bi-pencil-square me-1"></i>AI 文书批改</a></li>
           <li><a class="dropdown-item" data-bs-toggle="tab" href="#tab-ai-interview"><i class="bi bi-mic me-1"></i>AI 面试题</a></li>
+          <li><a class="dropdown-item" data-bs-toggle="tab" href="#tab-ai-agent" data-load-agent="1"><i class="bi bi-robot me-1"></i>AI 助手（对话）</a></li>
         </ul>
       </li>
     </ul>
@@ -2141,6 +2142,30 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
           </div>
         </div>
       </div>
+
+      <!-- AI Agent Tab：对话式助手（真正的 agent） -->
+      <div class="tab-pane fade" id="tab-ai-agent">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="fw-semibold mb-0"><i class="bi bi-robot me-1 text-primary"></i>AI 助手（对话式）</h6>
+          <div class="d-flex gap-2">
+            <select class="form-select form-select-sm" id="agent-session-select" style="max-width:260px">
+              <option value="">— 新对话 —</option>
+            </select>
+            <button class="btn btn-sm btn-outline-secondary" onclick="newAgentSession('${id}')"><i class="bi bi-plus-lg me-1"></i>新对话</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteAgentSession('${id}')" title="删除当前对话"><i class="bi bi-trash"></i></button>
+          </div>
+        </div>
+        <div class="alert alert-info py-2 small mb-2"><i class="bi bi-info-circle me-1"></i>这位 AI 助手已绑定到当前学生，可读取/写入该学生的所有数据（权限受你的角色限制）。<strong>工作人员</strong>可让它"创建任务"/"记录沟通"/"加目标院校"等；<strong>家长/学生</strong>仅限只读咨询。对话保留在本会话中，可随时切换。</div>
+        <div id="agent-chat-container" class="card"><div class="card-body p-0" style="height:60vh;display:flex;flex-direction:column">
+          <div id="agent-messages" style="flex:1;overflow-y:auto;padding:1rem"></div>
+          <div id="agent-input-bar" style="border-top:1px solid #e5e7eb;padding:.75rem;display:flex;gap:.5rem;align-items:flex-end">
+            <textarea id="agent-input" class="form-control" rows="2" placeholder="问我任何关于这位学生的事情，或让我操作系统..."
+              onkeydown="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); sendAgentMessage('${id}'); }"></textarea>
+            <button class="btn btn-primary" id="agent-send-btn" onclick="sendAgentMessage('${id}')"><i class="bi bi-send-fill"></i></button>
+            <button class="btn btn-outline-secondary" id="agent-stop-btn" onclick="stopAgentStream()" style="display:none"><i class="bi bi-stop-fill"></i></button>
+          </div>
+        </div></div>
+      </div>
     </div>`;
 
     // 激活指定标签页（如 tab-timeline）
@@ -2193,6 +2218,13 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
     if (aiPlanTabEl) {
       aiPlanTabEl.addEventListener('shown.bs.tab', () => loadAIPlanTab(id));
       if (activeTab === 'tab-ai-plan') loadAIPlanTab(id);
+    }
+
+    // AI 助手 Tab：切换时加载会话列表
+    const aiAgentTabEl = document.querySelector('a[href="#tab-ai-agent"]');
+    if (aiAgentTabEl) {
+      aiAgentTabEl.addEventListener('shown.bs.tab', () => initAgentTab(id));
+      if (activeTab === 'tab-ai-agent') initAgentTab(id);
     }
 
     // 活动 tab：切换时加载
@@ -7272,6 +7304,261 @@ async function runInterviewGen(studentId) {
     `;
   } catch(e) {
     result.innerHTML = `<div class="alert alert-danger small">生成失败：${escapeHtml(e.message || '')}</div>`;
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  AI Agent 对话（学生专属助手）
+// ════════════════════════════════════════════════════════
+const AgentState = {
+  currentStudentId: null,
+  currentSessionId: null,
+  streamAbortController: null,
+  sending: false,
+  currentAssistantBubble: null,
+  currentToolBlocks: {},  // tool_use_id -> DOM element
+};
+
+async function initAgentTab(studentId) {
+  AgentState.currentStudentId = studentId;
+  AgentState.currentSessionId = null;
+  try {
+    const list = await GET(`/api/students/${studentId}/agent/sessions`);
+    const sel = document.getElementById('agent-session-select');
+    if (sel) {
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">— 新对话 —</option>' + list.map(s =>
+        `<option value="${escapeHtml(s.id)}">${escapeHtml(s.title || '无标题')} · ${fmtDate(s.last_active_at) || ''}</option>`
+      ).join('');
+      sel.onchange = () => loadAgentSession(studentId, sel.value);
+      if (cur && list.find(x => x.id === cur)) sel.value = cur;
+    }
+    // 重置消息区
+    const msgs = document.getElementById('agent-messages');
+    if (msgs && !AgentState.currentSessionId) {
+      msgs.innerHTML = `<div class="text-muted text-center py-5 small">
+        <i class="bi bi-robot" style="font-size:2rem"></i>
+        <p class="mt-2 mb-1">你好！我是这位学生的 AI 助手。</p>
+        <p class="mb-0">你可以问我："他最近的任务完成得怎么样？"、"选了几门课？"、"帮他创建一个'准备 Oxford PAT'的任务，下周五前"…</p>
+      </div>`;
+    }
+  } catch (e) { console.error('initAgentTab:', e); }
+}
+
+async function loadAgentSession(studentId, sessionId) {
+  if (!sessionId) {
+    AgentState.currentSessionId = null;
+    const msgs = document.getElementById('agent-messages');
+    if (msgs) msgs.innerHTML = `<div class="text-muted text-center py-5 small">新对话 — 输入你的问题…</div>`;
+    return;
+  }
+  try {
+    const r = await GET(`/api/students/${studentId}/agent/sessions/${sessionId}`);
+    AgentState.currentSessionId = sessionId;
+    const msgs = document.getElementById('agent-messages');
+    if (!msgs) return;
+    msgs.innerHTML = '';
+    for (const m of r.messages) {
+      if (m.role === 'user') {
+        const text = typeof m.content === 'string' ? m.content : (Array.isArray(m.content) ? m.content.filter(b=>b.type==='tool_result').map(b=>'').join('') : '');
+        if (text) appendAgentBubble('user', text);
+      } else if (m.role === 'assistant') {
+        if (Array.isArray(m.content)) {
+          const textBlocks = m.content.filter(b => b.type === 'text').map(b => b.text).join('');
+          const toolUses = m.content.filter(b => b.type === 'tool_use');
+          if (textBlocks) appendAgentBubble('assistant', textBlocks);
+          for (const t of toolUses) appendAgentToolBadge(t.name, true, t.id, '（历史调用）');
+        } else if (typeof m.content === 'string') {
+          appendAgentBubble('assistant', m.content);
+        }
+      }
+    }
+    msgs.scrollTop = msgs.scrollHeight;
+  } catch (e) { showError('加载会话失败: ' + e.message); }
+}
+
+async function newAgentSession(studentId) {
+  AgentState.currentSessionId = null;
+  const sel = document.getElementById('agent-session-select');
+  if (sel) sel.value = '';
+  const msgs = document.getElementById('agent-messages');
+  if (msgs) msgs.innerHTML = `<div class="text-muted text-center py-5 small">新对话 — 输入你的问题…</div>`;
+}
+
+async function deleteAgentSession(studentId) {
+  const sid = AgentState.currentSessionId;
+  if (!sid) return showError('当前不是已保存的会话');
+  confirmAction('确认删除此对话？对话记录将永久删除。', async () => {
+    try {
+      await DEL(`/api/students/${studentId}/agent/sessions/${sid}`);
+      AgentState.currentSessionId = null;
+      await initAgentTab(studentId);
+      const msgs = document.getElementById('agent-messages');
+      if (msgs) msgs.innerHTML = `<div class="text-muted text-center py-5 small">对话已删除</div>`;
+      showSuccess('已删除');
+    } catch (e) { showError(e.message); }
+  }, { danger: true });
+}
+
+function appendAgentBubble(role, text = '') {
+  const msgs = document.getElementById('agent-messages');
+  if (!msgs) return null;
+  // 清除空状态占位
+  if (msgs.querySelector('.text-muted.text-center.py-5')) msgs.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = `agent-msg mb-3 d-flex ${role==='user'?'justify-content-end':'justify-content-start'}`;
+  const bubble = document.createElement('div');
+  bubble.className = `p-2 px-3 rounded-3 ${role==='user' ? 'bg-primary text-white' : 'bg-light border'}`;
+  bubble.style.maxWidth = '85%';
+  bubble.style.whiteSpace = 'pre-wrap';
+  bubble.style.wordBreak = 'break-word';
+  bubble.textContent = text;
+  wrap.appendChild(bubble);
+  msgs.appendChild(wrap);
+  msgs.scrollTop = msgs.scrollHeight;
+  return bubble;
+}
+
+function appendAgentToolBadge(toolName, done, toolUseId, summary) {
+  const msgs = document.getElementById('agent-messages');
+  if (!msgs) return;
+  const existing = AgentState.currentToolBlocks[toolUseId];
+  if (existing) {
+    const sp = existing.querySelector('.tool-status');
+    if (sp) sp.textContent = done ? '✓ ' + (summary || '完成') : '运行中…';
+    existing.className = `agent-tool-badge small mb-2 px-2 py-1 rounded border ${done ? 'bg-success-subtle text-success-emphasis' : 'bg-warning-subtle text-warning-emphasis'}`;
+    return;
+  }
+  const div = document.createElement('div');
+  div.className = `agent-tool-badge small mb-2 px-2 py-1 rounded border ${done ? 'bg-success-subtle text-success-emphasis' : 'bg-warning-subtle text-warning-emphasis'}`;
+  div.style.maxWidth = 'fit-content';
+  div.innerHTML = `<i class="bi bi-tools me-1"></i><code>${escapeHtml(toolName)}</code> <span class="tool-status ms-1">${done ? ('✓ '+escapeHtml(summary||'完成')) : '运行中…'}</span>`;
+  if (toolUseId) AgentState.currentToolBlocks[toolUseId] = div;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function stopAgentStream() {
+  if (AgentState.streamAbortController) {
+    try { AgentState.streamAbortController.abort(); } catch(e) {}
+  }
+}
+
+async function sendAgentMessage(studentId) {
+  if (AgentState.sending) return;
+  const input = document.getElementById('agent-input');
+  const msg = (input?.value || '').trim();
+  if (!msg) return;
+  input.value = '';
+  AgentState.sending = true;
+  AgentState.currentToolBlocks = {};
+  document.getElementById('agent-send-btn').style.display = 'none';
+  document.getElementById('agent-stop-btn').style.display = '';
+
+  appendAgentBubble('user', msg);
+  const assistantBubble = appendAgentBubble('assistant', '');
+  AgentState.currentAssistantBubble = assistantBubble;
+
+  // thinking indicator
+  const thinkingDot = document.createElement('span');
+  thinkingDot.className = 'text-muted';
+  thinkingDot.textContent = '● 思考中…';
+  assistantBubble.appendChild(thinkingDot);
+
+  const ac = new AbortController();
+  AgentState.streamAbortController = ac;
+
+  try {
+    const resp = await fetch(`/api/students/${studentId}/agent/chat`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, session_id: AgentState.currentSessionId || undefined }),
+      signal: ac.signal,
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(()=>({error:'HTTP '+resp.status}));
+      throw new Error(err.error || 'HTTP '+resp.status);
+    }
+    thinkingDot.remove();
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buf = '';
+    let textBuffer = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      // parse SSE: split on \n\n
+      let idx;
+      while ((idx = buf.indexOf('\n\n')) >= 0) {
+        const chunk = buf.slice(0, idx).trim();
+        buf = buf.slice(idx + 2);
+        if (!chunk || chunk.startsWith(':')) continue; // heartbeat
+        const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
+        if (!lines.length) continue;
+        const payload = lines.map(l => l.slice(6)).join('\n');
+        let ev;
+        try { ev = JSON.parse(payload); } catch(e) { continue; }
+        handleAgentEvent(ev);
+      }
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      assistantBubble.innerHTML = `<span class="text-danger">错误：${escapeHtml(e.message)}</span>`;
+    } else {
+      assistantBubble.appendChild(document.createTextNode(' [已停止]'));
+    }
+  } finally {
+    thinkingDot.remove?.();
+    AgentState.sending = false;
+    AgentState.streamAbortController = null;
+    document.getElementById('agent-send-btn').style.display = '';
+    document.getElementById('agent-stop-btn').style.display = 'none';
+    // 刷新会话列表
+    try { await initAgentTab(studentId); } catch(e) {}
+    if (AgentState.currentSessionId) {
+      const sel = document.getElementById('agent-session-select');
+      if (sel) sel.value = AgentState.currentSessionId;
+    }
+  }
+}
+
+function handleAgentEvent(ev) {
+  if (ev.type === 'session') {
+    AgentState.currentSessionId = ev.id;
+    return;
+  }
+  if (ev.type === 'text_delta') {
+    const b = AgentState.currentAssistantBubble;
+    if (!b) return;
+    b.textContent += ev.text;
+    const msgs = document.getElementById('agent-messages');
+    if (msgs) msgs.scrollTop = msgs.scrollHeight;
+    return;
+  }
+  if (ev.type === 'tool_start') {
+    appendAgentToolBadge(ev.name, false, ev.tool_use_id, '');
+    return;
+  }
+  if (ev.type === 'tool_result') {
+    appendAgentToolBadge(ev.name, true, ev.tool_use_id, ev.ok ? ev.summary : '失败：' + ev.summary);
+    // 新开一个 assistant bubble 供后续 text_delta 写入
+    const newBubble = appendAgentBubble('assistant', '');
+    AgentState.currentAssistantBubble = newBubble;
+    return;
+  }
+  if (ev.type === 'done') {
+    // 该轮完成（可能还有后续写入）
+    return;
+  }
+  if (ev.type === 'end') {
+    return;
+  }
+  if (ev.type === 'error') {
+    const b = AgentState.currentAssistantBubble;
+    if (b) b.innerHTML = `<span class="text-danger">错误：${escapeHtml(ev.message)}</span>`;
+    return;
   }
 }
 

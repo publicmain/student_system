@@ -20,7 +20,7 @@ function seedDemo(db) {
   // ── 查找现有员工 ────────────────────────────────────────
   const counselor = db.get("SELECT id FROM staff WHERE role='counselor' LIMIT 1");
   const mentor    = db.get("SELECT id FROM staff WHERE role='mentor' LIMIT 1");
-  if (!counselor || !mentor) { console.error('❌ 请先确保数据库中有 counselor 和 mentor 员工'); process.exit(1); }
+  if (!counselor || !mentor) { console.error('[seed-demo] 跳过演示数据：数据库中缺少 counselor 或 mentor 员工'); return; }
   const cId = counselor.id;
   const mId = mentor.id;
 

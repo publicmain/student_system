@@ -3018,7 +3018,7 @@ async function renderCourseDetail(params) {
     mc.innerHTML = `
       <div class="page-header">
         <div>
-          <button class="btn btn-sm btn-link text-decoration-none ps-0" onclick="navigate('courses')"><i class="bi bi-arrow-left me-1"></i>返回课程列表</button>
+          <button class="btn btn-sm btn-link text-decoration-none ps-0" onclick="window.history.length>1?window.history.back():navigate('courses')"><i class="bi bi-arrow-left me-1"></i>返回</button>
           <h4 class="mb-1"><i class="bi bi-book me-2"></i>${escapeHtml(c.code)} · ${escapeHtml(c.subject_name || c.name)}</h4>
         </div>
       </div>

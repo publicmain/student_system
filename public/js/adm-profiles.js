@@ -42,7 +42,7 @@ async function renderAdmProfiles() {
 
   let profiles = [];
   try { profiles = await GET('/api/adm-profiles'); }
-  catch(e) { main.innerHTML = `<div class="alert alert-danger m-4">加载失败: ${escapeHtml(e.message)}</div>`; return; }
+  catch(e) { main.innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')"); return; }
 
   const canCreate = ['principal','counselor','intake_staff'].includes(State.user?.role);
 
@@ -91,7 +91,7 @@ async function renderAdmCaseDetail(profileId) {
 
   let p;
   try { p = await GET(`/api/adm-profiles/${profileId}`); }
-  catch(e) { main.innerHTML = `<div class="alert alert-danger m-4">加载失败: ${escapeHtml(e.message)}</div>`; return; }
+  catch(e) { main.innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')"); return; }
 
   const reviewStatus = p.review_status || p.status;
   const canReview = ['principal','intake_staff'].includes(State.user?.role);
@@ -405,7 +405,7 @@ async function renderAdmFormWizard(profileId = null) {
         signatures: {},
       });
       (p.signatures||[]).forEach(s => { AdmState.signatures[s.sig_type] = s; });
-    } catch(e) { main.innerHTML = `<div class="alert alert-danger m-4">加载失败</div>`; return; }
+    } catch(e) { main.innerHTML = errorWithRetry('加载失败', "navigate('"+State.currentPage+"')"); return; }
   } else {
     // New profile
     try {

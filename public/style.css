@@ -308,7 +308,7 @@ body {
 }
 
 .nav-section-title {
-  color: #94a3b8 !important;
+  color: #cbd5e1 !important;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 1.2px;
@@ -725,15 +725,22 @@ body {
   transition: color 0.15s, border-bottom-color 0.15s;
 }
 
-.nav-tabs .nav-link:hover,
-.nav-tabs .nav-link:focus {
+.nav-tabs .nav-link:hover {
   color: var(--primary);
   background: transparent;
   border-color: transparent;
   border-bottom-color: rgba(37, 99, 235, 0.3);
   box-shadow: none;
-  outline: none;
   isolation: auto;
+}
+.nav-tabs .nav-link:focus:not(:focus-visible) {
+  outline: none;
+}
+.nav-tabs .nav-link:focus-visible {
+  color: var(--primary);
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+  border-radius: 4px;
 }
 
 .nav-tabs .nav-link.active {
@@ -2931,3 +2938,182 @@ body.dark-mode .accordion-item { background: var(--surface-1); border-color: var
 body.dark-mode .accordion-button { background: var(--surface-2); color: var(--text-primary); }
 body.dark-mode .accordion-button:not(.collapsed) { background: var(--surface-2); color: var(--primary); }
 body.dark-mode .accordion-body { background: var(--surface-1); color: var(--text-primary); }
+
+/* ═══════════════════════════════════════════════════
+   A11Y-01  全局焦点指示器 (WCAG 2.4.7 Level AA)
+   ═══════════════════════════════════════════════════ */
+*:focus:not(:focus-visible) { outline: none; }
+*:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+body.dark-mode *:focus-visible {
+  outline-color: #60a5fa;
+}
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-glow), 0 0 0 1px var(--primary);
+}
+#sidebar .nav-item:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: -2px;
+  background: var(--sidebar-hover);
+}
+
+/* ═══════════════════════════════════════════════════
+   A11Y-02  prefers-reduced-motion (WCAG 2.3.3)
+   ═══════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   A11Y-03  可点击 div/span 键盘交互
+   ═══════════════════════════════════════════════════ */
+[role="button"] { cursor: pointer; }
+[role="button"]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ═══════════════════════════════════════════════════
+   A11Y-04  最小字号约束 — 确保不低于 11px
+   ═══════════════════════════════════════════════════ */
+.badge { font-size: max(11px, 0.69rem); }
+.text-2xs { font-size: max(11px, 0.70rem); }
+
+/* ═══════════════════════════════════════════════════
+   R-01  通知面板移动端响应式
+   ═══════════════════════════════════════════════════ */
+#notif-panel {
+  max-width: calc(100vw - 32px);
+}
+@media (max-width: 480px) {
+  #notif-panel {
+    width: calc(100vw - 32px) !important;
+    right: 16px !important;
+    left: 16px !important;
+    max-height: 70vh !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   R-02  搜索输入框移动端自适应
+   ═══════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .page-header input[type="text"],
+  .page-header input[type="search"],
+  .page-header .form-control,
+  .page-header .form-select {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   R-03  触摸目标最小 44px (WCAG 2.5.5)
+   ═══════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .action-icon-btn {
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+  .btn-xs {
+    min-height: 36px;
+    padding: 6px 10px;
+  }
+  #notif-bell-btn {
+    width: 44px !important;
+    height: 44px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   R-04  统计卡片中等屏幕适配
+   ═══════════════════════════════════════════════════ */
+@media (min-width: 769px) and (max-width: 1200px) {
+  .stat-card .stat-value { font-size: 1.5rem; }
+}
+
+/* ═══════════════════════════════════════════════════
+   UX-01  表单实时验证反馈样式
+   ═══════════════════════════════════════════════════ */
+.form-control.is-invalid-live,
+.form-select.is-invalid-live {
+  border-color: var(--danger) !important;
+  box-shadow: 0 0 0 3px rgba(220,38,38,0.15);
+}
+.form-control.is-invalid-live:focus,
+.form-select.is-invalid-live:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(220,38,38,0.25);
+}
+.field-error-msg {
+  color: var(--danger);
+  font-size: 12px;
+  margin-top: 2px;
+  display: none;
+}
+.field-error-msg.show { display: block; }
+
+/* ═══════════════════════════════════════════════════
+   UX-02  页面错误重试按钮样式
+   ═══════════════════════════════════════════════════ */
+.error-retry-block {
+  text-align: center;
+  padding: 2rem;
+}
+.error-retry-block .alert {
+  display: inline-block;
+  max-width: 500px;
+  text-align: left;
+}
+.error-retry-block .btn-retry {
+  margin-top: 0.75rem;
+}
+
+/* ═══════════════════════════════════════════════════
+   UX-03  空状态 CTA 按钮
+   ═══════════════════════════════════════════════════ */
+.empty-state-sm .empty-state-cta {
+  margin-top: 0.75rem;
+}
+.empty-state .empty-state-cta {
+  margin-top: 1rem;
+}
+
+/* ═══════════════════════════════════════════════════
+   UX-04  骨架屏加载样式补充
+   ═══════════════════════════════════════════════════ */
+.skeleton-stat-card {
+  height: 90px;
+  border-radius: var(--radius-md);
+}
+.skeleton-table-row {
+  display: flex;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+.skeleton-table-row .skeleton-cell {
+  height: 14px;
+  border-radius: 4px;
+  flex: 1;
+}
+.skeleton-table-row .skeleton-cell-sm { flex: 0 0 60px; }
+.skeleton-table-row .skeleton-cell-md { flex: 0 0 120px; }
+
+/* ═══════════════════════════════════════════════════
+   A11Y-05  深色模式侧边栏对比度增强
+   ═══════════════════════════════════════════════════ */
+body.dark-mode .nav-section-title { color: #94a3b8 !important; }
+body.dark-mode #sidebar .nav-item { color: #cbd5e1; }
+body.dark-mode #sidebar .nav-item.active { color: #93c5fd; }

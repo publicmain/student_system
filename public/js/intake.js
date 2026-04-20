@@ -32,7 +32,7 @@ async function renderIntakeDashboard() {
   try {
     data = await api('GET', '/api/intake-dashboard');
   } catch(e) {
-    main.innerHTML = `<div class="alert alert-danger m-4">数据加载失败: ${escapeHtml(e.message)}</div>`;
+    main.innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')");
     return;
   }
   const role = State.user.role;
@@ -293,7 +293,7 @@ async function renderIntakeCases(params = {}, targetEl = null) {
     // 确保最新创建的排在前面
     cases.sort((a, b) => (b.created_at||'').localeCompare(a.created_at||''));
   } catch(e) {
-    main.innerHTML = `<div class="alert alert-danger m-4">案例数据加载失败: ${escapeHtml(e.message)}</div>`;
+    main.innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')");
     return;
   }
   const statusMap = { registered:'已注册', collecting_docs:'收集材料中', contract_signed:'合同已签', paid:'已付款', visa_in_progress:'签证办理中', ipa_received:'已获IPA', arrived:'已到校', oriented:'已入学', closed:'已关闭' };
@@ -1605,7 +1605,7 @@ async function renderIntakeCaseDetail() {
   try {
     c = await api('GET', `/api/intake-cases/${State.currentCaseId}`);
   } catch(e) {
-    main.innerHTML = `<div class="alert alert-danger m-4">案例详情加载失败: ${escapeHtml(e.message)}</div>`;
+    main.innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')");
     return;
   }
   const statusMap   = { registered:'已注册', collecting_docs:'收集材料中', contract_signed:'合同已签', paid:'已付款', visa_in_progress:'签证办理中', ipa_received:'已获IPA', arrived:'已到校', oriented:'已入学', closed:'已关闭' };
@@ -2761,7 +2761,7 @@ async function renderFinanceWorkbench() {
     invoices = results[0] || [];
     commissions = isPrincipal ? (results[1] || []) : [];
   } catch(e) {
-    main.innerHTML = `<div class="alert alert-danger m-4">财务数据加载失败: ${escapeHtml(e.message)}</div>`;
+    main.innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')");
     return;
   }
   main.innerHTML = `

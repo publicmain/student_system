@@ -22,12 +22,12 @@
     <div id="login-error" class="alert alert-danger d-none"></div>
     <form id="login-form">
       <div class="mb-3">
-        <label class="form-label fw-semibold">用户名</label>
-        <input type="text" class="form-control" id="login-username" placeholder="请输入用户名" required>
+        <label class="form-label fw-semibold" for="login-username">用户名</label>
+        <input type="text" class="form-control" id="login-username" placeholder="请输入用户名" required aria-required="true" autocomplete="username">
       </div>
       <div class="mb-3">
-        <label class="form-label fw-semibold">密码</label>
-        <input type="password" class="form-control" id="login-password" placeholder="请输入密码" required>
+        <label class="form-label fw-semibold" for="login-password">密码</label>
+        <input type="password" class="form-control" id="login-password" placeholder="请输入密码" required aria-required="true" autocomplete="current-password">
       </div>
       <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
         <i class="bi bi-box-arrow-in-right me-1"></i> 登 录
@@ -43,41 +43,41 @@
   <!-- 顶部导航 -->
   <nav class="top-nav">
     <div class="d-flex align-items-center gap-3">
-      <button class="btn btn-link text-white p-0" id="sidebar-toggle">
-        <i class="bi bi-list fs-4"></i>
+      <button class="btn btn-link text-white p-0" id="sidebar-toggle" aria-label="切换侧边栏">
+        <i class="bi bi-list fs-4" aria-hidden="true"></i>
       </button>
       <span class="fw-bold fs-5"><i class="bi bi-mortarboard-fill me-2"></i>升学规划系统</span>
     </div>
     <div class="d-flex align-items-center" style="gap:12px">
       <!-- 通知铃 -->
       <div class="d-none" id="notif-bell-wrap" style="margin-right:10px">
-        <button class="btn text-white p-0 border-0" id="notif-bell-btn" title="通知" style="font-size:1.15rem;background:none;position:relative;width:32px;height:32px;display:flex;align-items:center;justify-content:center">
-          <i class="bi bi-bell-fill"></i>
-          <span class="badge rounded-pill bg-danger" id="notif-badge" style="display:none;font-size:9px;position:absolute;top:0;right:0;min-width:16px;padding:2px 4px;line-height:1"></span>
+        <button class="btn text-white p-0 border-0" id="notif-bell-btn" title="通知" aria-label="通知" aria-expanded="false" aria-controls="notif-panel" style="font-size:1.15rem;background:none;position:relative;width:32px;height:32px;display:flex;align-items:center;justify-content:center">
+          <i class="bi bi-bell-fill" aria-hidden="true"></i>
+          <span class="badge rounded-pill bg-danger" id="notif-badge" aria-live="polite" style="display:none;font-size:11px;position:absolute;top:0;right:0;min-width:16px;padding:2px 4px;line-height:1"></span>
         </button>
       </div>
       <span class="badge" id="nav-role-badge" style="background:rgba(255,255,255,0.15);color:#e2e8f0;font-weight:500;font-size:11px"></span>
       <span class="text-white" id="nav-username" style="white-space:nowrap"></span>
-      <button class="btn btn-outline-light btn-sm" onclick="openChangePasswordModal()" title="修改密码">
-        <i class="bi bi-key"></i>
+      <button class="btn btn-outline-light btn-sm" onclick="openChangePasswordModal()" title="修改密码" aria-label="修改密码">
+        <i class="bi bi-key" aria-hidden="true"></i>
       </button>
-      <button class="btn btn-outline-light btn-sm" id="logout-btn">
-        <i class="bi bi-box-arrow-right me-1"></i>退出
+      <button class="btn btn-outline-light btn-sm" id="logout-btn" aria-label="退出登录">
+        <i class="bi bi-box-arrow-right me-1" aria-hidden="true"></i>退出
       </button>
     </div>
   </nav>
 
   <!-- 通知面板（下拉） -->
-  <div id="notif-panel" class="card shadow" style="display:none;position:fixed;top:56px;right:16px;width:360px;max-height:480px;overflow-y:auto;z-index:1050">
+  <div id="notif-panel" class="card shadow" role="dialog" aria-label="通知中心" style="display:none;position:fixed;top:56px;right:16px;width:360px;max-height:480px;overflow-y:auto;z-index:1050">
     <div class="card-header d-flex justify-content-between align-items-center py-2">
-      <span class="fw-semibold"><i class="bi bi-bell me-1"></i>通知中心</span>
+      <span class="fw-semibold"><i class="bi bi-bell me-1" aria-hidden="true"></i>通知中心</span>
       <div class="d-flex gap-1">
-        <button class="btn btn-link btn-sm p-0 text-secondary" id="notif-generate-btn" title="生成新通知（检测逾期任务/到期事项）"><i class="bi bi-magic"></i></button>
-        <button class="btn btn-link btn-sm p-0 text-secondary" id="notif-read-all-btn" title="全部已读"><i class="bi bi-check-all"></i></button>
-        <button class="btn btn-link btn-sm p-0 text-secondary" onclick="document.getElementById('notif-panel').style.display='none'"><i class="bi bi-x-lg"></i></button>
+        <button class="btn btn-link btn-sm p-0 text-secondary" id="notif-generate-btn" title="生成新通知（检测逾期任务/到期事项）" aria-label="生成新通知"><i class="bi bi-magic" aria-hidden="true"></i></button>
+        <button class="btn btn-link btn-sm p-0 text-secondary" id="notif-read-all-btn" title="全部已读" aria-label="全部标为已读"><i class="bi bi-check-all" aria-hidden="true"></i></button>
+        <button class="btn btn-link btn-sm p-0 text-secondary" onclick="document.getElementById('notif-panel').style.display='none'" aria-label="关闭通知面板"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
       </div>
     </div>
-    <div id="notif-list" class="list-group list-group-flush"></div>
+    <div id="notif-list" class="list-group list-group-flush" aria-live="polite"></div>
   </div>
 
   <div class="app-body">
@@ -218,8 +218,8 @@
         <input type="hidden" id="s-grade" value="">
         <div class="row g-3">
           <div class="col-md-6">
-            <label class="form-label">姓名 *</label>
-            <input class="form-control" id="s-name" required>
+            <label class="form-label" for="s-name">姓名 *</label>
+            <input class="form-control" id="s-name" required aria-required="true">
           </div>
           <div class="col-md-3">
             <label class="form-label">性别</label>
@@ -313,7 +313,7 @@
       <div class="modal-body">
         <input type="hidden" id="st-id">
         <div class="row g-3">
-          <div class="col-md-6"><label class="form-label">姓名 *</label><input class="form-control" id="st-name"></div>
+          <div class="col-md-6"><label class="form-label" for="st-name">姓名 *</label><input class="form-control" id="st-name" required aria-required="true"></div>
           <div class="col-md-6">
             <label class="form-label">角色 *</label>
             <select class="form-select" id="st-role">
@@ -355,8 +355,8 @@
       <div class="modal-body">
         <input type="hidden" id="task-student-id">
         <input type="hidden" id="task-id">
-        <div class="mb-2"><label class="form-label">任务标题 *</label><input class="form-control" id="task-title"></div>
-        <div class="mb-2"><label class="form-label">说明</label><textarea class="form-control" id="task-desc" rows="2"></textarea></div>
+        <div class="mb-2"><label class="form-label" for="task-title">任务标题 *</label><input class="form-control" id="task-title" required aria-required="true"></div>
+        <div class="mb-2"><label class="form-label" for="task-desc">说明</label><textarea class="form-control" id="task-desc" rows="2"></textarea></div>
         <div class="row g-2">
           <div class="col-6">
             <label class="form-label">类别</label>

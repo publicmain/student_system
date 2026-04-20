@@ -35,7 +35,7 @@ async function renderMatRequests() {
   try {
     requests = await GET('/api/mat-requests');
   } catch(e) {
-    main.innerHTML = `<div class="alert alert-danger m-4">加载失败: ${escapeHtml(e.message)}</div>`;
+    main.innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')");
     return;
   }
 
@@ -317,7 +317,7 @@ async function renderMatRequestDetail({ requestId } = {}) {
   main.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-primary"></div></div>';
   let r;
   try { r = await GET(`/api/mat-requests/${id}`); }
-  catch(e) { main.innerHTML = `<div class="alert alert-danger m-4">加载失败: ${escapeHtml(e.message)}</div>`; return; }
+  catch(e) { main.innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')"); return; }
 
   const overdue = r.is_overdue && !['COMPLETED','CANCELLED','APPROVED'].includes(r.status);
   const uifData = r.uif ? JSON.parse(r.uif.data || '{}') : {};
@@ -1281,7 +1281,7 @@ async function renderMatCompanies() {
   main.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-primary"></div></div>';
   let companies = [];
   try { companies = await GET('/api/mat-companies'); }
-  catch(e) { main.innerHTML = `<div class="alert alert-danger m-4">加载失败: ${escapeHtml(e.message)}</div>`; return; }
+  catch(e) { main.innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')"); return; }
 
   const typeBadge = t => t === 'agency' ? '<span class="badge bg-primary">机构代理</span>'
     : t === 'personal_referral' ? '<span class="badge bg-info">个人推荐</span>'
@@ -1448,7 +1448,7 @@ async function showMatCompanyDetail(companyId, companyName) {
       </table>`;
     window._matCurrentCompanyId = companyId;
   } catch(e) {
-    document.getElementById('matCompanyDetailBody').innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+    document.getElementById('matCompanyDetailBody').innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')");
   }
 }
 

@@ -954,7 +954,7 @@ async function renderSettings() {
     }
 
   } catch(e) {
-    mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+    mc.innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')");
   }
 }
 
@@ -1732,9 +1732,11 @@ function toggleNotifPanel() {
   if (!panel) return;
   if (panel.style.display === 'none' || !panel.style.display) {
     panel.style.display = 'block';
+    _updateBellAria(true);
     loadNotificationsPanel();
   } else {
     panel.style.display = 'none';
+    _updateBellAria(false);
   }
 }
 
@@ -1746,6 +1748,7 @@ document.addEventListener('click', function(e) {
   // 点击在面板内部或铃铛按钮上，不关闭
   if (panel.contains(e.target) || (bellBtn && bellBtn.contains(e.target))) return;
   panel.style.display = 'none';
+  _updateBellAria(false);
 });
 
 async function loadNotificationsPanel() {

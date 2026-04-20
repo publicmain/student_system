@@ -95,7 +95,7 @@ async function renderDashboard() {
 // ════════════════════════════════════════════════════════
 async function renderPrincipalDashboard() {
   const mc = document.getElementById('main-content');
-  mc.innerHTML = `<div class="page-loading"><div class="spinner-border text-primary"></div></div>`;
+  mc.innerHTML = skeletonDashboard();
 
   try {
     const [stats, risks, workload, ccStats] = await Promise.all([
@@ -121,43 +121,43 @@ async function renderPrincipalDashboard() {
     <!-- ═══ KPI 指标条 (6列) ═══ -->
     <div class="row g-3 mb-4">
       <div class="col-6 col-md-2">
-        <div class="stat-card accent-primary" onclick="navigate('students')" style="cursor:pointer">
-          <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
+        <div class="stat-card accent-primary" role="button" tabindex="0" onclick="navigate('students')" aria-label="在读学生 ${stats.totalStudents}">
+          <div class="stat-icon"><i class="bi bi-people-fill" aria-hidden="true"></i></div>
           <div class="stat-value">${stats.totalStudents}</div>
           <div class="stat-label">在读学生</div>
         </div>
       </div>
       <div class="col-6 col-md-2">
         <div class="stat-card accent-info">
-          <div class="stat-icon"><i class="bi bi-send-fill"></i></div>
+          <div class="stat-icon"><i class="bi bi-send-fill" aria-hidden="true"></i></div>
           <div class="stat-value">${stats.totalApplications}</div>
           <div class="stat-label">总申请数</div>
         </div>
       </div>
       <div class="col-6 col-md-2">
         <div class="stat-card accent-success">
-          <div class="stat-icon"><i class="bi bi-trophy-fill"></i></div>
+          <div class="stat-icon"><i class="bi bi-trophy-fill" aria-hidden="true"></i></div>
           <div class="stat-value">${stats.totalOffers || 0}</div>
           <div class="stat-label">Offer 数</div>
         </div>
       </div>
       <div class="col-6 col-md-2">
         <div class="stat-card accent-warning">
-          <div class="stat-icon"><i class="bi bi-percent"></i></div>
+          <div class="stat-icon"><i class="bi bi-percent" aria-hidden="true"></i></div>
           <div class="stat-value">${stats.acceptanceRate || 0}<span style="font-size:.75rem">%</span></div>
           <div class="stat-label">录取率</div>
         </div>
       </div>
       <div class="col-6 col-md-2">
         <div class="stat-card ${stats.overdueTasks>0?'accent-danger':'accent-success'}">
-          <div class="stat-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+          <div class="stat-icon"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i></div>
           <div class="stat-value" style="${stats.overdueTasks>0?'color:var(--danger)':''}">${stats.overdueTasks}</div>
           <div class="stat-label">逾期任务</div>
         </div>
       </div>
       <div class="col-6 col-md-2">
         <div class="stat-card accent-primary">
-          <div class="stat-icon"><i class="bi bi-journal-check"></i></div>
+          <div class="stat-icon"><i class="bi bi-journal-check" aria-hidden="true"></i></div>
           <div class="stat-value">${stats.essayRate || 0}<span style="font-size:.75rem">%</span></div>
           <div class="stat-label">文书完成率</div>
         </div>
@@ -273,7 +273,7 @@ async function renderPrincipalDashboard() {
                   } else if (!r.last_comm_date) {
                     tags.push(`<span class="badge badge-soft-secondary">从未沟通</span>`);
                   }
-                  return `<li class="att-row" style="cursor:pointer" data-sid="${r.id}">
+                  return `<li class="att-row" role="button" tabindex="0" style="cursor:pointer" data-sid="${r.id}">
                     <div>
                       <div class="att-name">${escapeHtml(r.name)} <span class="badge badge-soft-info ms-1">${escapeHtml(r.exam_board||'')}</span></div>
                       <div class="att-desc d-flex flex-wrap gap-1">${tags.join('')}</div>
@@ -357,7 +357,7 @@ async function renderPrincipalDashboard() {
               const pct = ep.total > 0 ? Math.round(ep.completed / ep.total * 100) : 0;
               const cls = pct >= 80 ? 'success' : pct >= 40 ? 'primary' : 'danger';
               const barGrad = pct >= 80 ? 'progress-bar-gradient-green' : pct >= 40 ? 'progress-bar-gradient-blue' : 'progress-bar-gradient-red';
-              return `<tr style="cursor:pointer" onclick="navigate('student-detail',{studentId:'${ep.id}'})">
+              return `<tr role="button" tabindex="0" style="cursor:pointer" onclick="navigate('student-detail',{studentId:'${ep.id}'})">
                 <td class="fw-semibold small">${escapeHtml(ep.name)}</td>
                 <td class="small text-muted">${escapeHtml(ep.exam_board||'')}</td>
                 <td class="small">${ep.completed}/${ep.total}</td>
@@ -375,7 +375,7 @@ async function renderPrincipalDashboard() {
       el.addEventListener('click', function() { navigate('student-detail', { studentId: this.dataset.sid }); });
     });
   } catch (e) {
-    mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+    mc.innerHTML = errorWithRetry(e.message, `navigate('${State.currentPage||"dashboard"}')`);
   }
 }
 
@@ -413,8 +413,8 @@ async function renderCounselorDashboard() {
     <!-- KPI 指标条：我的数据 -->
     <div class="row g-3 mb-4">
       <div class="col-6 col-md-3">
-        <div class="stat-card accent-primary" onclick="navigate('students')" style="cursor:pointer">
-          <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
+        <div class="stat-card accent-primary" role="button" tabindex="0" onclick="navigate('students')" style="cursor:pointer" aria-label="我的学生 ${overview.myStudents}">
+          <div class="stat-icon"><i class="bi bi-people-fill" aria-hidden="true"></i></div>
           <div class="stat-value">${overview.myStudents}</div>
           <div class="stat-label">我的学生</div>
         </div>
@@ -478,7 +478,7 @@ async function renderCounselorDashboard() {
                 return `<div class="px-3 py-2 ${isToday ? 'bg-warning bg-opacity-10' : 'bg-light'} border-bottom">
                   <small class="fw-bold ${isToday ? 'text-warning' : 'text-muted'}">${isToday ? '<i class="bi bi-star-fill me-1"></i>' : '<i class="bi bi-calendar3 me-1"></i>'}${escapeHtml(dateLabel)}</small>
                 </div>
-                ${tasks.map(t => `<div class="px-3 py-2 border-bottom d-flex justify-content-between align-items-center" style="cursor:pointer" onclick="navigate('student-detail',{studentId:'${t.student_id}'})">
+                ${tasks.map(t => `<div class="px-3 py-2 border-bottom d-flex justify-content-between align-items-center" role="button" tabindex="0" style="cursor:pointer" onclick="navigate('student-detail',{studentId:'${t.student_id}'})">
                   <div style="min-width:0">
                     <div class="small fw-semibold text-truncate">${escapeHtml(t.title)}</div>
                     <small class="text-muted">${escapeHtml(t.student_name)}</small>
@@ -507,7 +507,7 @@ async function renderCounselorDashboard() {
                   if (r.pending_feedback > 0) tags.push(`<span class="badge badge-soft-warning">${r.pending_feedback} 条反馈</span>`);
                   if (!r.last_comm_date || new Date(r.last_comm_date) < new Date(Date.now() - 14*86400000))
                     tags.push('<span class="badge badge-soft-secondary">超2周未沟通</span>');
-                  return `<li class="att-row" style="cursor:pointer" data-sid="${r.id}">
+                  return `<li class="att-row" role="button" tabindex="0" style="cursor:pointer" data-sid="${r.id}">
                     <div>
                       <div class="att-name">${escapeHtml(r.name)} <span class="badge badge-soft-info ms-1">${escapeHtml(r.exam_board||'')}</span></div>
                       <div class="att-desc d-flex flex-wrap gap-1">${tags.join('')}</div>
@@ -548,7 +548,7 @@ async function renderCounselorDashboard() {
                       </div>
                     </td>
                     <td><small class="fw-semibold ${pct < 50 ? 'text-danger' : ''}">${m.completed}/${m.total} 项</small></td>
-                    <td><button class="action-icon-btn" onclick="navigate('student-detail',{studentId:'${m.id}'})"><i class="bi bi-chevron-right"></i></button></td>
+                    <td><button class="action-icon-btn" title="查看详情" aria-label="查看详情" onclick="navigate('student-detail',{studentId:'${m.id}'})"><i class="bi bi-chevron-right" aria-hidden="true"></i></button></td>
                   </tr>`;
                 }).join('')}
               </tbody>
@@ -561,7 +561,7 @@ async function renderCounselorDashboard() {
       el.addEventListener('click', function() { navigate('student-detail', { studentId: this.dataset.sid }); });
     });
   } catch (e) {
-    mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+    mc.innerHTML = errorWithRetry(e.message, `navigate('${State.currentPage||"dashboard"}')`);
   }
 }
 
@@ -621,8 +621,8 @@ async function renderMentorWorkbench() {
     <!-- KPI 卡片 -->
     <div class="row g-3 mb-4">
       <div class="col-6 col-md-2">
-        <div class="stat-card accent-primary" onclick="navigate('students')" style="cursor:pointer">
-          <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
+        <div class="stat-card accent-primary" role="button" tabindex="0" onclick="navigate('students')" aria-label="我的学生 ${d.myStudents}">
+          <div class="stat-icon"><i class="bi bi-people-fill" aria-hidden="true"></i></div>
           <div class="stat-value">${d.myStudents}</div>
           <div class="stat-label">我的学生</div>
         </div>
@@ -715,7 +715,7 @@ async function renderMentorWorkbench() {
                 const essayBarClass = essayPct >= 80 ? 'bg-success' : essayPct >= 50 ? 'bg-info' : 'bg-warning';
                 const hasIssue = s.overdue_count > 0 || s.pending_fb > 0 || !s.last_comm_date || new Date(s.last_comm_date) < new Date(Date.now() - 7*86400000);
                 return `<div class="col-md-6 col-xl-4">
-                  <div class="card border ${hasIssue ? 'border-warning' : ''}" style="cursor:pointer" onclick="navigate('student-detail',{studentId:'${s.id}'})">
+                  <div class="card border ${hasIssue ? 'border-warning' : ''}" role="button" tabindex="0" style="cursor:pointer" onclick="navigate('student-detail',{studentId:'${s.id}'})">
                     <div class="card-body py-2 px-3">
                       <div class="d-flex justify-content-between align-items-center mb-1">
                         <span class="fw-bold small">${escapeHtml(s.name)}</span>
@@ -820,7 +820,7 @@ async function renderMentorWorkbench() {
       </div>
     </div>`;
   } catch (e) {
-    mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+    mc.innerHTML = errorWithRetry(e.message, `navigate('${State.currentPage||"dashboard"}')`);
   }
 }
 
@@ -831,7 +831,7 @@ function _mentorTaskRow(t, urgency) {
     ${t.status === 'pending' ? `<button class="btn btn-outline-primary py-0 px-1" style="font-size:11px" onclick="event.stopPropagation();mentorUpdateTask('${t.id}','in_progress')" title="开始"><i class="bi bi-play-fill"></i></button>` : ''}
     <button class="btn btn-outline-success py-0 px-1" style="font-size:11px" onclick="event.stopPropagation();mentorUpdateTask('${t.id}','done')" title="完成"><i class="bi bi-check-lg"></i></button>
   </div>`;
-  return `<div class="px-3 py-2 border-bottom d-flex justify-content-between align-items-center ${bgClass}" style="cursor:pointer" onclick="navigate('student-detail',{studentId:'${t.student_id}'})">
+  return `<div class="px-3 py-2 border-bottom d-flex justify-content-between align-items-center ${bgClass}" role="button" tabindex="0" style="cursor:pointer" onclick="navigate('student-detail',{studentId:'${t.student_id}'})">
     <div style="min-width:0;flex:1">
       <div class="small fw-semibold text-truncate ${urgency==='danger'?'text-danger':''}">${escapeHtml(t.title)}</div>
       <small class="text-muted">${escapeHtml(t.student_name)} · ${t.due_date ? t.due_date.substring(0,10) : '无期限'}</small>
@@ -1320,7 +1320,7 @@ async function renderParentPortal(params = {}) {
     _loadParentCalendar(calendar, s.id);
 
   } catch(e) {
-    mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+    mc.innerHTML = errorWithRetry(e.message, `navigate('${State.currentPage||"dashboard"}')`);
   }
 }
 
@@ -1511,7 +1511,7 @@ async function renderStudentList() {
       if (cnt) cnt.textContent = `${filtered.length} 名学生`;
     };
   } catch(e) {
-    mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+    mc.innerHTML = errorWithRetry(e.message, `navigate('${State.currentPage||"dashboard"}')`);
   }
 }
 
@@ -1602,7 +1602,7 @@ async function _selectStudent(id, el) {
         : `<table class="table table-sm mb-0"><tbody>${detail.applications.slice(0,5).map(a=>`<tr><td class="small fw-semibold">${escapeHtml(a.uni_name||'—')}</td><td class="small text-muted">${escapeHtml(a.department||'—')}</td><td>${statusBadge(a.status)}</td></tr>`).join('')}</tbody></table>${detail.applications.length>5?`<div class="text-center py-2"><a href="#" onclick="event.preventDefault();navigate('student-detail',{studentId:'${id}',activeTab:'tab-apps'})" class="small text-primary">查看全部 →</a></div>`:''}`}</div></div>
     `;
   } catch(e) {
-    panel.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+    panel.innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')");
   }
 }
 
@@ -1746,7 +1746,7 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
                 ? `<div style="color:var(--text-tertiary);font-size:.82rem;padding:.5rem 0"><i class="bi bi-check-circle text-success me-1"></i>暂无紧急任务</div>`
                 : urgentTasks.map(t => {
                     const od = isOverdue(t.due_date, t.status);
-                    return `<div class="stu-task-row" style="cursor:pointer" onclick="navigate('task-detail',{taskId:'${t.id}'})">
+                    return `<div class="stu-task-row" role="button" tabindex="0" style="cursor:pointer" onclick="navigate('task-detail',{taskId:'${t.id}'})">
                       <div class="stu-task-title ${od?'overdue':''}">${escapeHtml(t.title)}</div>
                       <div class="stu-task-meta">${fmtDate(t.due_date)||'无期限'}</div>
                       ${od ? '<span class="badge badge-soft-danger" style="font-size:.65rem">逾期</span>' : '<span class="badge badge-soft-secondary" style="font-size:.65rem">待办</span>'}
@@ -2128,7 +2128,7 @@ async function renderStudentDetail({ studentId, activeTab } = {}) {
     if (canEdit) loadAccountCards(id, parents);
 
   } catch(e) {
-    mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+    mc.innerHTML = errorWithRetry(e.message, `navigate('${State.currentPage||"dashboard"}')`);
   }
 }
 
@@ -2351,7 +2351,7 @@ function renderTaskList(tasks, studentId, canEdit) {
           </div>
           <div class="flex-grow-1">
             <div class="d-flex justify-content-between">
-              <span class="${t.status==='done'?'text-decoration-line-through text-muted':'fw-semibold'} cursor-pointer" onclick="navigate('task-detail',{taskId:'${t.id}'})" style="cursor:pointer">${priorityIcon(t.priority)}${escapeHtml(t.title)}</span>
+              <span class="${t.status==='done'?'text-decoration-line-through text-muted':'fw-semibold'} cursor-pointer" role="button" tabindex="0" onclick="navigate('task-detail',{taskId:'${t.id}'})" style="cursor:pointer">${priorityIcon(t.priority)}${escapeHtml(t.title)}</span>
               <div class="d-flex gap-1">
                 ${statusBadge(t.status)}
                 <button class="btn btn-link btn-sm p-0 text-info" onclick="navigate('task-detail',{taskId:'${t.id}'})" title="查看详情"><i class="bi bi-box-arrow-up-right"></i></button>
@@ -2525,7 +2525,7 @@ async function renderTaskDetail({ taskId } = {}) {
     _loadTaskFiles(task.student_id, task.intake_case_id||null, task.application_id||null);
 
   } catch(e) {
-    mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+    mc.innerHTML = errorWithRetry(e.message, `navigate('${State.currentPage||"dashboard"}')`);
   }
 }
 
@@ -2911,7 +2911,7 @@ async function renderMaterialsBoard() {
             </div>
             <div class="card-body p-2" style="min-height:120px;max-height:400px;overflow-y:auto">
               ${items.map(m => `
-                <div class="kanban-card mb-2 p-2 border rounded" onclick="navigate('student-detail',{studentId:'${escapeHtml(m.student_id)}'})">
+                <div class="kanban-card mb-2 p-2 border rounded" role="button" tabindex="0" onclick="navigate('student-detail',{studentId:'${escapeHtml(m.student_id)}'})">
                   <div class="small fw-semibold">${escapeHtml(m.student_name)}</div>
                   <div class="small text-muted">${escapeHtml(m.material_type)}</div>
                   <div class="small text-muted">${escapeHtml(m.title||'')}</div>
@@ -2923,7 +2923,7 @@ async function renderMaterialsBoard() {
       }).join('')}
     </div>`;
   } catch(e) {
-    mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+    mc.innerHTML = errorWithRetry(e.message, `navigate('${State.currentPage||"dashboard"}')`);
   }
 }
 
@@ -2999,7 +2999,7 @@ async function renderFeedbackList() {
       });
     };
   } catch(e) {
-    mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+    mc.innerHTML = errorWithRetry(e.message, `navigate('${State.currentPage||"dashboard"}')`);
   }
 }
 
@@ -4236,6 +4236,12 @@ function bindEvents() {
     }
   }
 
+  // UX-01: 为所有模态框表单启用实时验证
+  document.querySelectorAll('.modal').forEach(modal => {
+    modal.addEventListener('shown.bs.modal', function() {
+      setupLiveValidation(this);
+    });
+  });
 }
 
 // ════════════════════════════════════════════════════════
@@ -4981,7 +4987,7 @@ async function loadAuditLogs() {
       </table>
     </div>`;
   } catch(e) {
-    tableEl.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+    tableEl.innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')");
   }
 }
 
@@ -5356,7 +5362,7 @@ async function renderAdmissionPrograms() {
     }
 
   } catch(e) {
-    mc.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+    mc.innerHTML = errorWithRetry(e.message, `navigate('${State.currentPage||"dashboard"}')`);
   }
 }
 
@@ -5734,7 +5740,7 @@ async function loadAdmissionEvals(studentId) {
         </table>
       </div>`;
   } catch(e) {
-    container.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+    container.innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')");
   }
 }
 
@@ -6009,7 +6015,7 @@ async function renderBenchmarkLibraryTab(canEdit) {
     window._canEditBenchmarks = canEdit;
     _renderBenchmarkTable(benchmarks, canEdit);
   } catch(e) {
-    container.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+    container.innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')");
   }
 }
 
@@ -6285,7 +6291,7 @@ async function loadBenchmarkEvals(studentId) {
         </table>
       </div>`;
   } catch(e) {
-    container.innerHTML = `<div class="alert alert-danger small py-2">加载失败: ${escapeHtml(e.message)}</div>`;
+    container.innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')");
   }
 }
 
@@ -6684,7 +6690,7 @@ async function loadAIPlanTab(studentId) {
       </table>
     </div>`;
   } catch (e) {
-    container.innerHTML = `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+    container.innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')");
   }
 }
 
@@ -7074,7 +7080,7 @@ async function renderAgentPortal() {
         </div>
       </div>`;
   } catch (e) {
-    main.innerHTML = `<div class="alert alert-danger m-3">${e.message}</div>`;
+    main.innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')");
   }
 }
 
@@ -7085,7 +7091,7 @@ async function renderAgentsManagement() {
   try {
     [agents, rules] = await Promise.all([api('GET', '/api/agents'), api('GET', '/api/commission-rules')]);
   } catch(e) {
-    main.innerHTML = `<div class="alert alert-danger m-4">代理数据加载失败: ${escapeHtml(e.message)}</div>`;
+    main.innerHTML = errorWithRetry('代理数据加载失败: ' + e.message, "navigate('"+State.currentPage+"')");
     return;
   }
   main.innerHTML = `
@@ -7332,7 +7338,7 @@ async function loadIntakeFormsList() {
     }).join('')}</div>`;
   } catch (e) {
     document.getElementById('intake-forms-list').innerHTML =
-      `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+      errorWithRetry(e.message, "navigate('"+State.currentPage+"')");
   }
 }
 
@@ -7532,7 +7538,7 @@ async function viewFormSubmissions(formId, formTitle) {
     </div></div>`;
   } catch(e) {
     document.getElementById('submissions-list').innerHTML =
-      `<div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div>`;
+      errorWithRetry(e.message, "navigate('"+State.currentPage+"')");
   }
 }
 
@@ -7651,7 +7657,7 @@ async function viewSubmissionDetail(subId, formId, formTitle) {
       </div>
     </div>`;
   } catch(e) {
-    mc.innerHTML = `<div class="container-fluid py-4"><div class="alert alert-danger">加载失败: ${escapeHtml(e.message)}</div></div>`;
+    mc.innerHTML = errorWithRetry(e.message, "navigate('"+State.currentPage+"')");
   }
 }
 

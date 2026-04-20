@@ -291,9 +291,19 @@ function _friendlyError(msg) {
 function showError(msg) { showToast(_friendlyError(msg), 'danger'); }
 function showSuccess(msg) { showToast(msg, 'success'); }
 
-// D-09: empty state helper
-function emptyStateSm(msg, icon = 'inbox') {
-  return `<div class="empty-state-sm"><i class="bi bi-${icon}"></i><p>${msg}</p></div>`;
+// UX-02: page-level error with retry button
+function errorWithRetry(errMsg, retryFn) {
+  const friendly = _friendlyError(errMsg);
+  return `<div class="error-retry-block">
+    <div class="alert alert-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>${escapeHtml(friendly)}</div>
+    <button class="btn btn-outline-primary btn-sm btn-retry" onclick="${typeof retryFn === 'string' ? retryFn : 'location.reload()'}"><i class="bi bi-arrow-clockwise me-1"></i>重新加载</button>
+  </div>`;
+}
+
+// D-09: empty state helper (enhanced with optional CTA)
+function emptyStateSm(msg, icon = 'inbox', cta = null) {
+  const ctaHtml = cta ? `<div class="empty-state-cta"><button class="btn btn-outline-primary btn-sm" onclick="${escapeHtml(cta.action)}"><i class="bi bi-${cta.icon || 'plus-circle'} me-1"></i>${escapeHtml(cta.label)}</button></div>` : '';
+  return `<div class="empty-state-sm"><i class="bi bi-${icon}" aria-hidden="true"></i><p>${msg}</p>${ctaHtml}</div>`;
 }
 
 // D-10: skeleton loading rows helper
@@ -308,6 +318,63 @@ function skeletonList(rows = 4) {
     <div class="skeleton" style="width:36px;height:36px;border-radius:50%;flex-shrink:0"></div>
     <div style="flex:1"><div class="skeleton" style="height:13px;width:${60+i*5}%;margin-bottom:5px"></div><div class="skeleton" style="height:11px;width:40%"></div></div>
   </div>`).join('');
+}
+
+// ════════════════════════════════════════════════════════
+//  A11Y: 骨架屏加载助手
+// ════════════════════════════════════════════════════════
+function skeletonDashboard() {
+  return `<div class="row g-3 mb-4">${Array(6).fill('<div class="col-6 col-md-2"><div class="skeleton skeleton-stat-card"></div></div>').join('')}</div>
+    <div class="row g-3 mb-4"><div class="col-md-8"><div class="skeleton" style="height:200px;border-radius:var(--radius-md)"></div></div><div class="col-md-4"><div class="skeleton" style="height:200px;border-radius:var(--radius-md)"></div></div></div>`;
+}
+
+// ════════════════════════════════════════════════════════
+//  A11Y: 键盘交互支持 — 为 role="button" 元素添加 Enter/Space
+// ════════════════════════════════════════════════════════
+document.addEventListener('keydown', function(e) {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.getAttribute('role') === 'button') {
+    e.preventDefault();
+    e.target.click();
+  }
+});
+
+// A11Y: 通知面板打开时更新 aria-expanded
+function _updateBellAria(expanded) {
+  const bell = document.getElementById('notif-bell-btn');
+  if (bell) bell.setAttribute('aria-expanded', String(expanded));
+}
+
+// ════════════════════════════════════════════════════════
+//  表单实时验证助手
+// ════════════════════════════════════════════════════════
+function setupLiveValidation(formEl) {
+  if (!formEl) return;
+  formEl.querySelectorAll('[required], [aria-required="true"]').forEach(input => {
+    input.addEventListener('blur', function() {
+      if (!this.value.trim()) {
+        this.classList.add('is-invalid-live');
+        let errMsg = this.parentElement.querySelector('.field-error-msg');
+        if (!errMsg) {
+          errMsg = document.createElement('div');
+          errMsg.className = 'field-error-msg';
+          errMsg.textContent = '此字段为必填项';
+          this.parentElement.appendChild(errMsg);
+        }
+        errMsg.classList.add('show');
+      } else {
+        this.classList.remove('is-invalid-live');
+        const errMsg = this.parentElement.querySelector('.field-error-msg');
+        if (errMsg) errMsg.classList.remove('show');
+      }
+    });
+    input.addEventListener('input', function() {
+      if (this.value.trim()) {
+        this.classList.remove('is-invalid-live');
+        const errMsg = this.parentElement.querySelector('.field-error-msg');
+        if (errMsg) errMsg.classList.remove('show');
+      }
+    });
+  });
 }
 
 // ════════════════════════════════════════════════════════
@@ -602,7 +669,10 @@ function _doNavigate(page, params = {}) {
   } catch(e) {}
 
   document.querySelectorAll('.sidebar .nav-item[data-page]').forEach(el => {
-    el.classList.toggle('active', el.dataset.page === page);
+    const isActive = el.dataset.page === page;
+    el.classList.toggle('active', isActive);
+    if (isActive) el.setAttribute('aria-current', 'page');
+    else el.removeAttribute('aria-current');
   });
 
   const fn = PAGES[page];
@@ -620,10 +690,7 @@ async function renderPage(fetchFn, renderFn, options = {}) {
     mc.innerHTML = renderFn(data);
     if (options.afterRender) options.afterRender(data);
   } catch (e) {
-    mc.innerHTML = `<div class="alert alert-danger m-4">
-      <i class="bi bi-exclamation-triangle me-2"></i>
-      ${escapeHtml(options.errorPrefix || '加载失败')}: ${escapeHtml(e.message)}
-    </div>`;
+    mc.innerHTML = errorWithRetry((options.errorPrefix || '加载失败') + ': ' + e.message, `navigate('${State.currentPage||"dashboard"}')`);
   }
 }
 

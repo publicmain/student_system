@@ -799,8 +799,11 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, upload,
   });
 
   // ── 自动催件引擎 (每小时检查，每天仅发一次) ─────────
+  // 全局开关：只有 REMINDERS_ENABLED=true 时才发催件邮件。
+  // Railway env 中未设置或设为其它值时，整个引擎静默。
   let _matLastReminderDate = '';
   setInterval(async () => {
+    if (process.env.REMINDERS_ENABLED !== 'true') return;
     const today = new Date().toISOString().split('T')[0];
     if (today === _matLastReminderDate) return;
     _matLastReminderDate = today;

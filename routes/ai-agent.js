@@ -157,12 +157,15 @@ module.exports = function({ db, audit, requireAuth, requireRole }) {
     };
 
     try {
+      console.log(`[ai-agent/chat] ▶ 开始 runAgent session=${sess.id} user=${u.id} student=${studentId} history=${trimmedHistory.length} msg=${String(message).slice(0,60)}`);
+      const _t0 = Date.now();
       const result = await aiAgent.runAgent({
         db, user: u, studentId,
         history: trimmedHistory,
         userMessage: String(message),
         emit, audit, req,
       });
+      console.log(`[ai-agent/chat] ◀ runAgent 完成 耗时=${Date.now()-_t0}ms appended=${result.messagesAppended?.length}`);
 
       // 持久化追加的消息
       for (const m of result.messagesAppended) {

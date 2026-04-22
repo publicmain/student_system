@@ -459,6 +459,7 @@ async function runAgent(opts) {
 
   const client = new Anthropic();
   const tools = buildToolsForRole(user.role);
+  console.log(`[ai-agent/runAgent] role=${user.role} tools.length=${tools.length} model=${MODEL_HEAVY}`);
 
   // 构造消息数组：历史 + 新用户消息
   const messages = [...history, { role: 'user', content: userMessage }];
@@ -469,32 +470,48 @@ async function runAgent(opts) {
 
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
     // 启动流
-    const stream = client.messages.stream({
-      model: MODEL_HEAVY,
-      max_tokens: 8000,
-      thinking: { type: 'adaptive' },
-      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
-      tools,
-      messages,
-    });
-
-    // 消费事件 → 往外推
-    for await (const event of stream) {
-      if (event.type === 'content_block_start') {
-        if (event.content_block?.type === 'tool_use') {
-          emitSafe({ type: 'tool_start', tool_use_id: event.content_block.id, name: event.content_block.name });
-        } else if (event.content_block?.type === 'text') {
-          emitSafe({ type: 'text_start' });
-        }
-      } else if (event.type === 'content_block_delta') {
-        if (event.delta?.type === 'text_delta') {
-          finalText += event.delta.text;
-          emitSafe({ type: 'text_delta', text: event.delta.text });
-        }
-      }
+    console.log(`[ai-agent/runAgent] iter=${iter} 即将 stream.create messages=${messages.length}`);
+    let stream;
+    try {
+      stream = client.messages.stream({
+        model: MODEL_HEAVY,
+        max_tokens: 8000,
+        thinking: { type: 'adaptive' },
+        system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+        tools,
+        messages,
+      });
+    } catch (e) {
+      console.error(`[ai-agent/runAgent] stream.create 同步异常:`, e.message, e);
+      throw e;
     }
 
+    // 消费事件 → 往外推
+    let _evCount = 0;
+    try {
+      for await (const event of stream) {
+        _evCount++;
+        if (event.type === 'content_block_start') {
+          if (event.content_block?.type === 'tool_use') {
+            emitSafe({ type: 'tool_start', tool_use_id: event.content_block.id, name: event.content_block.name });
+          } else if (event.content_block?.type === 'text') {
+            emitSafe({ type: 'text_start' });
+          }
+        } else if (event.type === 'content_block_delta') {
+          if (event.delta?.type === 'text_delta') {
+            finalText += event.delta.text;
+            emitSafe({ type: 'text_delta', text: event.delta.text });
+          }
+        }
+      }
+    } catch (e) {
+      console.error(`[ai-agent/runAgent] iter=${iter} 流异常 在第 ${_evCount} 个事件:`, e.message, e);
+      throw e;
+    }
+    console.log(`[ai-agent/runAgent] iter=${iter} 流消费完 events=${_evCount}`);
+
     const finalMsg = await stream.finalMessage();
+    console.log(`[ai-agent/runAgent] iter=${iter} finalMessage stop_reason=${finalMsg.stop_reason} content.length=${finalMsg.content?.length}`);
     // 追加到上下文
     messages.push({ role: 'assistant', content: finalMsg.content });
     toAppend.push({ role: 'assistant', content: finalMsg.content });

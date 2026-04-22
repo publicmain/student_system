@@ -148,8 +148,11 @@ module.exports = function({ db, audit, requireAuth, requireRole }) {
     const heartbeat = setInterval(() => { try { res.write(`: hb ${Date.now()}\n\n`); } catch(e) {} }, 30000);
 
     // 客户端断开则中止
+    // 注意：必须用 res.on('close') 而不是 req.on('close')。
+    // 在 HTTP/2 POST 请求里，req 的 close 事件在客户端发完 body 后就会触发，
+    // 并非真正的断连——用它判断会导致 text_delta/end 等事件全被静默丢弃。
     let aborted = false;
-    req.on('close', () => { aborted = true; clearInterval(heartbeat); });
+    res.on('close', () => { aborted = true; clearInterval(heartbeat); });
 
     const emit = (ev) => {
       if (aborted) return;

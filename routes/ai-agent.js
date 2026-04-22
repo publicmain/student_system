@@ -181,7 +181,9 @@ module.exports = function({ db, audit, requireAuth, requireRole }) {
       try { db.run(`INSERT INTO ai_call_logs (id, user_id, action, student_id, tokens_used, created_at) VALUES (?,?,?,?,?,datetime('now'))`,
         [uuidv4(), u.id, 'agent_chat', studentId, 0]); } catch(e) {}
 
+      console.log(`[ai-agent/chat] 准备 emit end aborted=${aborted}`);
       emit({ type: 'end', session_id: sess.id });
+      console.log(`[ai-agent/chat] emit end 完成`);
     } catch (e) {
       console.error('[ai-agent/chat]', e);
       emit({ type: 'error', message: e.message || 'Agent 运行失败' });

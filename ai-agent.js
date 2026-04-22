@@ -511,7 +511,8 @@ async function runAgent(opts) {
     console.log(`[ai-agent/runAgent] iter=${iter} 流消费完 events=${_evCount}`);
 
     const finalMsg = await stream.finalMessage();
-    console.log(`[ai-agent/runAgent] iter=${iter} finalMessage stop_reason=${finalMsg.stop_reason} content.length=${finalMsg.content?.length}`);
+    const _blockTypes = (finalMsg.content || []).map(b => b.type).join(',');
+    console.log(`[ai-agent/runAgent] iter=${iter} finalMessage stop_reason=${finalMsg.stop_reason} content.length=${finalMsg.content?.length} types=[${_blockTypes}] finalTextSoFar.length=${finalText.length}`);
     // 追加到上下文
     messages.push({ role: 'assistant', content: finalMsg.content });
     toAppend.push({ role: 'assistant', content: finalMsg.content });

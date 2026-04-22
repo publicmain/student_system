@@ -7319,23 +7319,24 @@ const AgentState = {
   currentToolBlocks: {},  // tool_use_id -> DOM element
 };
 
-async function initAgentTab(studentId) {
+async function initAgentTab(studentId, opts = {}) {
+  const preserveMessages = !!opts.preserveMessages;
   AgentState.currentStudentId = studentId;
-  AgentState.currentSessionId = null;
+  if (!preserveMessages) AgentState.currentSessionId = null;
   try {
     const list = await GET(`/api/students/${studentId}/agent/sessions`);
     const sel = document.getElementById('agent-session-select');
     if (sel) {
-      const cur = sel.value;
+      const cur = AgentState.currentSessionId || sel.value;
       sel.innerHTML = '<option value="">— 新对话 —</option>' + list.map(s =>
         `<option value="${escapeHtml(s.id)}">${escapeHtml(s.title || '无标题')} · ${fmtDate(s.last_active_at) || ''}</option>`
       ).join('');
       sel.onchange = () => loadAgentSession(studentId, sel.value);
       if (cur && list.find(x => x.id === cur)) sel.value = cur;
     }
-    // 重置消息区
+    // 重置消息区（仅初次进入标签页时；发送消息后的刷新不清空，避免吞掉错误/回复）
     const msgs = document.getElementById('agent-messages');
-    if (msgs && !AgentState.currentSessionId) {
+    if (msgs && !AgentState.currentSessionId && !preserveMessages) {
       msgs.innerHTML = `<div class="text-muted text-center py-5 small">
         <i class="bi bi-robot" style="font-size:2rem"></i>
         <p class="mt-2 mb-1">你好！我是这位学生的 AI 助手。</p>
@@ -7515,8 +7516,8 @@ async function sendAgentMessage(studentId) {
     AgentState.streamAbortController = null;
     document.getElementById('agent-send-btn').style.display = '';
     document.getElementById('agent-stop-btn').style.display = 'none';
-    // 刷新会话列表
-    try { await initAgentTab(studentId); } catch(e) {}
+    // 刷新会话列表（保留消息区，避免覆盖错误提示/AI 回复）
+    try { await initAgentTab(studentId, { preserveMessages: true }); } catch(e) {}
     if (AgentState.currentSessionId) {
       const sel = document.getElementById('agent-session-select');
       if (sel) sel.value = AgentState.currentSessionId;

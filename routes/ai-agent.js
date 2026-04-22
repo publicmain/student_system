@@ -88,8 +88,14 @@ module.exports = function({ db, audit, requireAuth, requireRole }) {
 
   // ── 聊天（SSE） ──────────────────────────────────────
   router.post('/students/:id/agent/chat', requireAuth, requireAccess, async (req, res) => {
-    if (!aiAgent) return res.status(503).json({ error: 'AI Agent 模块未加载' });
-    if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ error: '未配置 ANTHROPIC_API_KEY' });
+    if (!aiAgent) {
+      console.error('[ai-agent/chat] 503: AI Agent 模块未加载 (ai-agent.js require failed)');
+      return res.status(503).json({ error: 'AI Agent 模块未加载' });
+    }
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.error('[ai-agent/chat] 503: 未配置 ANTHROPIC_API_KEY (env var missing)');
+      return res.status(503).json({ error: '未配置 ANTHROPIC_API_KEY' });
+    }
 
     const u = req.session.user;
     const studentId = req.params.id;

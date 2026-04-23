@@ -210,6 +210,7 @@ function buildRuleBriefing(caseloadSize, events) {
 
 /**
  * 为所有有 caseload 的规划师批量生成日报。
+ * Fix 3: 串行改有限并发（最多 5 个并行），失败的规划师不阻塞其他人。
  * @returns {Promise<Array<{staff_id, staff_name, staff_email, briefing}>>}
  */
 async function generateAllBriefings(db, options = {}) {
@@ -218,17 +219,29 @@ async function generateAllBriefings(db, options = {}) {
     FROM staff s JOIN mentor_assignments ma ON ma.staff_id=s.id
     WHERE s.role IN ('counselor','mentor') AND s.email IS NOT NULL AND s.email != ''
   `);
+
+  const CONCURRENCY = parseInt(process.env.AI_BRIEFING_CONCURRENCY || '5');
   const results = [];
-  for (const c of counselors) {
-    try {
-      const r = await generateCounselorBriefing(db, c.id, options);
-      if (!r.skipped) {
-        results.push({ staff_id: c.id, staff_name: c.name, staff_email: c.email, briefing: r.data });
+
+  // 手写并发池：最多 CONCURRENCY 个任务同时执行
+  let idx = 0;
+  async function worker() {
+    while (idx < counselors.length) {
+      const c = counselors[idx++];
+      if (!c) break;
+      try {
+        const r = await generateCounselorBriefing(db, c.id, options);
+        if (!r.skipped) {
+          results.push({ staff_id: c.id, staff_name: c.name, staff_email: c.email, briefing: r.data });
+        }
+      } catch(e) {
+        console.error(`[ai-briefing] 生成失败 ${c.name}:`, e.message);
       }
-    } catch(e) {
-      console.error(`[ai-briefing] 生成失败 ${c.name}:`, e.message);
     }
   }
+
+  const workers = Array.from({ length: Math.min(CONCURRENCY, counselors.length || 1) }, () => worker());
+  await Promise.all(workers);
   return results;
 }
 

@@ -447,6 +447,42 @@ const SYSTEM_PROMPT = `你是"升学规划系统"内置的学生专属 AI 助手
  * @param {object} [opts.req]        express req（用于审计）
  * @returns {Promise<{messagesAppended: Array, finalText: string}>}
  */
+/**
+ * Fix 12: 构建学生 200-token 摘要放进 system block 末尾（带 cache_control）。
+ * 按角色矩阵过滤：parent/student 不见敏感字段。
+ */
+function buildStudentOnePager(db, studentId, userRole) {
+  try {
+    const s = db.get(
+      `SELECT name, grade_level, exam_board, target_countries, target_major FROM students WHERE id=?`,
+      [studentId]
+    );
+    if (!s) return null;
+    const appCount = db.get(`SELECT COUNT(*) c FROM applications WHERE student_id=? AND status IN ('pending','applied')`, [studentId]);
+    const overdueCount = db.get(
+      `SELECT COUNT(*) c FROM milestone_tasks WHERE student_id=? AND status!='done' AND due_date < date('now')`,
+      [studentId]
+    );
+    let lastContact = null;
+    if (['principal','counselor','mentor'].includes(userRole)) {
+      const comm = db.get(
+        `SELECT COALESCE(comm_date, created_at) AS dt FROM communication_logs WHERE student_id=? ORDER BY dt DESC LIMIT 1`,
+        [studentId]
+      );
+      lastContact = comm?.dt || null;
+    }
+    const lines = [
+      `[学生概览] 年级=${s.grade_level||'?'} 考试局=${s.exam_board||'?'}`,
+      `目标国家=${s.target_countries||'?'} 目标专业=${s.target_major||'?'}`,
+      `活跃申请=${appCount?.c||0} 逾期任务=${overdueCount?.c||0}`,
+      lastContact ? `最近沟通=${lastContact.slice(0,10)}` : null,
+    ].filter(Boolean).join(' | ');
+    return `\n\n--- 学生一览（供快速上下文，数据实时） ---\n${lines}`;
+  } catch(e) {
+    return null;
+  }
+}
+
 async function runAgent(opts) {
   if (!Anthropic) throw new Error('@anthropic-ai/sdk 未安装');
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('未配置 ANTHROPIC_API_KEY');
@@ -461,11 +497,19 @@ async function runAgent(opts) {
   const tools = buildToolsForRole(user.role);
   console.log(`[ai-agent/runAgent] role=${user.role} tools.length=${tools.length} model=${MODEL_HEAVY}`);
 
+  // Fix 12: system 多 block，末尾加学生 one-pager（cache_control = ephemeral）
+  const onePager = buildStudentOnePager(db, studentId, user.role);
+  const systemBlocks = [
+    { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+    ...(onePager ? [{ type: 'text', text: onePager, cache_control: { type: 'ephemeral' } }] : []),
+  ];
+
   // 构造消息数组：历史 + 新用户消息
   const messages = [...history, { role: 'user', content: userMessage }];
   const toAppend = [{ role: 'user', content: userMessage }];
   let writesThisTurn = 0;
   let finalText = '';
+  let totalUsage = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
   const emitSafe = (ev) => { try { emit && emit(ev); } catch(e) {} };
 
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
@@ -477,7 +521,7 @@ async function runAgent(opts) {
         model: MODEL_HEAVY,
         max_tokens: 8000,
         thinking: { type: 'adaptive' },
-        system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+        system: systemBlocks,
         tools,
         messages,
       });
@@ -513,6 +557,13 @@ async function runAgent(opts) {
     const finalMsg = await stream.finalMessage();
     const _blockTypes = (finalMsg.content || []).map(b => b.type).join(',');
     console.log(`[ai-agent/runAgent] iter=${iter} finalMessage stop_reason=${finalMsg.stop_reason} content.length=${finalMsg.content?.length} types=[${_blockTypes}] finalTextSoFar.length=${finalText.length}`);
+    // Fix 1: 累计 token 用量
+    if (finalMsg.usage) {
+      totalUsage.input_tokens  += finalMsg.usage.input_tokens || 0;
+      totalUsage.output_tokens += finalMsg.usage.output_tokens || 0;
+      totalUsage.cache_creation_input_tokens += finalMsg.usage.cache_creation_input_tokens || 0;
+      totalUsage.cache_read_input_tokens     += finalMsg.usage.cache_read_input_tokens || 0;
+    }
     // 追加到上下文
     messages.push({ role: 'assistant', content: finalMsg.content });
     toAppend.push({ role: 'assistant', content: finalMsg.content });
@@ -566,7 +617,7 @@ async function runAgent(opts) {
   }
 
   if (!finalText) finalText = '[无回复]';
-  return { messagesAppended: toAppend, finalText };
+  return { messagesAppended: toAppend, finalText, usage: totalUsage };
 }
 
 function _summarizeResult(toolName, result) {

@@ -873,7 +873,8 @@ async function _cmdkSearch(query) {
         ? () => navigate(r.ref)
         : () => navigate('student-detail', { studentId: r.ref }),
     }));
-    const pages = _cmdkAllPages().slice(0, 8);
+    const pages = _cmdkAllPages().slice(0, 8)
+      .map(p => ({ ...p, type: 'page', ref: p.page, action: () => navigate(p.page) }));
     return [...recent, ...pages];
   }
 

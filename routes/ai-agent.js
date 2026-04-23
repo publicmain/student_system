@@ -15,6 +15,7 @@
 'use strict';
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
+const { checkRateLimit, logAiCall, getTierForAction } = require('../ai-rate-limit');
 let aiAgent = null;
 try { aiAgent = require('../ai-agent'); } catch(e) {}
 
@@ -66,7 +67,6 @@ module.exports = function({ db, audit, requireAuth, requireRole }) {
       [req.params.sid, req.params.id, u.id]);
     if (!sess) return res.status(404).json({ error: '会话不存在或无权访问' });
     const messages = db.all(`SELECT role, content_json, created_at FROM ai_agent_messages WHERE session_id=? ORDER BY created_at ASC`, [req.params.sid]);
-    // 反序列化 content
     const decoded = messages.map(m => {
       let content;
       try { content = JSON.parse(m.content_json); } catch(e) { content = m.content_json; }
@@ -102,14 +102,17 @@ module.exports = function({ db, audit, requireAuth, requireRole }) {
     const { session_id, message } = req.body || {};
     if (!message || !String(message).trim()) return res.status(400).json({ error: '消息不能为空' });
 
-    // 速率限制
-    try {
-      const winMs = parseInt(process.env.AI_CALL_WINDOW_MS || (60*60*1000));
-      const maxCalls = parseInt(process.env.AI_AGENT_CALL_MAX || '30');
-      const sinceIso = new Date(Date.now() - winMs).toISOString();
-      const cnt = db.get(`SELECT COUNT(*) c FROM ai_call_logs WHERE user_id=? AND action='agent_chat' AND created_at >= ?`, [u.id, sinceIso]);
-      if (cnt && cnt.c >= maxCalls) return res.status(429).json({ error: 'AI 调用频次超限，请稍后再试' });
-    } catch(e) {}
+    // Fix 5: 消息长度上限 8000 字符
+    if (String(message).length > 8000) return res.status(413).json({ error: '消息过长，单条消息不得超过 8000 字符' });
+
+    // Fix 6: 分层限流
+    const rl = checkRateLimit(db, u.id, 'agent_chat');
+    if (!rl.ok) {
+      return res.status(429).json({
+        error: `AI 调用频次超限（${rl.tier} 档 ${rl.limit}/hr），请稍后再试`,
+        tier: rl.tier, limit: rl.limit, current: rl.current,
+      });
+    }
 
     // 获取/创建会话
     let sess = null;
@@ -130,7 +133,6 @@ module.exports = function({ db, audit, requireAuth, requireRole }) {
       try { content = JSON.parse(r.content_json); } catch(e) { content = r.content_json; }
       return { role: r.role, content };
     });
-    // 裁剪：最后 40 条（保留最早的 user，避免丢上下文，但如果超长就丢旧的）
     const MAX_HIST = 40;
     const trimmedHistory = history.length > MAX_HIST ? history.slice(-MAX_HIST) : history;
 
@@ -138,19 +140,14 @@ module.exports = function({ db, audit, requireAuth, requireRole }) {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');  // 禁用 nginx/反代缓冲
+    res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders?.();
 
     const sessionIdHeader = `data: ${JSON.stringify({ type: 'session', id: sess.id, title: sess.title })}\n\n`;
     res.write(sessionIdHeader);
 
-    // 心跳（30s），防代理断连
     const heartbeat = setInterval(() => { try { res.write(`: hb ${Date.now()}\n\n`); } catch(e) {} }, 30000);
 
-    // 客户端断开则中止
-    // 注意：必须用 res.on('close') 而不是 req.on('close')。
-    // 在 HTTP/2 POST 请求里，req 的 close 事件在客户端发完 body 后就会触发，
-    // 并非真正的断连——用它判断会导致 text_delta/end 等事件全被静默丢弃。
     let aborted = false;
     res.on('close', () => { aborted = true; clearInterval(heartbeat); });
 
@@ -180,9 +177,17 @@ module.exports = function({ db, audit, requireAuth, requireRole }) {
       }
       db.run(`UPDATE ai_agent_sessions SET last_active_at=datetime('now') WHERE id=?`, [sess.id]);
 
-      // 调用日志
-      try { db.run(`INSERT INTO ai_call_logs (id, user_id, action, student_id, tokens_used, created_at) VALUES (?,?,?,?,?,datetime('now'))`,
-        [uuidv4(), u.id, 'agent_chat', studentId, 0]); } catch(e) {}
+      // Fix 1: 记录真实 token + 成本
+      const usage = result.usage || null;
+      logAiCall(db, {
+        userId: u.id,
+        action: 'agent_chat',
+        studentId,
+        usage,
+        tier: 'medium',
+        provider: usage ? 'anthropic' : 'unknown',
+        feature: 'agent_chat',
+      });
 
       console.log(`[ai-agent/chat] 准备 emit end aborted=${aborted}`);
       emit({ type: 'end', session_id: sess.id });

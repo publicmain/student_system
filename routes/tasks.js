@@ -96,7 +96,17 @@ module.exports = function({ db, uuidv4, requireAuth, requireRole }) {
     }
   });
 
-  router.delete('/tasks/:id', requireRole('principal','counselor','intake_staff'), (req, res) => {
+  router.delete('/tasks/:id', requireRole('principal','counselor','intake_staff','mentor'), (req, res) => {
+    const task = db.get('SELECT student_id FROM milestone_tasks WHERE id=?', [req.params.id]);
+    if (!task) return res.status(404).json({ error: '任务不存在' });
+    const u = req.session.user;
+    if (u.role === 'mentor') {
+      const ok = db.get(
+        `SELECT 1 AS ok FROM mentor_assignments WHERE staff_id=? AND student_id=? AND (end_date IS NULL OR end_date='')`,
+        [u.linked_id, task.student_id]
+      );
+      if (!ok) return res.status(403).json({ error: '只能删除自己学生的任务' });
+    }
     db.run('DELETE FROM milestone_tasks WHERE id=?', [req.params.id]);
     res.json({ ok: true });
   });

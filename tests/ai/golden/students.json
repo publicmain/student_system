@@ -1,0 +1,55 @@
+[
+  {
+    "id": "golden-uk-reach",
+    "label": "UK 冲刺学生",
+    "student": { "grade_level": "Y13", "exam_board": "Edexcel A-Level", "status": "active", "target_countries": "UK", "target_major": "Mathematics" },
+    "exam_sittings": [
+      { "exam_board": "Edexcel", "subject": "Mathematics", "predicted_grade": "A*", "actual_grade": null, "year": 2025, "series": "Summer" },
+      { "exam_board": "Edexcel", "subject": "Further Mathematics", "predicted_grade": "A*", "actual_grade": null, "year": 2025, "series": "Summer" },
+      { "exam_board": "Edexcel", "subject": "Physics", "predicted_grade": "A*", "actual_grade": null, "year": 2025, "series": "Summer" }
+    ],
+    "expect": { "target_countries_covered": ["UK"], "confidence_not": "low" }
+  },
+  {
+    "id": "golden-sg-safety",
+    "label": "SG 保底学生",
+    "student": { "grade_level": "Y13", "exam_board": "CIE A-Level", "status": "active", "target_countries": "Singapore", "target_major": "Business" },
+    "exam_sittings": [
+      { "exam_board": "CIE", "subject": "Economics", "predicted_grade": "B", "actual_grade": null, "year": 2025, "series": "Summer" },
+      { "exam_board": "CIE", "subject": "Mathematics", "predicted_grade": "B", "actual_grade": null, "year": 2025, "series": "Summer" }
+    ],
+    "expect": { "target_countries_covered": ["SG"], "confidence_not": null }
+  },
+  {
+    "id": "golden-missing-data",
+    "label": "数据缺失学生",
+    "student": { "grade_level": "Y12", "exam_board": "Edexcel", "status": "active", "target_countries": "UK", "target_major": null },
+    "exam_sittings": [
+      { "exam_board": "Edexcel", "subject": "Chemistry", "predicted_grade": "A", "actual_grade": null, "year": 2025, "series": "Summer" }
+    ],
+    "expect": { "confidence_not": "high" }
+  },
+  {
+    "id": "golden-transfer",
+    "label": "转专业学生",
+    "student": { "grade_level": "Y13", "exam_board": "Edexcel", "status": "active", "target_countries": "UK", "target_major": "Computer Science" },
+    "exam_sittings": [
+      { "exam_board": "Edexcel", "subject": "Economics", "predicted_grade": "A", "actual_grade": "A", "year": 2024, "series": "Summer" },
+      { "exam_board": "Edexcel", "subject": "Mathematics", "predicted_grade": "A*", "actual_grade": "A*", "year": 2024, "series": "Summer" },
+      { "exam_board": "Edexcel", "subject": "Statistics", "predicted_grade": "A", "actual_grade": "A", "year": 2024, "series": "Summer" }
+    ],
+    "expect": { "risk_flags_not_empty": true }
+  },
+  {
+    "id": "golden-intl-student",
+    "label": "国际生学生",
+    "student": { "grade_level": "Y13", "exam_board": "CIE A-Level", "status": "active", "target_countries": "UK, Singapore, Hong Kong", "target_major": "Law" },
+    "exam_sittings": [
+      { "exam_board": "CIE", "subject": "Law", "predicted_grade": "A", "actual_grade": null, "year": 2025, "series": "Summer" },
+      { "exam_board": "CIE", "subject": "English Literature", "predicted_grade": "A*", "actual_grade": null, "year": 2025, "series": "Summer" },
+      { "exam_board": "CIE", "subject": "History", "predicted_grade": "A", "actual_grade": null, "year": 2025, "series": "Summer" }
+    ],
+    "assessments": [{ "assess_type": "IELTS", "score": 7.5, "max_score": 9, "assess_date": "2024-10-01" }],
+    "expect": { "target_countries_covered": ["UK"] }
+  }
+]

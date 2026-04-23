@@ -2,6 +2,7 @@
  * routes/ai-plans.js — AI 规划（AI Student Planning）
  */
 const express = require('express');
+const { v4: uuidv4Local } = require('uuid');
 
 module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiPlanner, aiEval, aiCallAttempts, AI_CALL_MAX, AI_CALL_WINDOW_MS }) {
   const router = express.Router();
@@ -108,6 +109,46 @@ module.exports = function({ db, uuidv4, audit, requireAuth, requireRole, aiPlann
     for (const k of ALL) {
       autoFill[k] = (!selected || selected.includes(k)) ? (planData.auto_fill?.[k] || []) : [];
     }
+
+    // Fix 14: diff AI draft auto_fill vs counselor-edited payload，记录每个字段差异
+    const counselorPayload = req.body.auto_fill_overrides;
+    if (counselorPayload && typeof counselorPayload === 'object') {
+      try {
+        const uuidv4 = uuidv4Local;
+        const counselorId = req.session.user.id;
+        const now = new Date().toISOString();
+        function diffAndLog(fieldPath, aiVal, editedVal) {
+          const aiStr = JSON.stringify(aiVal);
+          const editedStr = JSON.stringify(editedVal);
+          if (aiStr === editedStr) return;
+          const op = (aiVal === undefined || aiVal === null) ? 'add'
+                   : (editedVal === undefined || editedVal === null) ? 'delete'
+                   : 'modify';
+          try {
+            db.run(
+              `INSERT INTO plan_review_diffs (id, plan_id, counselor_id, field_path, op, old_value, new_value, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              [uuidv4(), req.params.id, counselorId, fieldPath, op, aiStr, editedStr, now]
+            );
+          } catch(e) {}
+        }
+        // 逐节比较
+        for (const section of ALL) {
+          const aiArr = planData.auto_fill?.[section] || [];
+          const editedArr = counselorPayload[section];
+          if (!Array.isArray(editedArr)) continue;
+          const maxLen = Math.max(aiArr.length, editedArr.length);
+          for (let i = 0; i < maxLen; i++) {
+            diffAndLog(`auto_fill.${section}[${i}]`, aiArr[i], editedArr[i]);
+          }
+        }
+        // 覆盖 autoFill 为 counselor 编辑后的版本
+        for (const k of ALL) {
+          if (counselorPayload[k] !== undefined) autoFill[k] = counselorPayload[k];
+        }
+      } catch(e) { console.error('[ai-plans] HITL diff failed:', e.message); }
+    }
+
     try {
       const counts = aiPlanner.applyPlanActions(db, req.params.id, plan.student_id, req.session.user.id, autoFill);
       audit(req, 'APPLY', 'ai_student_plans', req.params.id, { counts });

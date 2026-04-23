@@ -1,12 +1,40 @@
 /**
  * ai-command.js — 申请指挥中心 AI 引擎
- * 复用 ai-eval.js 的 OpenAI 模式（JSON Schema strict mode）
  */
 'use strict';
-const { OpenAI } = require('openai');
 const { callClaudeJSON, hasAnthropic, hasOpenAI } = require('./ai-client');
 
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
+// ── Fix 2: NLQ 结果内存 LRU 缓存 ──────────────────────────────
+// key = role + ':' + normalized_query，容量 1000，TTL 10 分钟
+const NLQ_CACHE_MAX = 1000;
+const NLQ_CACHE_TTL = 10 * 60 * 1000; // 10 min
+const _nlqCache = new Map();
+const _nlqOrder = []; // insertion order for LRU eviction
+
+function nlqCacheKey(role, query) {
+  return `${role}:${query.trim().toLowerCase().replace(/\s+/g, ' ')}`;
+}
+function nlqCacheGet(key) {
+  const entry = _nlqCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > NLQ_CACHE_TTL) { _nlqCache.delete(key); return null; }
+  // LRU: move to end
+  const pos = _nlqOrder.indexOf(key);
+  if (pos >= 0) { _nlqOrder.splice(pos, 1); _nlqOrder.push(key); }
+  return entry.value;
+}
+function nlqCacheSet(key, value) {
+  if (_nlqCache.has(key)) {
+    const pos = _nlqOrder.indexOf(key);
+    if (pos >= 0) _nlqOrder.splice(pos, 1);
+  } else if (_nlqCache.size >= NLQ_CACHE_MAX) {
+    // evict oldest
+    const oldest = _nlqOrder.shift();
+    if (oldest) _nlqCache.delete(oldest);
+  }
+  _nlqCache.set(key, { value, ts: Date.now() });
+  _nlqOrder.push(key);
+}
 
 function _ensureConfigured() {
   if (!hasAnthropic() && !hasOpenAI()) {
@@ -54,13 +82,23 @@ exports.analyzeRisks = async function(db, user) {
   }
   // principal: no filter
 
+  // Fix 15: 先用规则预筛 Top N 个最需关注的申请，避免全量 snapshot token 爆炸
+  const AI_COMMAND_MAX_APPS = parseInt(process.env.AI_COMMAND_MAX_APPS || '20');
   const apps = db.all(`
     SELECT a.id, a.uni_name, a.department, a.tier, a.status, a.submit_deadline, a.route,
-           s.name as student_name
+           s.name as student_name,
+           -- 风险评分：逾期任务数 + 截止日紧迫度（越近越高）
+           (SELECT COUNT(*) FROM milestone_tasks mt
+            WHERE mt.application_id=a.id AND mt.status!='done' AND mt.due_date < date('now')) AS overdue_task_count,
+           CASE
+             WHEN a.submit_deadline IS NULL THEN 999
+             ELSE CAST(julianday(a.submit_deadline) - julianday('now') AS INTEGER)
+           END AS days_to_deadline
     FROM applications a JOIN students s ON s.id=a.student_id
     WHERE a.status IN ('pending','applied') AND s.status='active'
     ${roleWhere}
-    ORDER BY a.submit_deadline ASC LIMIT 50`, [...roleParams]);
+    ORDER BY overdue_task_count DESC, days_to_deadline ASC
+    LIMIT ?`, [...roleParams, AI_COMMAND_MAX_APPS]);
 
   // 批量查询避免 N+1：一次获取所有 tasks/materials/ps
   const appIds = apps.map(a => a.id);
@@ -203,10 +241,16 @@ const NLQ_SCHEMA = {
   }
 };
 
-exports.parseNLQuery = async function(query) {
+exports.parseNLQuery = async function(query, role) {
   _ensureConfigured();
+  const cacheKey = nlqCacheKey(role || 'unknown', query);
+  const cached = nlqCacheGet(cacheKey);
+  if (cached) {
+    console.log(`[ai-command] NLQ cache hit key=${cacheKey.slice(0,60)}`);
+    return cached;
+  }
   // Haiku 4.5：NLQ 解析很轻，用便宜快的模型即可
-  return await callClaudeJSON({
+  const result = await callClaudeJSON({
     tier: 'light',
     system: `你是一个升学申请查询解析器。将用户的自然语言查询转换为结构化的筛选参数。
 已知大学分组：
@@ -223,6 +267,8 @@ exports.parseNLQuery = async function(query) {
     schema: NLQ_SCHEMA,
     maxTokens: 1000,
   });
+  nlqCacheSet(cacheKey, result);
+  return result;
 };
 
 // ═══════════════════════════════════════════════════════

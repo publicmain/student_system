@@ -384,6 +384,7 @@ app.use('/api', require('./routes/ai-essay')(deps));
 app.use('/api', require('./routes/ai-interview')(deps));
 app.use('/api', require('./routes/ai-briefing')(deps));
 app.use('/api', require('./routes/ai-agent')(deps));
+app.use('/api', require('./routes/ai-metrics')(deps));  // Fix 7: cache hit rate 监控
 
 // Material Requests (中介材料收集系统) — mount first to get shared helpers
 const matRequestsRouter = require('./routes/mat-requests')(deps);

@@ -229,12 +229,44 @@ function buildStudentSnapshot(db, studentId, options = {}) {
   let profileExt = null;
   try { profileExt = db.get(`SELECT * FROM student_profiles_ext WHERE student_id=?`, [studentId]); } catch(e) {}
 
-  // Candidate programs from uni_programs catalogue
-  const programs = db.all(
+  // Fix 10: 按 target_countries + target_major + grade_range 预过滤候选项目，最多 100 条
+  // 避免全量 uni_programs 塞进 user message 造成 token 爆炸
+  const targetCountriesRaw = student.target_countries || '';
+  const targetMajorRaw     = student.target_major || '';
+  const routeFocus         = options.route_focus || ['UK-UG'];
+
+  let programFilter = 'is_active=1';
+  const programParams = [];
+
+  // 按路线过滤（优先匹配）
+  if (routeFocus.length > 0) {
+    programFilter += ` AND route IN (${routeFocus.map(()=>'?').join(',')})`;
+    programParams.push(...routeFocus);
+  }
+  // 按目标国家过滤（模糊匹配）
+  if (targetCountriesRaw) {
+    const countries = targetCountriesRaw.split(/[,，\/]+/).map(c => c.trim()).filter(Boolean);
+    if (countries.length > 0) {
+      programFilter += ` AND (${countries.map(()=>'country LIKE ?').join(' OR ')})`;
+      programParams.push(...countries.map(c => `%${c}%`));
+    }
+  }
+
+  let programs = db.all(
     `SELECT id, uni_name, program_name, department, country, route,
             app_deadline, ielts_overall, hist_offer_rate, grade_requirements, extra_tests
-     FROM uni_programs WHERE is_active=1 ORDER BY country, uni_name`
+     FROM uni_programs WHERE ${programFilter} ORDER BY country, uni_name LIMIT 100`,
+    programParams
   );
+
+  // 若过滤后太少（<20），补全其他路线的项目以确保 AI 有足够选择
+  if (programs.length < 20) {
+    programs = db.all(
+      `SELECT id, uni_name, program_name, department, country, route,
+              app_deadline, ielts_overall, hist_offer_rate, grade_requirements, extra_tests
+       FROM uni_programs WHERE is_active=1 ORDER BY country, uni_name LIMIT 100`
+    );
+  }
 
   // Available timeline templates
   const templates = db.all(
@@ -398,11 +430,31 @@ async function generatePlan(db, studentId, createdBy, options = {}) {
     throw new Error('学生数据不足：至少需要录入选科记录或考试场次后才能生成 AI 规划。');
   }
 
-  // 调用 AI（heavy tier：Opus 4.7 + 自适应思考 + 流式；OpenAI 回退走 gpt-4o strict schema）
+  // Fix 10: candidate_programs 放进 system 第二块并加 cache_control，同一学生反复生成可 100% 命中
+  // 学生专属数据（会变化）仍放 user message，不影响 cache 命中
+  const catalogBlock = {
+    type: 'text',
+    text: `\n\n--- 候选大学项目（candidate_programs）---\n${JSON.stringify(
+      snapshot.system_context.candidate_programs, null, 2
+    )}\n\n--- 时间线模板（available_templates）---\n${JSON.stringify(
+      snapshot.system_context.available_templates, null, 2
+    )}\n\n--- 枚举约束（allowed_enums）---\n${JSON.stringify(
+      snapshot.system_context.allowed_enums, null, 2
+    )}`,
+    cache_control: { type: 'ephemeral' },
+  };
+  // 学生 snapshot 去除 system_context（已单独放到 system 块）
+  const studentSnapshot = { ...snapshot };
+  delete studentSnapshot.system_context;
+
+  // 调用 AI（heavy tier：Opus 4.7 + 流式；OpenAI 回退走 gpt-4o strict schema）
   const plan = await callClaudeJSON({
     tier: 'heavy',
-    system: SYSTEM_PROMPT,
-    user: JSON.stringify(snapshot, null, 2),
+    system: [
+      { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+      catalogBlock,
+    ],
+    user: JSON.stringify(studentSnapshot, null, 2),
     schema: PLAN_SCHEMA,
     maxTokens: 16000,
     stream: true,

@@ -1,13 +1,28 @@
 /**
  * ai-eval.js — AI 录取概率增强引擎
- * 使用 OpenAI gpt-4o，基于大模型训练数据（含真实录取案例）
- * 对已有系统评分进行 AI 增强分析，输出概率区间 + 推理依据。
+ * 基于大模型训练数据（含真实录取案例）对已有系统评分进行 AI 增强分析。
+ * Fix 9: 加 ai_eval_cache 缓存，key=sha256(student_stable_hash+program_id+prompt_version)
  */
 'use strict';
-const { OpenAI } = require('openai');
+const crypto = require('crypto');
 const { callClaudeJSON, hasAnthropic, hasOpenAI } = require('./ai-client');
 
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
+// prompt version — 改动后更新此值可使全部缓存自动失效
+const EVAL_PROMPT_VERSION = '1.0';
+
+// 学生"稳定字段" hash：关键学术数据变化时 miss 缓存
+function buildStudentStableHash(studentInfo) {
+  const stable = {
+    grade_level: studentInfo.grade_level,
+    exam_board: studentInfo.exam_board,
+    sittings: (studentInfo.exam_sittings || []).map(s => ({
+      board: s.exam_board, subject: s.subject,
+      pred: s.predicted_grade, actual: s.actual_grade, year: s.year,
+    })),
+    assessments: (studentInfo.assessments || []).map(a => ({ type: a.type, score: a.score, max: a.max_score })),
+  };
+  return crypto.createHash('sha256').update(JSON.stringify(stable)).digest('hex').slice(0, 16);
+}
 
 const SYSTEM_PROMPT = `You are an expert international university admissions consultant with 15+ years of experience.
 You have deep knowledge of admission statistics, trends, and requirements for universities in the UK, US, Singapore, Hong Kong, and other countries.
@@ -60,14 +75,17 @@ function buildEvalPrompt(studentInfo, programInfo, systemEval) {
 
 /**
  * Enhance an existing admission evaluation with AI probability analysis.
+ * Fix 9: 先查 ai_eval_cache，miss 再调 Opus。
+ *
  * @param {object} ev - The eval record from admission_evaluations
  * @param {object} student - The student record
  * @param {object} program - The uni_programs record
  * @param {Array}  examSittings - The student's exam_sittings
  * @param {Array}  assessments - The student's admission_assessments
+ * @param {object} [db] - 可选 db 实例，有则读写缓存
  * @returns {object} AI result object
  */
-async function enhanceEval(ev, student, program, examSittings, assessments) {
+async function enhanceEval(ev, student, program, examSittings, assessments, db) {
   if (!hasAnthropic() && !hasOpenAI()) throw new Error('未配置 AI Key。');
 
   const studentInfo = {
@@ -89,6 +107,18 @@ async function enhanceEval(ev, student, program, examSittings, assessments) {
       date: a.assess_date
     }))
   };
+
+  // Fix 9: 查 ai_eval_cache
+  const cacheKey = buildStudentStableHash(studentInfo) + ':' + program.id + ':' + EVAL_PROMPT_VERSION;
+  if (db) {
+    try {
+      const cached = db.get('SELECT result_json FROM ai_eval_cache WHERE key=?', [cacheKey]);
+      if (cached) {
+        console.log(`[ai-eval] cache hit key=${cacheKey}`);
+        return JSON.parse(cached.result_json);
+      }
+    } catch(e) {}
+  }
 
   const gradeReqs = (() => { try { return JSON.parse(program.grade_requirements||'[]'); } catch(e) { return []; } })();
   const extraTests = (() => { try { return JSON.parse(program.extra_tests||'[]'); } catch(e) { return []; } })();
@@ -123,6 +153,17 @@ async function enhanceEval(ev, student, program, examSittings, assessments) {
   // Ensure low <= mid <= high
   if (result.prob_low > result.prob_mid)  result.prob_low  = result.prob_mid;
   if (result.prob_high < result.prob_mid) result.prob_high = result.prob_mid;
+
+  // Fix 9: 写缓存
+  if (db) {
+    try {
+      db.run(
+        `INSERT OR REPLACE INTO ai_eval_cache (key, result_json, created_at, prompt_version)
+         VALUES (?, ?, datetime('now'), ?)`,
+        [cacheKey, JSON.stringify(result), EVAL_PROMPT_VERSION]
+      );
+    } catch(e) { console.error('[ai-eval] cache write failed:', e.message); }
+  }
 
   return result;
 }

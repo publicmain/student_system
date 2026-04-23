@@ -850,16 +850,57 @@ function createSchema() {
     applied_at   TEXT DEFAULT (datetime('now'))
   )`);
 
-  // ── AI 通用调用日志（速率限制 / 审计） ─────────────────
+  // ── AI 通用调用日志（速率限制 / 审计 / 成本） ──────────
   db.run(`CREATE TABLE IF NOT EXISTS ai_call_logs (
-    id           TEXT PRIMARY KEY,
-    user_id      TEXT NOT NULL,
-    action       TEXT NOT NULL,     -- essay_critique / interview_gen / plan_gen ...
-    student_id   TEXT,
-    tokens_used  INTEGER DEFAULT 0,
-    created_at   TEXT DEFAULT (datetime('now'))
+    id                     TEXT PRIMARY KEY,
+    user_id                TEXT NOT NULL,
+    action                 TEXT NOT NULL,     -- essay_critique / interview_gen / plan_gen ...
+    student_id             TEXT,
+    tokens_used            INTEGER DEFAULT 0, -- 向后兼容：= input+output 合计
+    input_tokens           INTEGER DEFAULT 0,
+    output_tokens          INTEGER DEFAULT 0,
+    cache_creation_tokens  INTEGER DEFAULT 0,
+    cache_read_tokens      INTEGER DEFAULT 0,
+    cost_usd               REAL    DEFAULT 0,
+    tier                   TEXT,              -- heavy/medium/light
+    feature                TEXT,              -- plan_gen/essay_critique/...
+    provider               TEXT DEFAULT 'anthropic',
+    created_at             TEXT DEFAULT (datetime('now'))
   )`);
+  // 为已有 DB 补齐新列
+  const _aiLogCols = (() => { try { return db.exec("PRAGMA table_info(ai_call_logs)")[0]?.values.map(v=>v[1])||[]; } catch(e){ return []; } })();
+  const _aiLogAdd = (col, type) => { if (!_aiLogCols.includes(col)) try { db.run(`ALTER TABLE ai_call_logs ADD COLUMN ${col} ${type}`); } catch(e){} };
+  _aiLogAdd('input_tokens',          'INTEGER DEFAULT 0');
+  _aiLogAdd('output_tokens',         'INTEGER DEFAULT 0');
+  _aiLogAdd('cache_creation_tokens', 'INTEGER DEFAULT 0');
+  _aiLogAdd('cache_read_tokens',     'INTEGER DEFAULT 0');
+  _aiLogAdd('cost_usd',              'REAL DEFAULT 0');
+  _aiLogAdd('tier',                  'TEXT');
+  _aiLogAdd('feature',               'TEXT');
+  _aiLogAdd('provider',              'TEXT DEFAULT \'anthropic\'');
   try { db.run('CREATE INDEX IF NOT EXISTS idx_ai_call_user_time ON ai_call_logs(user_id, created_at)'); } catch(e) {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_ai_call_action_time ON ai_call_logs(action, created_at)'); } catch(e) {}
+
+  // ── AI 评估缓存 ───────────────────────────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS ai_eval_cache (
+    key             TEXT PRIMARY KEY,          -- sha256(student_hash + program_id + prompt_version)
+    result_json     TEXT NOT NULL,
+    created_at      TEXT DEFAULT (datetime('now')),
+    prompt_version  TEXT
+  )`);
+
+  // ── AI 规划 HITL 差异日志 ──────────────────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS plan_review_diffs (
+    id          TEXT PRIMARY KEY,
+    plan_id     TEXT NOT NULL,
+    counselor_id TEXT NOT NULL,
+    field_path  TEXT NOT NULL,   -- JSON path, e.g. "auto_fill.targets[0].tier"
+    op          TEXT NOT NULL,   -- modify / delete / add
+    old_value   TEXT,            -- JSON serialized
+    new_value   TEXT,            -- JSON serialized
+    created_at  TEXT DEFAULT (datetime('now'))
+  )`);
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_plan_diffs_plan ON plan_review_diffs(plan_id)'); } catch(e) {}
 
   // ── AI Agent 会话（学生专属对话） ─────────────────────
   db.run(`CREATE TABLE IF NOT EXISTS ai_agent_sessions (

@@ -2,7 +2,8 @@
  * ai-client.js — 统一 LLM 客户端
  *
  * 优先使用 Anthropic Claude（Opus 4.7 / Sonnet 4.6 / Haiku 4.5 分级 +
- * 自动 prompt caching + 流式输出）；未配置 ANTHROPIC_API_KEY 时回退到 OpenAI。
+ * 自动 prompt caching + 流式输出 + tool_use 结构化输出）；
+ * 未配置 ANTHROPIC_API_KEY 时回退到 OpenAI。
  *
  * 通过 callClaude/callClaudeJSON 两个入口使用，子模块不再直接依赖 SDK 细节。
  */
@@ -21,6 +22,29 @@ const MODELS = {
   light:  process.env.AI_MODEL_LIGHT  || 'claude-haiku-4-5',
 };
 const OPENAI_FALLBACK = process.env.OPENAI_MODEL || 'gpt-4o';
+
+// ── 成本估算（每 token，基于 Anthropic 2025 定价） ──────────
+// heavy  = Opus 4.x   medium = Sonnet 4.x   light = Haiku 4.5
+const COST_TABLE = {
+  heavy:  { input: 15e-6, output: 75e-6,  cache_write: 18.75e-6, cache_read: 1.875e-6 },
+  medium: { input: 3e-6,  output: 15e-6,  cache_write: 3.75e-6,  cache_read: 0.3e-6   },
+  light:  { input: 0.8e-6, output: 4e-6,  cache_write: 1e-6,     cache_read: 0.08e-6  },
+};
+// OpenAI gpt-4o 近似定价
+const OPENAI_COST = { input: 2.5e-6, output: 10e-6 };
+
+function calcCost(usage, tier, provider) {
+  if (!usage) return 0;
+  if (provider === 'openai') {
+    return (usage.prompt_tokens || 0) * OPENAI_COST.input
+         + (usage.completion_tokens || 0) * OPENAI_COST.output;
+  }
+  const t = COST_TABLE[tier] || COST_TABLE.medium;
+  return (usage.input_tokens || 0) * t.input
+       + (usage.output_tokens || 0) * t.output
+       + (usage.cache_creation_input_tokens || 0) * t.cache_write
+       + (usage.cache_read_input_tokens || 0) * t.cache_read;
+}
 
 let _anthropicClient = null;
 function getAnthropic() {
@@ -46,92 +70,164 @@ function hasOpenAI()    { return !!getOpenAI(); }
  * @param {object} opts
  * @param {string} opts.tier     'heavy' | 'medium' | 'light'
  * @param {string} opts.system   系统提示词（长、固定 → 会被缓存）
- * @param {string} opts.user     用户消息
+ * @param {string|Array} opts.user  用户消息（字符串或 messages 数组）
  * @param {number} [opts.maxTokens=16000]
  * @param {boolean}[opts.stream=false]  大输出建议开（避免 HTTP 超时）
- * @returns {Promise<{text:string, usage:object}>}
+ * @param {function}[opts.onUsage]  (usage, tier, model, provider) => void
+ * @returns {Promise<{text:string, usage:object, provider:string, model:string}>}
  */
-async function callClaude({ tier = 'medium', system, user, maxTokens = 16000, stream = false }) {
+/**
+ * Normalize the `system` param to an Anthropic system-block array.
+ * Accepts: string | string[] | Anthropic block object[] (passthrough)
+ */
+function buildSystemBlocks(system) {
+  if (!system) return [];
+  if (Array.isArray(system)) {
+    // Already an array of block objects or strings
+    return system.map(s =>
+      typeof s === 'string'
+        ? { type: 'text', text: s, cache_control: { type: 'ephemeral' } }
+        : s
+    );
+  }
+  return [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }];
+}
+
+async function callClaude({ tier = 'medium', system, user, maxTokens = 16000, stream = false, onUsage }) {
   const ant = getAnthropic();
   if (ant) {
     const model = MODELS[tier] || MODELS.medium;
+    const messages = Array.isArray(user)
+      ? user
+      : [{ role: 'user', content: user }];
     const params = {
       model, max_tokens: maxTokens,
-      system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
-      messages: [{ role: 'user', content: user }],
+      system: buildSystemBlocks(system),
+      messages,
     };
+    let msg;
     if (stream) {
       const s = await ant.messages.stream(params);
-      const msg = await s.finalMessage();
-      return normalizeAnthropic(msg);
+      msg = await s.finalMessage();
+    } else {
+      msg = await ant.messages.create(params);
     }
-    const msg = await ant.messages.create(params);
-    return normalizeAnthropic(msg);
+    const result = normalizeAnthropic(msg, tier);
+    if (onUsage) onUsage(result.usage, tier, result.model, 'anthropic');
+    return result;
   }
   // OpenAI 回退
   const oa = getOpenAI();
   if (!oa) throw new Error('未配置 ANTHROPIC_API_KEY 或 OPENAI_API_KEY');
+  // 把 Anthropic block 数组转成纯文本（OpenAI 不理解 block 格式）
+  const systemText = Array.isArray(system)
+    ? system.map(b => (typeof b === 'string' ? b : b.text || '')).join('\n\n')
+    : (system || '');
+  const msgs = Array.isArray(user)
+    ? [{ role: 'system', content: systemText }, ...user]
+    : [{ role: 'system', content: systemText }, { role: 'user', content: user }];
   const rsp = await oa.chat.completions.create({
-    model: OPENAI_FALLBACK,
-    temperature: 0.3,
-    max_tokens: maxTokens,
-    messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+    model: OPENAI_FALLBACK, temperature: 0.3, max_tokens: maxTokens,
+    messages: msgs,
   });
-  return {
+  const usage = rsp.usage || null;
+  const result = {
     text: rsp.choices[0]?.message?.content || '',
-    usage: rsp.usage || null,
-    provider: 'openai',
-    model: OPENAI_FALLBACK,
+    usage, provider: 'openai', model: OPENAI_FALLBACK,
   };
+  if (onUsage) onUsage(usage, tier, OPENAI_FALLBACK, 'openai');
+  return result;
 }
 
-function normalizeAnthropic(msg) {
+function normalizeAnthropic(msg, tier) {
   const text = (msg.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-  return {
-    text,
-    usage: msg.usage || null,
-    provider: 'anthropic',
-    model: msg.model,
-  };
+  const usage = msg.usage ? {
+    input_tokens:                  msg.usage.input_tokens || 0,
+    output_tokens:                 msg.usage.output_tokens || 0,
+    cache_creation_input_tokens:   msg.usage.cache_creation_input_tokens || 0,
+    cache_read_input_tokens:       msg.usage.cache_read_input_tokens || 0,
+  } : null;
+  return { text, usage, provider: 'anthropic', model: msg.model, tier };
 }
 
 /**
- * 强制 JSON 输出。Anthropic 没有 OpenAI 式的 strict schema，所以用：
- *   - 在 user 末尾附加严格 JSON 要求
- *   - 服务端剥掉 markdown 围栏并 JSON.parse
- *   - 失败会抛错（调用方可重试或降级）
+ * 结构化 JSON 输出。
  *
- * 若 tier='heavy' 且 Anthropic 可用，会使用 OpenAI-style strict schema 以降低错误率。
+ * Anthropic: 使用 tool_use 模式（比 "请输出JSON" 更可靠）。
+ *   定义 return_output tool，input_schema = schema，tool_choice 强制调用。
+ * OpenAI: 继续使用 strict JSON schema（已经很可靠）。
+ *
+ * 保留 _fallbackText 选项用于无 schema 时的旧式 JSON 提取。
+ *
+ * @param {object} opts
+ * @param {function}[opts.onUsage]  (usage, tier, model, provider) => void
+ * @returns {Promise<object>}
  */
-async function callClaudeJSON({ tier = 'medium', system, user, schema, maxTokens = 16000, stream = false }) {
-  const jsonSystem = system + `\n\n====\n输出规则（绝对）：你必须只输出一段完整合法 JSON，不要加 markdown 代码围栏、不要加注释、不要加前后文。输出必须严格遵守用户消息末尾约定的 schema。`;
-  const schemaHint = schema ? `\n\n===\n输出 JSON schema (JSON Schema 格式)：\n${JSON.stringify(schema, null, 2)}` : '';
-  const jsonUser = user + schemaHint;
-
+async function callClaudeJSON({ tier = 'medium', system, user, schema, maxTokens = 16000, stream = false, onUsage }) {
   const ant = getAnthropic();
   if (ant) {
-    const { text } = await callClaude({ tier, system: jsonSystem, user: jsonUser, maxTokens, stream });
+    const model = MODELS[tier] || MODELS.medium;
+    const messages = Array.isArray(user) ? user : [{ role: 'user', content: user }];
+
+    if (schema) {
+      // tool_use 模式：Anthropic 把 tool input 直接解析为 JSON，无需手动 parseJSON
+      const params = {
+        model, max_tokens: maxTokens,
+        system: buildSystemBlocks(system),
+        messages,
+        tools: [{ name: 'return_output', description: '返回结构化输出', input_schema: schema }],
+        tool_choice: { type: 'tool', name: 'return_output' },
+      };
+      let msg;
+      if (stream) {
+        const s = await ant.messages.stream(params);
+        msg = await s.finalMessage();
+      } else {
+        msg = await ant.messages.create(params);
+      }
+      const usage = msg.usage ? {
+        input_tokens:                msg.usage.input_tokens || 0,
+        output_tokens:               msg.usage.output_tokens || 0,
+        cache_creation_input_tokens: msg.usage.cache_creation_input_tokens || 0,
+        cache_read_input_tokens:     msg.usage.cache_read_input_tokens || 0,
+      } : null;
+      if (onUsage) onUsage(usage, tier, msg.model, 'anthropic');
+      const toolBlock = (msg.content || []).find(b => b.type === 'tool_use');
+      if (!toolBlock) throw new Error('AI 未调用 return_output tool，输出不符合预期');
+      return toolBlock.input;
+    }
+
+    // 无 schema 时退回文本 + lenient parse
+    const jsonSystem = system + `\n\n====\n输出规则：只输出一段完整合法 JSON，不加 markdown 围栏，不加前后文。`;
+    const { text, usage, model: mdl } = await callClaude({ tier, system: jsonSystem, user: messages, maxTokens, stream, onUsage });
     return parseJSONLenient(text);
   }
-  // OpenAI 走 structured output（更可靠）
+
+  // OpenAI 回退 — structured output（更可靠）
   const oa = getOpenAI();
   if (!oa) throw new Error('未配置 AI Key');
+  const _sysText = Array.isArray(system)
+    ? system.map(b => (typeof b === 'string' ? b : b.text || '')).join('\n\n')
+    : (system || '');
+  const sysMsgs = Array.isArray(user)
+    ? [{ role: 'system', content: _sysText }, ...user]
+    : [{ role: 'system', content: _sysText }, { role: 'user', content: user }];
   const rsp = await oa.chat.completions.create({
-    model: OPENAI_FALLBACK,
-    temperature: 0.3,
-    max_tokens: maxTokens,
-    messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-    ...(schema ? { response_format: { type: 'json_schema', json_schema: { name: 'output', strict: true, schema } } } : { response_format: { type: 'json_object' } }),
+    model: OPENAI_FALLBACK, temperature: 0.3, max_tokens: maxTokens,
+    messages: sysMsgs,
+    ...(schema
+      ? { response_format: { type: 'json_schema', json_schema: { name: 'output', strict: true, schema } } }
+      : { response_format: { type: 'json_object' } }),
   });
   const raw = rsp.choices[0]?.message?.content || '';
+  const usage = rsp.usage || null;
+  if (onUsage) onUsage(usage, tier, OPENAI_FALLBACK, 'openai');
   return parseJSONLenient(raw);
 }
 
 function parseJSONLenient(text) {
   let s = (text || '').trim();
-  // 剥掉 ```json ... ``` 围栏
   s = s.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-  // 截到首个 { 到末尾 } 之间（若模型加了前后语）
   const first = s.indexOf('{');
   const last = s.lastIndexOf('}');
   if (first >= 0 && last > first) s = s.slice(first, last + 1);
@@ -145,4 +241,5 @@ module.exports = {
   hasAnthropic,
   hasOpenAI,
   MODELS,
+  calcCost,
 };
